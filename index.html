@@ -564,7 +564,10 @@ function delInscription2(iid){
 }
 
 /* ---------- Paiements ---------- */
-function formCloture(){modal(`<h3>Clôture de caisse</h3><div class="row">${F('Date','cl_d',today(),'date')}${FS('École','cl_e',opts([['','Les deux écoles'],['primaire','Primaire'],['maternelle','Maternelle']],UI.f.pec||''))}</div><p class="muted">Liste des reçus du jour, totaux par rubrique et par mode de paiement, reçus annulés, et cases à remplir : montant compté en caisse et écart.</p><div class="actions"><button onclick="closeModal()">Fermer</button><button class="primary" onclick="const h=clotureHTML(fval('cl_d'),fval('cl_e'));closeModal();printDoc(h)">Imprimer</button></div>`)}
+function formCloture(){modal(`<h3>Clôture de caisse</h3><div class="row">${F('Date','cl_d',today(),'date','onchange="cloturePreview()"')}${FS('École','cl_e',opts([['','Les deux écoles'],['primaire','Primaire'],['maternelle','Maternelle']],UI.f.pec||''),'onchange="cloturePreview()"')}</div>
+ <div id="cl_pv" style="margin-top:12px;background:#eef0f3;border-radius:8px;padding:12px;max-height:62vh;overflow:auto"></div>
+ <div class="actions"><button onclick="closeModal()">Fermer</button><button class="primary" onclick="const h=clotureHTML(fval('cl_d'),fval('cl_e'));closeModal();_pv=h;printNow()">🖨 Imprimer</button></div>`,true);cloturePreview()}
+function cloturePreview(){const box=document.getElementById('cl_pv');if(box)box.innerHTML=`<div class="pv" style="zoom:.7">${clotureHTML(fval('cl_d'),fval('cl_e'))}</div>`}
 function clotureHTML(d,ec){
  const inEc=p=>{const i=ins(p.inscriptionId);return i&&(!ec||cls(i.classeId)?.ecole===ec)};
  const P=DB.paiements.filter(p=>p.date===d&&inEc(p)&&!p.annule).sort((a,b)=>(a.recu||'').localeCompare(b.recu||''));
