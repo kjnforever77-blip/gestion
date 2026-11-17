@@ -127,7 +127,7 @@ const NIV_PRI=['CP1','CP2','CE1','CE2','CM1','CM2'];
 const NIV_ALL=[...NIV_MAT,...NIV_PRI];
 const NEXT={PS:'MS',MS:'GS',GS:'CP1',CP1:'CP2',CP2:'CE1',CE1:'CE2',CE2:'CM1',CM1:'CM2',CM2:null};
 const STATUTS=['Actif','Transféré','Abandon','Sorti (fin de cycle)','Exclu','Ancien élève'];
-const DEF_RUB=[{k:'scolarite',l:'Scolarité'},{k:'ape',l:'APE'},{k:'gouter',l:'Goûter'},{k:'livres',l:'Livres'}];
+const DEF_RUB=[{k:'scolarite',l:'Scolarité'},{k:'ape',l:'APE',ext:true},{k:'gouter',l:'Goûter'},{k:'livres',l:'Livres'}];
 const TRANCHES=['1ère tranche','2ème tranche','3ème tranche','4ème tranche','Solde'];
 const DECISIONS=['Admis(e)','Redouble','Abandon','Transféré(e)','Exclu(e)'];
 const MAT_SCALE=[['A','Acquis'],['EC','En cours'],['NA','Non acquis']];
@@ -186,6 +186,7 @@ function migrate(d){
  d.inscriptions.forEach(i=>{if(!i.frais){i.frais=zeroFrais();i.frais.scolarite=(+i.fraisScolarite||0)+(+i.fraisInscription||0)}i.arriere=+i.arriere||0;i.remise=+i.remise||0});
  d.paiements.forEach(p=>{if(!p.parts)p.parts={scolarite:+p.montant||0}});
  d.evals=d.evals||{};
+ d.settings.rubriques.forEach(r=>{if(r.k==='ape'&&r.ext===undefined)r.ext=true});
  if(d.settings.pin&&!d.settings.pinAdmin){d.settings.pinAdmin=d.settings.pin}delete d.settings.pin;
  return d;
 }
@@ -295,6 +296,13 @@ function inscOf(eid,a){a=a||S().annee;return DB.inscriptions.find(i=>i.eleveId==
 function classInscs(cid,a){a=a||S().annee;return DB.inscriptions.filter(i=>i.classeId===cid&&i.annee===a).sort((x,y)=>byName(elv(x.eleveId),elv(y.eleveId)))}
 const RUB=()=>S().rubriques;
 function keysAll(){return [...RUB().map(r=>r.k),'arriere']}
+function isExt(k){return !!RUB().find(r=>r.k===k&&r.ext)}
+function keysSchool(){return keysAll().filter(k=>!isExt(k))}
+function keysExt(){return keysAll().filter(isExt)}
+function duK(i,K){return K.reduce((s,k)=>s+dueC(i,k),0)}
+function payeK(i,K){return K.reduce((s,k)=>s+paidC(i.id,k),0)}
+function resteK(i,K){return K.reduce((s,k)=>s+Math.max(0,dueC(i,k)-paidC(i.id,k)),0)}
+function partsK(p,K){return K.reduce((s,k)=>s+(+(p.parts||{})[k]||0),0)}
 function rubLabel(k){return k==='arriere'?'Arriéré':(RUB().find(r=>r.k===k)?.l||k)}
 function dueC(i,k){let d=k==='arriere'?(+i.arriere||0):(+(i.frais||{})[k]||0);if(k==='scolarite')d-=(+i.remise||0);return Math.max(0,d)}
 function paidC(iid,k){return DB.paiements.filter(p=>p.inscriptionId===iid&&!p.annule).reduce((s,p)=>s+(+(p.parts||{})[k]||0),0)}
@@ -374,8 +382,8 @@ function backupBanner(){
 /* ---------- Tableau de bord ---------- */
 function vDash(){
  const a=S().annee,L=yearInscs(a);let g=0,f=0,att=0,per=0;
- let rst=0;L.forEach(i=>{const e=elv(i.eleveId);e&&e.sexe==='F'?f++:g++;att+=du(i);per+=paye(i.id);rst+=reste(i)});
- let rows='';sortedClasses().forEach(c=>{const li=classInscs(c.id);let G=0,Fi=0,A=0,P=0,R=0;li.forEach(i=>{const e=elv(i.eleveId);e&&e.sexe==='F'?Fi++:G++;A+=du(i);P+=paye(i.id);R+=reste(i)});
+ const KS=keysSchool(),KE=keysExt();let rst=0,ea=0,ep=0,er=0;L.forEach(i=>{const e=elv(i.eleveId);e&&e.sexe==='F'?f++:g++;att+=duK(i,KS);per+=payeK(i,KS);rst+=resteK(i,KS);ea+=duK(i,KE);ep+=payeK(i,KE);er+=resteK(i,KE)});
+ let rows='';sortedClasses().forEach(c=>{const li=classInscs(c.id);let G=0,Fi=0,A=0,P=0,R=0;li.forEach(i=>{const e=elv(i.eleveId);e&&e.sexe==='F'?Fi++:G++;A+=duK(i,KS);P+=payeK(i,KS);R+=resteK(i,KS)});
   rows+=`<tr><td><b>${esc(c.nom)}</b> <span class="muted">${c.ecole==='maternelle'?'maternelle':''}</span></td><td>${esc(c.enseignant||'')}</td><td class="num">${G}</td><td class="num">${Fi}</td><td class="num"><b>${li.length}</b></td>${isAdmin()?`<td class="num">${fcfa(A)}</td><td class="num">${fcfa(P)}</td><td class="num">${R>0?`<span style="color:var(--danger)">${fcfa(R)}</span>`:fcfa(0)}</td>`:''}</tr>`});
  const start=DB.eleves.length?'':`<div class="card"><h2 style="margin-top:0">Pour commencer</h2><ol class="steps">
   <li><b>Paramètres & données</b> : vérifiez le nom des écoles, l'année scolaire, les classes, les enseignants, les frais et les matières (barème).</li>
@@ -387,11 +395,12 @@ function vDash(){
  return `${backupBanner()}<h1>Tableau de bord — ${esc(a)}</h1>
  ${isAdmin()?'':`<div class="banner" style="background:#f4f6f8;border-color:#e2e6ea">🔒 Les montants financiers sont réservés à la direction. <button class="small" onclick="requirePin(render,'voir les finances')">Afficher (code direction)</button></div>`}
  <div class="stats"><div class="stat"><div class="v">${L.length}</div><div class="l">Élèves inscrits (${g} G · ${f} F)</div></div>${isAdmin()?`
- <div class="stat"><div class="v">${fcfa(att)}</div><div class="l">Frais attendus</div></div>
- <div class="stat"><div class="v">${fcfa(per)}</div><div class="l">Montant perçu</div></div>
- <div class="stat"><div class="v" style="color:${rst>0?'var(--danger)':'inherit'}">${fcfa(rst)}</div><div class="l">Reste à percevoir</div></div>`:''}</div>
+ <div class="stat"><div class="v">${fcfa(att)}</div><div class="l">Frais attendus (école, hors APE)</div></div>
+ <div class="stat"><div class="v">${fcfa(per)}</div><div class="l">Recettes de l'école perçues</div></div>
+ <div class="stat"><div class="v" style="color:${rst>0?'var(--danger)':'inherit'}">${fcfa(rst)}</div><div class="l">Reste à percevoir (école)</div></div>`:''}</div>
+ ${isAdmin()&&KE.length?`<div class="card" style="padding:10px 14px">APE — à part, ce n'est pas une recette de l'école : perçu <b>${fcfa(ep)}</b> sur ${fcfa(ea)} · reste <b>${fcfa(er)}</b></div>`:''}
  ${start}
- <div class="card" style="padding:0;overflow:auto"><table class="data"><thead><tr><th>Classe</th><th>Enseignant(e)</th><th class="num">Garçons</th><th class="num">Filles</th><th class="num">Total</th>${isAdmin()?'<th class="num">Attendu</th><th class="num">Perçu</th><th class="num">Reste</th>':''}</tr></thead><tbody>${rows}</tbody></table></div>${isAdmin()?'<p class="muted">Attendu = toutes les rubriques (scolarité, APE, goûter, livres) + arriérés, moins les réductions.</p>':''}`;
+ <div class="card" style="padding:0;overflow:auto"><table class="data"><thead><tr><th>Classe</th><th>Enseignant(e)</th><th class="num">Garçons</th><th class="num">Filles</th><th class="num">Total</th>${isAdmin()?'<th class="num">Attendu</th><th class="num">Perçu</th><th class="num">Reste</th>':''}</tr></thead><tbody>${rows}</tbody></table></div>${isAdmin()?'<p class="muted">Montants de l\'école : scolarité, goûter, livres et arriérés, moins les réductions. L\'APE est comptée à part.</p>':''}`;
 }
 
 /* ---------- Élèves ---------- */
@@ -563,10 +572,11 @@ function clotureHTML(d,ec){
  const K=keysAll().filter(k=>P.some(p=>+(p.parts||{})[k]));const tk={},tm={};let T=0;
  P.forEach(p=>{K.forEach(k=>tk[k]=(tk[k]||0)+(+(p.parts||{})[k]||0));tm[p.mode||'?']=(tm[p.mode||'?']||0)+(+p.montant||0);T+=+p.montant||0});
  const rows=P.map(p=>{const i=ins(p.inscriptionId),e=elv(i.eleveId);return `<tr><td>${esc(p.recu)}</td><td>${esc(fullName(e))}</td><td>${esc(cls(i.classeId)?.nom||'')}</td><td>${esc(p.mode||'')}</td>${K.map(k=>`<td class="r">${+(p.parts||{})[k]?fcfa(p.parts[k]):''}</td>`).join('')}<td class="r"><b>${fcfa(p.montant)}</b></td></tr>`}).join('');
- const esp=tm['Espèces']||0;
+ const esp=tm['Espèces']||0;const TS=P.reduce((s,p)=>s+partsK(p,keysSchool()),0),TE=T-TS;
  return `<div class="pg">${pageHeader(ec?S().ecoles[ec]:{nom:'Écoles Être et Avoir en Jésus-Christ (primaire et maternelle)'},S().annee)}<div class="title">Clôture de caisse du ${fmtDate(d)}${ec?' — '+(ec==='primaire'?'Primaire':'Maternelle'):''}</div>
  <table class="small"><thead><tr><th>Reçu</th><th>Élève</th><th>Classe</th><th>Mode</th>${K.map(k=>`<th class="r">${esc(rubLabel(k))}</th>`).join('')}<th class="r">Total</th></tr></thead><tbody>${rows||`<tr><td colspan="${5+K.length}" class="c">Aucun reçu ce jour</td></tr>`}</tbody>
  <tfoot><tr><th colspan="4">Total (${P.length} reçu(s))</th>${K.map(k=>`<th class="r">${fcfa(tk[k])}</th>`).join('')}<th class="r">${fcfa(T)}</th></tr></tfoot></table>
+ <p style="margin:10px 0 0"><b>Recettes de l'école : ${fcfa(TS)}</b>${TE?` &nbsp;·&nbsp; APE (hors recettes école) : <b>${fcfa(TE)}</b>`:''} &nbsp;·&nbsp; Total encaissé : ${fcfa(T)}</p>
  <table style="margin-top:10px;width:60%"><tr><th colspan="2">Par mode de paiement</th></tr>${Object.entries(tm).map(([m,v])=>`<tr><td>${esc(m)}</td><td class="r">${fcfa(v)}</td></tr>`).join('')||'<tr><td colspan="2">—</td></tr>'}</table>
  ${A.length?`<table class="small" style="margin-top:10px"><tr><th colspan="4">Reçus annulés</th></tr>${A.map(p=>`<tr><td>${esc(p.recu)}</td><td>${esc(fullName(elv(ins(p.inscriptionId)?.eleveId)))}</td><td class="r">${fcfa(p.montant)}</td><td>${esc(p.annule.motif)}</td></tr>`).join('')}</table>`:''}
  <table style="margin-top:14px"><tr><td style="width:50%">Espèces attendues en caisse : <b>${fcfa(esp)}</b></td><td>Espèces comptées : ..............................</td></tr><tr><td>Écart : ..............................</td><td>Observations : ..............................</td></tr></table>
@@ -824,12 +834,14 @@ function paiementsHTML(cid,onlyImp,ec){
 }
 function recettesHTML(ec,d1,d2){
  const P=DB.paiements.filter(p=>{const i=ins(p.inscriptionId);return i&&!p.annule&&(!ec||cls(i.classeId)?.ecole===ec)&&(!d1||p.date>=d1)&&(!d2||p.date<=d2)}).sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.recu||'').localeCompare(b.recu||''));
- const K=keysAll().filter(k=>P.some(p=>+(p.parts||{})[k]));const tot={};K.forEach(k=>tot[k]=0);let T=0;
- const rows=P.map(p=>{const i=ins(p.inscriptionId),e=elv(i.eleveId);K.forEach(k=>tot[k]+=+(p.parts||{})[k]||0);T+=+p.montant||0;return `<tr><td>${fmtDate(p.date)}</td><td>${esc(p.recu)}</td><td>${esc(fullName(e))}</td><td>${esc(cls(i.classeId)?.nom||'')}</td>${K.map(k=>`<td class="r">${+(p.parts||{})[k]?fcfa(p.parts[k]):''}</td>`).join('')}<td class="r"><b>${fcfa(p.montant)}</b></td></tr>`}).join('');
- const sc=S().ecoles[ec||'primaire'];
- return `<div class="pg">${pageHeader(ec?sc:{nom:'Écoles Être et Avoir en Jésus-Christ (primaire et maternelle)'},S().annee)}<div class="title">Journal des recettes${ec?' — '+(ec==='primaire'?'Primaire':'Maternelle'):''}</div><p>Période : du ${fmtDate(d1)||'début'} au ${fmtDate(d2)||fmtDate(today())} · ${P.length} reçu(s)</p>
- <table class="small"><thead><tr><th>Date</th><th>Reçu</th><th>Élève</th><th>Classe</th>${K.map(k=>`<th class="r">${esc(rubLabel(k))}</th>`).join('')}<th class="r">Total</th></tr></thead><tbody>${rows||`<tr><td colspan="${5+K.length}" class="c">Aucune recette</td></tr>`}</tbody>
- <tfoot><tr><th colspan="4">Total</th>${K.map(k=>`<th class="r">${fcfa(tot[k])}</th>`).join('')}<th class="r">${fcfa(T)}</th></tr></tfoot></table>${signBlock().replace("L'enseignant(e)","Le/La Caissier(ère)").replace('<div>Le Parent</div>','')}</div>`;
+ const used=k=>P.some(p=>+(p.parts||{})[k]);const KS=keysSchool().filter(used),KE=keysExt().filter(used);const tot={};[...KS,...KE].forEach(k=>tot[k]=0);let TS=0,T=0;
+ const cell=(p,k)=>`<td class="r">${+(p.parts||{})[k]?fcfa(p.parts[k]):''}</td>`;
+ const rows=P.map(p=>{const i=ins(p.inscriptionId),e=elv(i.eleveId);[...KS,...KE].forEach(k=>tot[k]+=+(p.parts||{})[k]||0);const ts=partsK(p,KS);TS+=ts;T+=+p.montant||0;return `<tr><td>${fmtDate(p.date)}</td><td>${esc(p.recu)}</td><td>${esc(fullName(e))}</td><td>${esc(cls(i.classeId)?.nom||'')}</td>${KS.map(k=>cell(p,k)).join('')}<td class="r"><b>${fcfa(ts)}</b></td>${KE.map(k=>cell(p,k)).join('')}${KE.length?`<td class="r">${fcfa(p.montant)}</td>`:''}</tr>`}).join('');
+ const nc=5+KS.length+(KE.length?KE.length+1:0);
+ return `<div class="pg">${pageHeader(ec?S().ecoles[ec]:{nom:'Écoles Être et Avoir en Jésus-Christ (primaire et maternelle)'},S().annee)}<div class="title">Journal des recettes${ec?' — '+(ec==='primaire'?'Primaire':'Maternelle'):''}</div><p>Période : du ${fmtDate(d1)||'début'} au ${fmtDate(d2)||fmtDate(today())} · ${P.length} reçu(s)</p>
+ <table class="small"><thead><tr><th>Date</th><th>Reçu</th><th>Élève</th><th>Classe</th>${KS.map(k=>`<th class="r">${esc(rubLabel(k))}</th>`).join('')}<th class="r">Total école</th>${KE.map(k=>`<th class="r">${esc(rubLabel(k))}</th>`).join('')}${KE.length?'<th class="r">Total encaissé</th>':''}</tr></thead><tbody>${rows||`<tr><td colspan="${nc}" class="c">Aucune recette</td></tr>`}</tbody>
+ <tfoot><tr><th colspan="4">Total</th>${KS.map(k=>`<th class="r">${fcfa(tot[k])}</th>`).join('')}<th class="r">${fcfa(TS)}</th>${KE.map(k=>`<th class="r">${fcfa(tot[k])}</th>`).join('')}${KE.length?`<th class="r">${fcfa(T)}</th>`:''}</tr></tfoot></table>
+ <p><b>Recettes de l'école : ${fcfa(TS)}</b>${KE.length?` &nbsp;·&nbsp; ${KE.map(k=>esc(rubLabel(k))+' (hors recettes école) : '+fcfa(tot[k])).join(' · ')} &nbsp;·&nbsp; Total encaissé : ${fcfa(T)}`:''}</p>${signBlock().replace("L'enseignant(e)","Le/La Caissier(ère)").replace('<div>Le Parent</div>','')}</div>`;
 }
 function effectifsHTML(){
  const part=ec=>{let G=0,Fi=0;const rows=sortedClasses().filter(c=>c.ecole===ec).map(c=>{const L=classInscs(c.id);let g=0,f=0;L.forEach(i=>elv(i.eleveId)?.sexe==='F'?f++:g++);G+=g;Fi+=f;return `<tr><td>${esc(c.nom)}</td><td>${esc(c.enseignant||'')}</td><td class="c">${g}</td><td class="c">${f}</td><td class="c"><b>${g+f}</b></td></tr>`}).join('');
@@ -1080,13 +1092,15 @@ function downloadXLSX(fname,sheets){
 }
 function recettesXLSX(ec,d1,d2){
  const P=DB.paiements.filter(p=>{const i=ins(p.inscriptionId);return i&&!p.annule&&(!ec||cls(i.classeId)?.ecole===ec)&&(!d1||p.date>=d1)&&(!d2||p.date<=d2)}).sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.recu||'').localeCompare(b.recu||''));
- const K=keysAll();const head=['Date','Reçu N°','Matricule','Élève','Classe','École','Mode','Remarque',...K.map(rubLabel),'Total'];
+ const KS=keysSchool(),KE=keysExt();const head=['Date','Reçu N°','Matricule','Élève','Classe','École','Mode','Remarque',...KS.map(rubLabel),'Total école',...KE.map(rubLabel),'Total encaissé'];
  const rows=[[`Journal des recettes — ${ec?(ec==='primaire'?'Primaire':'Maternelle'):'Primaire et maternelle'} — du ${fmtDate(d1)||'début'} au ${fmtDate(d2)||fmtDate(today())}`],[],head];
- P.forEach(p=>{const i=ins(p.inscriptionId),e=elv(i.eleveId),c=cls(i.classeId);rows.push([{d:p.date},p.recu,e?.matricule||'',fullName(e),c?.nom||'',c?.ecole==='maternelle'?'Maternelle':'Primaire',p.mode||'',p.remarque||'',...K.map(k=>+(p.parts||{})[k]||0),+p.montant||0])});
- const n=rows.length,first=4;const tot=['TOTAL','','','','','','','',...[...K,'t'].map((k,j)=>P.length?{f:`SUM(${colL(8+j)}${first}:${colL(8+j)}${n})`}:0)];rows.push([],tot);
+ P.forEach(p=>{const i=ins(p.inscriptionId),e=elv(i.eleveId),c=cls(i.classeId);rows.push([{d:p.date},p.recu,e?.matricule||'',fullName(e),c?.nom||'',c?.ecole==='maternelle'?'Maternelle':'Primaire',p.mode||'',p.remarque||'',...KS.map(k=>+(p.parts||{})[k]||0),partsK(p,KS),...KE.map(k=>+(p.parts||{})[k]||0),+p.montant||0])});
+ const n=rows.length,first=4,ncol=KS.length+1+KE.length+1;rows.push([],['TOTAL','','','','','','','',...Array.from({length:ncol},(_,j)=>P.length?{f:`SUM(${colL(8+j)}${first}:${colL(8+j)}${n})`}:0)]);
  const bm={};P.forEach(p=>{const m=p.mode||'?';bm[m]=(bm[m]||0)+(+p.montant||0)});
- const res=[['Résumé'],[],['Rubrique','Montant'],...K.map(k=>[rubLabel(k),P.reduce((s,p)=>s+(+(p.parts||{})[k]||0),0)]),['TOTAL',P.reduce((s,p)=>s+(+p.montant||0),0)],[],['Mode de paiement','Montant'],...Object.entries(bm),[],['Nombre de reçus',P.length]];
- downloadXLSX(`Recettes_${ec||'ecoles'}_${d1||'debut'}_${d2||today()}.xlsx`,[{name:'Recettes',rows,bold:[0,2,rows.length-1],widths:[11,15,10,30,8,11,13,16,...K.map(()=>12),12],freeze:3},{name:'Résumé',rows:res,bold:[0,2,3+K.length,5+K.length],widths:[22,14]}]);
+ const sumk=k=>P.reduce((s,p)=>s+(+(p.parts||{})[k]||0),0);
+ const res=[['Résumé'],[],['Recettes de l\'école','Montant'],...KS.map(k=>[rubLabel(k),sumk(k)]),['TOTAL ÉCOLE',P.reduce((s,p)=>s+partsK(p,KS),0)],[],['Hors recettes de l\'école','Montant'],...KE.map(k=>[rubLabel(k),sumk(k)]),[],['TOTAL ENCAISSÉ',P.reduce((s,p)=>s+(+p.montant||0),0)],[],['Mode de paiement','Montant'],...Object.entries(bm),[],['Nombre de reçus',P.length]];
+ const b1=3+KS.length,b2=b1+2;
+ downloadXLSX(`Recettes_${ec||'ecoles'}_${d1||'debut'}_${d2||today()}.xlsx`,[{name:'Recettes',rows,bold:[0,2,rows.length-1],widths:[11,15,10,30,8,11,13,16,...KS.map(()=>12),13,...KE.map(()=>10),14],freeze:3},{name:'Résumé',rows:res,bold:[0,2,b1,b2,b2+KE.length+2,b2+KE.length+4],widths:[26,14]}]);
  logJ('Export Excel','Journal des recettes '+(d1||'')+' → '+(d2||''));save();
 }
 function paiementsXLSX(cid,onlyImp,ec){
