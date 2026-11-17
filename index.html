@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EAenJC — Gestion scolaire</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="favicon.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#1f2a37">
+<style>
+:root{--ink:#1d2430;--muted:#667085;--line:#d9dde3;--bg:#f5f6f8;--card:#fff;--accent:#2f5d8a;--accent-soft:#e8eef5;--danger:#b42318;--ok:#1a7f4b;--warn:#b54708}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:var(--ink);background:var(--bg)}
+.app{display:flex;min-height:100vh}
+nav.side{width:215px;background:#1f2a37;color:#e5e7eb;flex-shrink:0;padding:14px 0;position:sticky;top:0;height:100vh;overflow:auto}
+nav.side .brand{padding:4px 18px 14px;font-weight:700;font-size:16px;border-bottom:1px solid #334155;margin-bottom:8px}
+nav.side .brand small{display:block;font-weight:400;color:#94a3b8;font-size:12px}
+nav.side a{display:block;padding:9px 18px;color:#cbd5e1;text-decoration:none;cursor:pointer}
+nav.side a.active,nav.side a:hover{background:#334155;color:#fff}
+nav.side .foot{padding:14px 18px;border-top:1px solid #334155;margin-top:10px;font-size:12px;color:#94a3b8}
+nav.side .foot button{width:100%;margin-bottom:6px;background:#334155;color:#fff;border-color:#475569}
+main{flex:1;padding:20px 26px;min-width:0}
+h1{font-size:20px;margin:0 0 14px}
+h2{font-size:16px;margin:18px 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:14px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.field{display:flex;flex-direction:column;gap:3px;min-width:140px}
+.field label{font-size:12px;color:var(--muted)}
+input,select,textarea{font:inherit;padding:6px 8px;border:1px solid #c5cbd3;border-radius:5px;background:#fff;color:inherit}
+input.err{border-color:var(--danger);background:#fff5f5}
+textarea{min-height:60px;width:100%}
+button,.btn{font:inherit;padding:7px 12px;border-radius:5px;border:1px solid #c5cbd3;background:#fff;cursor:pointer;color:inherit;display:inline-block}
+button:hover,.btn:hover{border-color:#98a2b3}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.danger{color:var(--danger);border-color:#f0b4ae}
+button.small{padding:3px 8px;font-size:12px}
+button:disabled{opacity:.5;cursor:default}
+table.data{width:100%;border-collapse:collapse;background:#fff}
+table.data th,table.data td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:middle}
+table.data a{color:inherit;text-decoration:none}table.data a:hover{text-decoration:underline}
+table.data th{font-size:12px;color:var(--muted);font-weight:600;background:#fafbfc}
+table.data tbody tr:hover td{background:#f8fafc}
+table.data tfoot td{font-weight:700;border-top:2px solid var(--line)}
+.num{text-align:right!important;font-variant-numeric:tabular-nums}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:14px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.stat .v{font-size:22px;font-weight:700}
+.stat .l{font-size:12px;color:var(--muted)}
+.tag{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;background:#eef1f4}
+.tag.ok{background:#e3f4ea;color:var(--ok)}.tag.warn{background:#fdf0e1;color:var(--warn)}.tag.bad{background:#fde8e6;color:var(--danger)}
+.muted{color:var(--muted)}
+.banner{padding:9px 12px;border-radius:6px;margin-bottom:12px;background:#fff7e6;border:1px solid #f5d9a8}
+.grid-notes{border-collapse:collapse;background:#fff}
+.grid-notes th,.grid-notes td{border:1px solid var(--line);padding:4px 5px;text-align:center;font-size:13px}
+.grid-notes th{background:#fafbfc;font-weight:600;font-size:12px;max-width:90px}
+.grid-notes td.name{text-align:left;white-space:nowrap;font-weight:500}
+.grid-notes input{width:54px;text-align:center;padding:4px}
+.grid-notes select{padding:3px}
+.bwrap{display:grid;grid-template-columns:230px 1fr;gap:14px;align-items:start}
+.blist{padding:6px;max-height:78vh;overflow:auto;margin:0}
+.bitem{padding:6px 8px;border-radius:5px;cursor:pointer;font-size:13px}
+.bitem:hover{background:#f1f4f8}.bitem.on{background:var(--accent-soft);font-weight:600}
+.recu-wrap{height:270mm;display:flex;flex-direction:column;font-size:13.5px}
+.recu-half{flex:1 1 0;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.recu-cut{height:6mm;line-height:6mm;text-align:center;font-size:10px;letter-spacing:1px;overflow:hidden;white-space:nowrap;flex:0 0 6mm}
+.recu-box{flex:1;border:1.5px solid #000;padding:4mm 7mm 3mm;display:flex;flex-direction:column;justify-content:space-between;margin:2mm 1.5px}
+.recu-box.dense{padding:3mm 6mm 2.5mm}
+.pg .recu-box th,.pg .recu-box td{padding:3px 8px;font-size:13.5px}
+.pg .recu-box.dense th,.pg .recu-box.dense td{padding:2px 7px;font-size:13px}
+.pg .recu-box table.info td{padding:2px 0;border:none}
+.pg .recu-box .sign{margin-top:0;padding-top:0}
+.pg .recu-box .sign div{min-height:16mm}
+.pg .recu-box.dense .sign div{min-height:9mm}
+.pv .pg{background:#fff;border:1px solid var(--line);padding:12mm;margin:0 auto 14px;max-width:210mm;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.sheet{background:#fff;border:1px solid var(--line);padding:12mm;max-width:210mm;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:flex-start;justify-content:center;padding:30px 10px;overflow:auto;z-index:50}
+.modal{background:#fff;border-radius:10px;padding:18px 20px;width:min(780px,100%);box-shadow:0 10px 40px rgba(0,0,0,.25)}
+.modal h3{margin:0 0 12px}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px 14px}
+.actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
+.toast{position:fixed;bottom:18px;right:18px;background:#1f2a37;color:#fff;padding:10px 14px;border-radius:6px;z-index:60}
+.steps{margin:0;padding-left:20px}.steps li{margin:4px 0}
+#print{display:none}
+@media (max-width:820px){.app{flex-direction:column}nav.side{width:auto;height:auto;position:static;display:flex;flex-wrap:wrap;padding:6px}nav.side .brand{width:100%;border:0;margin:0;padding:6px 10px}nav.side a{padding:6px 10px}nav.side .foot{display:none}main{padding:14px}.bwrap{grid-template-columns:1fr}}
+@media print{
+ body{background:#fff}
+ .app,.modal-bg,.toast{display:none!important}
+ #print{display:block}
+ @page{size:A4;margin:12mm}
+}
+/* Documents imprimés : noir et blanc, sans fond de couleur */
+.pg{color:#000;background:#fff;font-family:"Times New Roman",Times,serif;font-size:12.5px;line-height:1.35}
+#print .pg{page-break-after:always;break-after:page}
+#print .pg:last-child{page-break-after:auto;break-after:auto}
+.pg table{border-collapse:collapse;width:100%}
+.pg th,.pg td{border:1px solid #000;padding:4px 6px;text-align:left}
+.pg th{font-weight:bold}
+.pg .c{text-align:center}.pg .r{text-align:right}
+.pg .hdr{display:flex;justify-content:space-between;gap:20px;border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:10px}
+.pg .title{text-align:center;font-size:17px;font-weight:bold;margin:8px 0 10px;text-transform:uppercase;letter-spacing:.5px}
+.pg table.info td{border:none;padding:2px 4px}
+.pg .sign{display:flex;justify-content:space-between;margin-top:22px}
+.pg .sign div{flex:1;text-align:center;min-height:60px}
+.pg .small{font-size:11px}
+.pg .small th,.pg .small td{padding:3px 4px}
+</style>
+</head>
+<body>
+<div class="app">
+ <nav class="side" id="nav"></nav>
+ <main id="main"></main>
+</div>
+<div id="print"></div>
+<script>
+'use strict';
+/* =========================================================
+   EAenJC — Gestion scolaire (registre, inscriptions, frais,
+   notes, bulletins). Données enregistrées dans le navigateur
+   + fichier de sauvegarde (.json) à télécharger.
+   ========================================================= */
+const KEY='eaenjc_gestion_scolaire_v1';
+const TRIMS=['T1','T2','T3'];
+const TLABEL={T1:'1ère composition',T2:'2ème composition',T3:'3ème composition',AN:'Année'};
+const NIV_MAT=['PS','MS','GS'];
+const NIV_PRI=['CP1','CP2','CE1','CE2','CM1','CM2'];
+const NIV_ALL=[...NIV_MAT,...NIV_PRI];
+const NEXT={PS:'MS',MS:'GS',GS:'CP1',CP1:'CP2',CP2:'CE1',CE1:'CE2',CE2:'CM1',CM1:'CM2',CM2:null};
+const STATUTS=['Actif','Transféré','Abandon','Sorti (fin de cycle)','Exclu','Ancien élève'];
+const DEF_RUB=[{k:'scolarite',l:'Scolarité'},{k:'ape',l:'APE'},{k:'gouter',l:'Goûter'},{k:'livres',l:'Livres'}];
+const TRANCHES=['1ère tranche','2ème tranche','3ème tranche','4ème tranche','Solde'];
+const DECISIONS=['Admis(e)','Redouble','Abandon','Transféré(e)','Exclu(e)'];
+const MAT_SCALE=[['A','Acquis'],['EC','En cours'],['NA','Non acquis']];
+
+/* ---------- utilitaires ---------- */
+let _u=0;
+function uid(){return Date.now().toString(36)+(_u++).toString(36)+Math.random().toString(36).slice(2,6)}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function fcfa(n){return Math.round(+n||0).toString().replace(/\B(?=(\d{3})+(?!\d))/g,' ')+' F'}
+function fmtDate(d){if(!d)return '';const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(d);return m?`${m[3]}/${m[2]}/${m[1]}`:d}
+function today(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+function nextYear(a){const [x,y]=a.split('-').map(Number);return `${x+1}-${y+1}`}
+function guessYear(){const d=new Date(),y=d.getFullYear();return d.getMonth()>=7?`${y}-${y+1}`:`${y-1}-${y}`}
+function norm(s){return String(s??'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim()}
+function round2(x){return Math.round(x*100)/100}
+function fmtN(x){return x==null||x===''?'':String(round2(+x)).replace('.',',')}
+function fmtN2(x){return x==null?'—':(+x).toFixed(2).replace('.',',')}
+function mention(v){if(v==null)return '';return v>=9?'Excellent':v>=8?'Très bien':v>=7?'Bien':v>=6?'Assez bien':v>=5?'Passable':v>=4?'Insuffisant':'Faible'}
+function opts(list,sel){return list.map(o=>{const [v,t]=Array.isArray(o)?o:[o,o];return `<option value="${esc(v)}"${String(v)===String(sel??'')?' selected':''}>${esc(t)}</option>`}).join('')}
+function F(label,id,val,type,extra){return `<div class="field"><label for="${id}">${label}</label><input id="${id}" type="${type||'text'}" value="${esc(val??'')}" ${extra||''}></div>`}
+function FS(label,id,optionsHtml,extra){return `<div class="field"><label for="${id}">${label}</label><select id="${id}" ${extra||''}>${optionsHtml}</select></div>`}
+function fval(id){const el=document.getElementById(id);return el?(el.type==='checkbox'?el.checked:String(el.value).trim()):''}
+function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2200)}
+function download(name,content,mime){const b=new Blob([content],{type:mime});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},800)}
+
+/* ---------- données ---------- */
+function defaultMatieres(niv){
+ const m=a=>a.map(([n,max])=>({id:uid(),nom:n,max:max??null}));
+ if(niv==='CP1'||niv==='CP2')return m([['Lecture',10],['Écriture',10],['Calcul',10],['Langage',10],["Exercices d'observation",10],['Chant / Récitation',10],['Dessin',10]]);
+ if(niv==='CE1'||niv==='CE2')return m([['Dictée',10],['Lecture',10],['Écriture',10],['Rédaction',10],['Calcul',10],['Histoire',10],['Géographie',10],['Sciences',10],['Éducation civique et morale',10]]);
+ if(niv==='CM1'||niv==='CM2')return m([['Dictée',10],['Questions de dictée',10],['Rédaction',10],['Calcul',10],['Problème',10],['Histoire',10],['Géographie',10],['Sciences',10],['Éducation civique et morale',10]]);
+ return m([['Langage oral'],['Pré-lecture'],['Graphisme / Pré-écriture'],['Pré-mathématiques'],['Découverte du monde'],['Activités artistiques (dessin, chant)'],['Éducation physique'],['Vivre ensemble / Comportement']]);
+}
+function zeroFrais(){const f={};DEF_RUB.forEach(r=>f[r.k]=0);return f}
+function defaultDB(){
+ const classes=[];
+ NIV_MAT.forEach(n=>classes.push({id:uid(),ecole:'maternelle',niveau:n,nom:n,enseignant:'',frais:Object.assign(zeroFrais(),{scolarite:30000,ape:1000,gouter:5000,livres:5000}),matieres:defaultMatieres(n)}));
+ NIV_PRI.forEach(n=>classes.push({id:uid(),ecole:'primaire',niveau:n,nom:n,enseignant:'',frais:Object.assign(zeroFrais(),{scolarite:40000,ape:1000}),matieres:defaultMatieres(n)}));
+ return {version:2,
+  settings:{annee:guessYear(),seuil:5,ville:'Bobo-Dioulasso',lastBackup:null,rubriques:DEF_RUB.map(r=>({...r})),
+   prefixes:{primaire:'P',maternelle:'M'},cptMat:{primaire:0,maternelle:0},cptRecu:{primaire:0,maternelle:0},
+   piedRecu:'',
+   ecoles:{primaire:{nom:'École Primaire Privée Évangélique',devise:'',arrete:'',adresse:'Bobo-Dioulasso',tel:'',directeur:'TRAORE Soumaïla Etienne'},
+           maternelle:{nom:'École Maternelle Privée Évangélique',devise:'',arrete:'',adresse:'Bobo-Dioulasso',tel:'',directeur:''}}},
+  classes,eleves:[],inscriptions:[],paiements:[],evals:{}};
+}
+function migrate(d){
+ const def=defaultDB();
+ d.settings=Object.assign({},def.settings,d.settings||{});
+ d.settings.ecoles=Object.assign({},def.settings.ecoles,d.settings.ecoles||{});
+ ['prefixes','cptMat','cptRecu'].forEach(k=>d.settings[k]=Object.assign({},def.settings[k],d.settings[k]||{}));
+ if(!Array.isArray(d.settings.rubriques)||!d.settings.rubriques.length)d.settings.rubriques=DEF_RUB.map(r=>({...r}));
+ if(!Array.isArray(d.classes))d.classes=def.classes;
+ ['eleves','inscriptions','paiements'].forEach(k=>{if(!Array.isArray(d[k]))d[k]=[]});
+ d.classes.forEach(c=>{if(!Array.isArray(c.matieres))c.matieres=[];if(!c.frais){c.frais=zeroFrais();c.frais.scolarite=(+c.fraisScolarite||0)+(+c.fraisInscription||0)}});
+ d.inscriptions.forEach(i=>{if(!i.frais){i.frais=zeroFrais();i.frais.scolarite=(+i.fraisScolarite||0)+(+i.fraisInscription||0)}i.arriere=+i.arriere||0;i.remise=+i.remise||0});
+ d.paiements.forEach(p=>{if(!p.parts)p.parts={scolarite:+p.montant||0}});
+ d.evals=d.evals||{};
+ if(d.settings.pin&&!d.settings.pinAdmin){d.settings.pinAdmin=d.settings.pin}delete d.settings.pin;
+ return d;
+}
+let STORAGE_OK=true;
+function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
+let DB=load();
+function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
+function save(){saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
+
+/* ---------- Fichier de données partagé (Google Drive) ---------- */
+const FS_OK=typeof window.showOpenFilePicker==='function';
+let FH=null,FSTATE='none',FERR='',CONFLICT=null,LASTMOD=0;
+let SYNC=(()=>{try{return JSON.parse(localStorage.getItem(KEY+'_sync'))||{}}catch(e){return {}}})();SYNC.timer=null;
+function saveSync(){try{localStorage.setItem(KEY+'_sync',JSON.stringify({baseRev:SYNC.baseRev??null,dirty:!!SYNC.dirty,at:SYNC.at||null}))}catch(e){}}
+function devName(){try{return localStorage.getItem(KEY+'_dev')||''}catch(e){return ''}}
+function setDevName(v){try{localStorage.setItem(KEY+'_dev',v.trim())}catch(e){}}
+function idb(){return new Promise((res,rej)=>{const r=indexedDB.open('eaenjc_fichier',1);r.onupgradeneeded=()=>r.result.createObjectStore('h');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+async function idbSet(k,v){const d=await idb();return new Promise((res,rej)=>{const tx=d.transaction('h','readwrite');v===null?tx.objectStore('h').delete(k):tx.objectStore('h').put(v,k);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)})}
+async function idbGet(k){const d=await idb();return new Promise((res,rej)=>{const r=d.transaction('h').objectStore('h').get(k);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+async function readFile(){const f=await FH.getFile();LASTMOD=f.lastModified;const t=await f.text();if(!t.trim())return null;return JSON.parse(t)}
+async function writeFile(force){
+ if(!FH||(FSTATE!=='ok'&&!force))return;clearTimeout(SYNC.timer);
+ try{
+  const cur=await readFile();const curRev=cur?.meta?.rev??0;
+  if(!force&&cur&&SYNC.baseRev!=null&&curRev!==SYNC.baseRev){FSTATE='conflict';CONFLICT=cur.meta||{};renderSync();render();return}
+  DB.meta={rev:curRev+1,at:new Date().toISOString(),by:devName()||'?'};
+  const w=await FH.createWritable();await w.write(JSON.stringify(DB));await w.close();
+  const f=await FH.getFile();LASTMOD=f.lastModified;
+  SYNC.baseRev=DB.meta.rev;SYNC.dirty=false;SYNC.at=DB.meta.at;saveSync();saveLocal();FSTATE='ok';CONFLICT=null;renderSync();
+ }catch(e){FSTATE='error';FERR=e.message||String(e);renderSync()}
+}
+async function openHandle(h,mode){ // mode: 'resume' | 'open' | 'create'
+ FH=h;
+ try{
+  if(mode==='create'){SYNC.baseRev=null;await writeFile(true);if(FSTATE==='ok')toast('Fichier de données créé');await idbSet('fh',h);render();return}
+  const cur=await readFile();
+  if(!cur){SYNC.baseRev=null;await writeFile(true);await idbSet('fh',h);render();return}
+  if(!Array.isArray(cur.eleves))throw new Error("Ce fichier n'est pas un fichier de données EAenJC.");
+  const curRev=cur.meta?.rev??0;
+  if(mode==='resume'&&SYNC.dirty&&SYNC.baseRev!=null&&curRev!==SYNC.baseRev){FSTATE='conflict';CONFLICT=cur.meta||{};await idbSet('fh',h);renderSync();render();return}
+  if(mode==='resume'&&SYNC.dirty&&curRev===SYNC.baseRev){FSTATE='ok';await writeFile();await idbSet('fh',h);render();return}
+  DB=migrate(cur);SYNC.baseRev=curRev;SYNC.dirty=false;SYNC.at=cur.meta?.at||null;saveSync();saveLocal();FSTATE='ok';await idbSet('fh',h);render();
+  if(mode==='open')toast('Fichier de données ouvert');
+ }catch(e){FSTATE='error';FERR=e.message||String(e);renderSync();render()}
+}
+async function createDataFile(){
+ if(!FS_OK){alert("Ce navigateur ne permet pas d'utiliser un fichier de données. Utilisez Google Chrome.");return}
+ if(!devName()){alert("Indiquez d'abord le nom de cet ordinateur (ex. Laptop école, MacBook Jungnam).");return}
+ try{const h=await window.showSaveFilePicker({suggestedName:'EAenJC_donnees.json',types:[{description:'Données EAenJC',accept:{'application/json':['.json']}}]});await openHandle(h,'create')}catch(e){if(e.name!=='AbortError')alert(e.message)}
+}
+async function openDataFile(){
+ if(!FS_OK){alert("Ce navigateur ne permet pas d'utiliser un fichier de données. Utilisez Google Chrome.");return}
+ if(!devName()){alert("Indiquez d'abord le nom de cet ordinateur (ex. Laptop école, MacBook Jungnam).");return}
+ if(!confirm("Ouvrir le fichier de données partagé ?\nLes données de ce navigateur seront remplacées par celles du fichier (une copie de sécurité est téléchargée avant)."))return;
+ try{const [h]=await window.showOpenFilePicker({types:[{description:'Données EAenJC',accept:{'application/json':['.json']}}]});if(DB.eleves.length)download(`EAenJC_copie_avant_ouverture_${today()}.json`,JSON.stringify(DB),'application/json');SYNC.dirty=false;await openHandle(h,'open')}catch(e){if(e.name!=='AbortError')alert(e.message)}
+}
+async function reconnect(){
+ try{const h=FH||await idbGet('fh');if(!h)return;const perm=await h.requestPermission({mode:'readwrite'});if(perm!=='granted'){FSTATE='need';renderSync();return}await openHandle(h,'resume')}catch(e){FSTATE='error';FERR=e.message;renderSync()}
+}
+async function disconnectFile(){if(!confirm('Déconnecter le fichier de données ? Ce navigateur gardera sa copie locale.'))return;FH=null;FSTATE='none';SYNC={baseRev:null,dirty:false};saveSync();await idbSet('fh',null);render()}
+async function resolveConflict(keepMine){
+ if(keepMine){if(!confirm("Écraser la version du fichier par la vôtre ?\nLes modifications faites sur l'autre ordinateur depuis votre dernière synchronisation seront perdues (une copie est téléchargée avant)."))return;
+  try{const cur=await readFile();if(cur)download(`EAenJC_version_autre_ordinateur_${today()}.json`,JSON.stringify(cur),'application/json')}catch(e){}
+  FSTATE='ok';await writeFile(true);render();toast('Votre version a été enregistrée')}
+ else{if(!confirm("Charger la version du fichier ?\nVos modifications non synchronisées seront remplacées (une copie est téléchargée avant)."))return;
+  download(`EAenJC_mes_modifications_${today()}.json`,JSON.stringify(DB),'application/json');SYNC.dirty=false;await openHandle(FH,'open')}
+}
+async function pollFile(){
+ if(!FH||FSTATE!=='ok'||SYNC.dirty)return;
+ if(document.getElementById('mbg'))return;const ae=document.activeElement;if(ae&&['INPUT','SELECT','TEXTAREA'].includes(ae.tagName)&&document.getElementById('main').contains(ae))return;
+ try{const f=await FH.getFile();if(f.lastModified===LASTMOD)return;const cur=await readFile();const r=cur?.meta?.rev??0;
+  if(cur&&r!==SYNC.baseRev){DB=migrate(cur);SYNC.baseRev=r;SYNC.at=cur.meta?.at;saveSync();saveLocal();render();toast(`Mis à jour : modifications de ${cur.meta?.by||"l'autre ordinateur"}`)}}
+ catch(e){/* fichier momentanément indisponible */}
+}
+setInterval(pollFile,15000);window.addEventListener('beforeunload',e=>{if(FH&&SYNC.dirty&&FSTATE==='ok'){writeFile();e.preventDefault();e.returnValue=''}});window.addEventListener('focus',()=>setTimeout(pollFile,300));
+function syncLabel(){
+ if(!FH&&FSTATE!=='need')return FS_OK?'Fichier partagé : non connecté':'';
+ if(FSTATE==='need')return '⚠ Fichier de données à reconnecter';
+ if(FSTATE==='conflict')return '⚠ Conflit avec l\'autre ordinateur';
+ if(FSTATE==='error')return '⚠ Erreur fichier : '+FERR;
+ if(SYNC.dirty)return '… enregistrement dans le fichier';
+ return '✓ Synchronisé'+(SYNC.at?' '+new Date(SYNC.at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):'');
+}
+function renderSync(){const el=document.getElementById('syncst');if(el)el.textContent=syncLabel()}
+function syncBanner(){
+ if(FSTATE==='need')return `<div class="banner"><b>Fichier de données partagé :</b> Chrome demande votre accord pour l'utiliser à nouveau. <button class="small primary" onclick="reconnect()">Reconnecter le fichier</button></div>`;
+ if(FSTATE==='conflict')return `<div class="banner" style="border-color:#e8a29b;background:#fff4f2"><b>Attention : le fichier a été modifié sur un autre ordinateur</b> (${esc(CONFLICT?.by||'?')}, ${CONFLICT?.at?new Date(CONFLICT.at).toLocaleString('fr-FR'):'?'}) pendant que vous aviez des modifications non synchronisées ici.<br>
+  <button class="small primary" onclick="resolveConflict(false)">Charger la version du fichier (recommandé)</button> <button class="small" onclick="resolveConflict(true)">Garder ma version et écraser le fichier</button><br><span class="muted">Dans les deux cas, l'autre version est téléchargée en copie de sécurité.</span></div>`;
+ if(FSTATE==='error')return `<div class="banner"><b>Le fichier de données n'est pas accessible</b> (${esc(FERR)}). Les modifications restent dans ce navigateur. <button class="small" onclick="reconnect()">Réessayer</button></div>`;
+ return '';
+}
+async function initFile(){
+ if(!FS_OK)return;
+ try{const h=await idbGet('fh');if(!h)return;FH=h;const perm=await h.queryPermission({mode:'readwrite'});
+  if(perm==='granted')await openHandle(h,'resume');else{FSTATE='need';render()}}catch(e){}
+}
+try{localStorage.setItem(KEY+'_t','1');localStorage.removeItem(KEY+'_t')}catch(e){STORAGE_OK=false}
+
+const S=()=>DB.settings;
+const cls=id=>DB.classes.find(c=>c.id===id);
+const elv=id=>DB.eleves.find(e=>e.id===id);
+const ins=id=>DB.inscriptions.find(i=>i.id===id);
+function fullName(e){return e?`${(e.nom||'').toUpperCase()} ${e.prenoms||''}`.trim():'?'}
+const byName=(a,b)=>fullName(a).localeCompare(fullName(b),'fr');
+function yearInscs(a){a=a||S().annee;return DB.inscriptions.filter(i=>i.annee===a)}
+function inscOf(eid,a){a=a||S().annee;return DB.inscriptions.find(i=>i.eleveId===eid&&i.annee===a)}
+function classInscs(cid,a){a=a||S().annee;return DB.inscriptions.filter(i=>i.classeId===cid&&i.annee===a).sort((x,y)=>byName(elv(x.eleveId),elv(y.eleveId)))}
+const RUB=()=>S().rubriques;
+function keysAll(){return [...RUB().map(r=>r.k),'arriere']}
+function rubLabel(k){return k==='arriere'?'Arriéré':(RUB().find(r=>r.k===k)?.l||k)}
+function dueC(i,k){let d=k==='arriere'?(+i.arriere||0):(+(i.frais||{})[k]||0);if(k==='scolarite')d-=(+i.remise||0);return Math.max(0,d)}
+function paidC(iid,k){return DB.paiements.filter(p=>p.inscriptionId===iid&&!p.annule).reduce((s,p)=>s+(+(p.parts||{})[k]||0),0)}
+function du(i){return keysAll().reduce((s,k)=>s+dueC(i,k),0)}
+function paye(iid){return DB.paiements.filter(p=>p.inscriptionId===iid&&!p.annule).reduce((s,p)=>s+(+p.montant||0),0)}
+function reste(i){return keysAll().reduce((s,k)=>s+Math.max(0,dueC(i,k)-paidC(i.id,k)),0)}
+function anneeCourte(a){return a.slice(0,5)+a.slice(7)}
+function sortedClasses(){return [...DB.classes].sort((a,b)=>NIV_ALL.indexOf(a.niveau)-NIV_ALL.indexOf(b.niveau)||a.nom.localeCompare(b.nom,'fr'))}
+function classOpts(sel){return opts(sortedClasses().map(c=>[c.id,c.nom+(c.ecole==='maternelle'?' (maternelle)':'')]),sel)}
+function ecoleOf(c){return S().ecoles[c?.ecole||'primaire']}
+function findClassByNiveau(niv){return sortedClasses().find(c=>c.niveau===niv)}
+function nextMatricule(ec){
+ ec=ec==='maternelle'?'maternelle':'primaire';
+ let m;do{S().cptMat[ec]=(+S().cptMat[ec]||0)+1;m=`${S().prefixes[ec]||''}${String(S().cptMat[ec]).padStart(4,'0')}`}while(DB.eleves.some(e=>e.matricule===m));return m;
+}
+function nextRecu(ec){ec=ec==='maternelle'?'maternelle':'primaire';S().cptRecu[ec]=(+S().cptRecu[ec]||0)+1;return `${anneeCourte(S().annee)}-${ec==='maternelle'?'m':'p'}${String(S().cptRecu[ec]).padStart(4,'0')}`}
+function createInscription(eid,cid,annee,extra){
+ annee=annee||S().annee;const c=cls(cid);
+ const prev=DB.inscriptions.some(i=>i.eleveId===eid&&i.annee!==annee);
+ const i=Object.assign({id:uid(),eleveId:eid,annee,classeId:cid,type:prev?'Ancien':'Nouveau',redoublant:false,
+  frais:Object.assign(zeroFrais(),c.frais||{}),remise:0,date:today(),decision:''},extra||{});
+ const e=elv(eid);i.arriere=(+(extra&&extra.arriere)||0)+(+(e&&e.arriereEnAttente)||0);if(e)e.arriereEnAttente=0;
+ DB.inscriptions.push(i);return i;
+}
+
+/* ---------- évaluations ---------- */
+function ev(iid,T){DB.evals[iid]=DB.evals[iid]||{};DB.evals[iid][T]=DB.evals[iid][T]||{n:{},abs:'',appr:''};return DB.evals[iid][T]}
+function evGet(iid,T){return (DB.evals[iid]&&DB.evals[iid][T])||{n:{},abs:'',appr:''}}
+function has(v){return v!==undefined&&v!==null&&v!==''}
+function scoreOf(iid,T,c){
+ const e=evGet(iid,T);let tot=0,max=0,cnt=0;
+ c.matieres.forEach(m=>{const v=e.n[m.id];if(has(v)&&!isNaN(v)){tot+=+v;max+=+m.max||0;cnt++}});
+ return {tot:round2(tot),max,cnt,moy:max?round2(tot/max*10):null};
+}
+function rankInto(res){
+ const arr=Object.values(res).filter(r=>r.moy!=null).sort((a,b)=>b.moy-a.moy);
+ let rank=0,prev=null;arr.forEach((r,k)=>{if(r.moy!==prev){rank=k+1;prev=r.moy}r.rang=rank});
+ const cnt={};arr.forEach(r=>cnt[r.rang]=(cnt[r.rang]||0)+1);arr.forEach(r=>r.ex=cnt[r.rang]>1);
+}
+function statsOf(res){const v=Object.values(res).map(r=>r.moy).filter(x=>x!=null);if(!v.length)return null;
+ return {moy:round2(v.reduce((s,x)=>s+x,0)/v.length),max:Math.max(...v),min:Math.min(...v),n:v.length,admis:v.filter(x=>x>=S().seuil).length}}
+function classResults(cid,T,a){const c=cls(cid),res={};classInscs(cid,a).forEach(i=>res[i.id]=scoreOf(i.id,T,c));rankInto(res);return {res,stats:statsOf(res)}}
+function annualResults(cid,a,upto){
+ const c=cls(cid),res={};upto=upto||3;
+ classInscs(cid,a).forEach(i=>{const tri=TRIMS.map((T,k)=>k<upto?scoreOf(i.id,T,c).moy:null);const v=tri.filter(x=>x!=null);res[i.id]={tri,moy:v.length?round2(v.reduce((s,x)=>s+x,0)/v.length):null}});
+ rankInto(res);return {res,stats:statsOf(res)};
+}
+function rangTxt(r,sexe){if(!r||!r.rang)return '—';return (r.rang===1?(sexe==='F'?'1ère':'1er'):r.rang+'e')+(r.ex?' ex':'')}
+function proposition(i,r){const c=cls(i.classeId);if(!c)return '';if(c.ecole==='maternelle')return 'Admis(e)';if(!r||r.moy==null)return '';return r.moy>=S().seuil?'Admis(e)':'Redouble'}
+function decisionLabel(d,c){if(!d)return '';if(d==='Admis(e)'){const nx=NEXT[c.niveau];return nx?`Admis(e) en classe de ${nx}`:'Admis(e) — fin de cycle'}return d}
+
+/* ---------- navigation ---------- */
+const VIEWS={dash:['Tableau de bord',vDash],eleves:['Élèves (registre)',vEleves],inscrire:['Inscrire un élève',vInscrire],paie:['Paiements / frais',vPaie],inscr:['Classes et effectifs',vInscr],notes:['Saisie des notes',vNotes],bull:['Bulletins',vBull],rapports:['Listes & impressions',vRapports],fin:["Fin d'année / passage",vFin],param:['Paramètres & données',vParam]};
+const AFTER={eleves:fillEleves,notes:recalcGrid,inscrire:fillInscrire};
+const ADMIN_VIEWS=['fin','param'];
+let UI={view:'dash',f:{}};
+function go(v){if(ADMIN_VIEWS.includes(v)&&!isAdmin())return requirePin(()=>{UI.view=v;render();window.scrollTo(0,0)},'ouvrir « '+VIEWS[v][0]+' »');UI.view=v;render();window.scrollTo(0,0)}
+function render(){
+ const lb=S().lastBackup,r=role();
+ if(!r){document.getElementById('nav').innerHTML=`<div class="brand">EAenJC<small>Gestion scolaire · ${esc(S().annee)}</small></div><div class="foot"><div id="syncst" style="color:#e2e8f0">${esc(syncLabel())}</div></div>`;
+  document.getElementById('main').innerHTML=syncBanner()+vLogin();setTimeout(()=>{const x=document.getElementById('login_pin');if(x)x.focus()},50);return}
+ if(ADMIN_VIEWS.includes(UI.view)&&r!=='admin')UI.view='dash';
+ document.getElementById('nav').innerHTML=`<div class="brand">EAenJC<small>Gestion scolaire · ${esc(S().annee)}</small></div>`+
+  Object.entries(VIEWS).map(([k,[t]])=>`<a class="${UI.view===k?'active':''}" onclick="go('${k}')">${t}${ADMIN_VIEWS.includes(k)&&r!=='admin'?' 🔒':''}</a>`).join('')+
+  `<div class="foot">${secured()?`<div style="margin-bottom:8px;color:#e2e8f0">Connecté : <b>${r==='admin'?'Direction':'Comptable'}</b></div><button onclick="lockNow()">🔒 Verrouiller</button>${r==='admin'&&S().pinStaff?`<button onclick="ROLE='staff';render()">Passer en mode comptable</button>`:''}`:''}<div id="syncst" style="margin:6px 0 8px;color:#e2e8f0">${esc(syncLabel())}</div>${devName()?`<div style="margin-bottom:8px">Ordinateur : ${esc(devName())}</div>`:''}<button onclick="downloadBackup()">Télécharger une sauvegarde</button>Dernière sauvegarde :<br>${lb?fmtDate(lb.slice(0,10)):'jamais'}</div>`;
+ document.getElementById('main').innerHTML=VIEWS[UI.view][1]();
+ if(AFTER[UI.view])AFTER[UI.view]();
+}
+function backupBanner(){
+ let html=syncBanner();
+ if(!STORAGE_OK)html+=`<div class="banner"><b>Enregistrement automatique indisponible</b> dans ce navigateur. Téléchargez une sauvegarde après chaque séance de travail, et restaurez-la la fois suivante.</div>`;
+ const lb=S().lastBackup,days=lb?Math.floor((Date.now()-new Date(lb))/864e5):null;
+ if(DB.eleves.length&&FSTATE!=='ok'&&(days===null||days>=7))html+=`<div class="banner">${days===null?"Aucune sauvegarde n'a encore été téléchargée.":`Dernière sauvegarde il y a ${days} jours.`} Les données sont gardées dans ce navigateur : gardez aussi une copie sur clé USB. <button class="small" onclick="downloadBackup()">Télécharger maintenant</button></div>`;
+ return html;
+}
+
+/* ---------- Tableau de bord ---------- */
+function vDash(){
+ const a=S().annee,L=yearInscs(a);let g=0,f=0,att=0,per=0;
+ let rst=0;L.forEach(i=>{const e=elv(i.eleveId);e&&e.sexe==='F'?f++:g++;att+=du(i);per+=paye(i.id);rst+=reste(i)});
+ let rows='';sortedClasses().forEach(c=>{const li=classInscs(c.id);let G=0,Fi=0,A=0,P=0,R=0;li.forEach(i=>{const e=elv(i.eleveId);e&&e.sexe==='F'?Fi++:G++;A+=du(i);P+=paye(i.id);R+=reste(i)});
+  rows+=`<tr><td><b>${esc(c.nom)}</b> <span class="muted">${c.ecole==='maternelle'?'maternelle':''}</span></td><td>${esc(c.enseignant||'')}</td><td class="num">${G}</td><td class="num">${Fi}</td><td class="num"><b>${li.length}</b></td>${isAdmin()?`<td class="num">${fcfa(A)}</td><td class="num">${fcfa(P)}</td><td class="num">${R>0?`<span style="color:var(--danger)">${fcfa(R)}</span>`:fcfa(0)}</td>`:''}</tr>`});
+ const start=DB.eleves.length?'':`<div class="card"><h2 style="margin-top:0">Pour commencer</h2><ol class="steps">
+  <li><b>Paramètres & données</b> : vérifiez le nom des écoles, l'année scolaire, les classes, les enseignants, les frais et les matières (barème).</li>
+  <li><b>Inscrire un élève</b> : saisissez les élèves un par un, ou importez votre liste Excel (enregistrée en CSV) depuis Paramètres & données.</li>
+  <li><b>Paiements</b> : enregistrez chaque versement ; un reçu s'imprime en deux exemplaires.</li>
+  <li><b>Saisie des notes</b> puis <b>Bulletins</b> : imprimez les bulletins de toute une classe en un clic.</li>
+  <li>En fin d'année, <b>Fin d'année / passage</b> réinscrit automatiquement les élèves dans la classe supérieure.</li></ol>
+  <p class="muted" style="margin-bottom:0">Les données restent dans ce navigateur sur cet ordinateur. Téléchargez régulièrement une sauvegarde (bouton en bas du menu).</p></div>`;
+ return `${backupBanner()}<h1>Tableau de bord — ${esc(a)}</h1>
+ ${isAdmin()?'':`<div class="banner" style="background:#f4f6f8;border-color:#e2e6ea">🔒 Les montants financiers sont réservés à la direction. <button class="small" onclick="requirePin(render,'voir les finances')">Afficher (code direction)</button></div>`}
+ <div class="stats"><div class="stat"><div class="v">${L.length}</div><div class="l">Élèves inscrits (${g} G · ${f} F)</div></div>${isAdmin()?`
+ <div class="stat"><div class="v">${fcfa(att)}</div><div class="l">Frais attendus</div></div>
+ <div class="stat"><div class="v">${fcfa(per)}</div><div class="l">Montant perçu</div></div>
+ <div class="stat"><div class="v" style="color:${rst>0?'var(--danger)':'inherit'}">${fcfa(rst)}</div><div class="l">Reste à percevoir</div></div>`:''}</div>
+ ${start}
+ <div class="card" style="padding:0;overflow:auto"><table class="data"><thead><tr><th>Classe</th><th>Enseignant(e)</th><th class="num">Garçons</th><th class="num">Filles</th><th class="num">Total</th>${isAdmin()?'<th class="num">Attendu</th><th class="num">Perçu</th><th class="num">Reste</th>':''}</tr></thead><tbody>${rows}</tbody></table></div>${isAdmin()?'<p class="muted">Attendu = toutes les rubriques (scolarité, APE, goûter, livres) + arriérés, moins les réductions.</p>':''}`;
+}
+
+/* ---------- Élèves ---------- */
+function statTag(s){return `<span class="tag ${s==='Actif'?'ok':s==='Sorti (fin de cycle)'?'':'warn'}">${esc(s||'')}</span>`}
+function vEleves(){
+ const f=UI.f;
+ return `${backupBanner()}<h1>Élèves — registre matricule</h1>
+ <div class="card row">
+  <div class="field" style="flex:1;min-width:220px"><label>Rechercher (nom, matricule, parent, téléphone)</label><input id="q" value="${esc(f.q||'')}" oninput="UI.f.q=this.value;fillEleves()"></div>
+  ${FS('Classe ('+esc(S().annee)+')','e_cl','<option value="">Toutes</option><option value="_none"'+(f.cl==='_none'?' selected':'')+'>Non inscrits cette année</option>'+classOpts(f.cl),'onchange="UI.f.cl=this.value;fillEleves()"')}
+  ${FS('Statut','e_st','<option value="">Tous</option>'+opts(STATUTS,f.st),'onchange="UI.f.st=this.value;fillEleves()"')}
+  <button class="primary" onclick="formEleve()">+ Nouvel élève</button>
+ </div>
+ <div class="card" style="padding:0;overflow:auto"><table class="data"><thead><tr><th>Matricule</th><th>Nom et prénoms</th><th>Sexe</th><th>Né(e) le</th><th>Classe ${esc(S().annee)}</th><th>Parent / Téléphone</th><th>Statut</th></tr></thead><tbody id="tb"></tbody></table></div><div id="cnt" class="muted"></div>`;
+}
+function fillEleves(){
+ const f=UI.f,q=norm(f.q);let L=DB.eleves.slice();
+ if(f.st)L=L.filter(e=>e.statut===f.st);
+ if(f.cl)L=L.filter(e=>{const i=inscOf(e.id);return f.cl==='_none'?!i:(i&&i.classeId===f.cl)});
+ if(q)L=L.filter(e=>norm([e.nom,e.prenoms,e.matricule,e.pere,e.mere,e.tuteur,e.telephone].join(' ')).includes(q));
+ L.sort(byName);
+ document.getElementById('tb').innerHTML=L.map(e=>{const i=inscOf(e.id);return `<tr style="cursor:pointer" onclick="openFiche('${e.id}')"><td>${esc(e.matricule)}</td><td><b>${esc(fullName(e))}</b>${e.boursier?' <span class="tag">boursier</span>':''}</td><td>${esc(e.sexe)}</td><td>${fmtDate(e.dateNaiss)}</td><td>${i?esc(cls(i.classeId)?.nom||''):'<span class="muted">non inscrit</span>'}</td><td>${esc(e.tuteur||e.pere||e.mere||'')}<br><span class="muted">${esc(e.telephone||'')}</span></td><td>${statTag(e.statut)}</td></tr>`}).join('')||'<tr><td colspan="7" class="muted" style="padding:24px;text-align:center">Aucun élève.</td></tr>';
+ document.getElementById('cnt').textContent=`${L.length} élève(s) affiché(s) sur ${DB.eleves.length}`;
+}
+function formEleve(id,presetCl,q){
+ let e=id?elv(id):{sexe:'M',statut:'Actif',nationalite:'Burkinabè',dateEntree:today()};
+ if(!id&&q&&!/\d/.test(q)){const w=q.trim().split(/\s+/);e=Object.assign({},e,{nom:(w.shift()||'').toUpperCase(),prenoms:w.join(' ')})}
+ const inscPart=id?'':`<h3 style="margin:16px 0 8px;font-size:15px">Inscription ${esc(S().annee)}</h3><div class="form-grid">${FS('Classe (les frais de la classe seront appliqués)','f_cl','<option value="">— Ne pas inscrire maintenant —</option>'+classOpts(presetCl||UI.f.icl||''))}</div>`;
+ modal(`<h3>${id?"Modifier l'élève":'Nouvel élève'}</h3><div class="form-grid">
+ ${F('Matricule (automatique si vide)','f_mat',e.matricule)}
+ ${F('Nom *','f_nom',e.nom)}${F('Prénoms *','f_pre',e.prenoms)}
+ ${FS('Sexe','f_sexe',opts([['M','Masculin'],['F','Féminin']],e.sexe))}
+ ${F('Date de naissance','f_dn',/^\d{4}-\d{2}-\d{2}$/.test(e.dateNaiss||'')?e.dateNaiss:'','date')}
+ ${F('Lieu de naissance','f_ln',e.lieuNaiss)}${F('Nationalité','f_nat',e.nationalite)}${F("N° d'acte de naissance",'f_acte',e.acte)}
+ ${F('Nom du père','f_pere',e.pere)}${F('Nom de la mère','f_mere',e.mere)}${F('Tuteur / personne à contacter','f_tut',e.tuteur)}
+ ${F('Téléphone','f_tel',e.telephone)}${F('Adresse / quartier','f_adr',e.adresse)}
+ ${F("Date d'entrée à l'école",'f_de',e.dateEntree,'date')}${F("École d'origine",'f_eo',e.ecoleOrigine)}
+ ${FS('Statut','f_st',opts(STATUTS,e.statut))}
+ <div class="field"><label>&nbsp;</label><label style="font-size:14px;color:inherit"><input type="checkbox" id="f_bour" ${e.boursier?'checked':''}> Boursier(ère)</label></div>
+ ${F("Arriéré non encore reporté (F)",'f_arrA',e.arriereEnAttente||0,'number','min="0" step="any" title="Dette des années passées : elle sera ajoutée à la prochaine inscription."')}
+ </div><div class="field" style="margin-top:10px"><label>Observations</label><textarea id="f_obs">${esc(e.observations||'')}</textarea></div>
+ ${inscPart}
+ <div class="actions"><button onclick="closeModal()">Annuler</button><button class="primary" onclick="saveEleve('${id||''}')">Enregistrer</button></div>`);
+}
+function saveEleve(id){
+ const nom=fval('f_nom'),pre=fval('f_pre');if(!nom||!pre){alert('Le nom et les prénoms sont obligatoires.');return}
+ const isNew=!id;const e=isNew?{id:uid()}:elv(id);
+ const mat=fval('f_mat');
+ if(mat&&DB.eleves.some(x=>x.matricule===mat&&x.id!==e.id)){alert('Ce matricule est déjà utilisé.');return}
+ const data={nom:nom.toUpperCase(),prenoms:pre,sexe:fval('f_sexe'),dateNaiss:fval('f_dn'),lieuNaiss:fval('f_ln'),nationalite:fval('f_nat'),acte:fval('f_acte'),pere:fval('f_pere'),mere:fval('f_mere'),tuteur:fval('f_tut'),telephone:fval('f_tel'),adresse:fval('f_adr'),dateEntree:fval('f_de'),ecoleOrigine:fval('f_eo'),statut:fval('f_st'),boursier:fval('f_bour'),observations:fval('f_obs'),arriereEnAttente:+fval('f_arrA')||0};
+ if(isNew&&DB.eleves.some(x=>norm(x.nom)===norm(data.nom)&&norm(x.prenoms)===norm(pre)&&(x.dateNaiss||'')===data.dateNaiss)&&!confirm('Un élève avec le même nom (et la même date de naissance) existe déjà. Enregistrer quand même ?'))return;
+ Object.assign(e,data);e.matricule=mat||e.matricule||nextMatricule(cls(fval('f_cl'))?.ecole);
+ let newI=null;if(isNew){DB.eleves.push(e);const cl=fval('f_cl');if(cl){newI=createInscription(e.id,cl);logJ('Inscription',`${fullName(e)} — ${cls(cl)?.nom} ${S().annee} (nouvel élève)`)}}
+ save();closeModal();if(newI){UI.f.insq='';render();afterInscription(newI.id)}else{render();toast('Élève enregistré')}
+}
+function kv(l,v){return `<div><span class="muted" style="font-size:12px">${l}</span><br>${esc(v||'—')}</div>`}
+function openFiche(eid){
+ const e=elv(eid);if(!e)return;
+ const hist=DB.inscriptions.filter(i=>i.eleveId===eid).sort((a,b)=>a.annee.localeCompare(b.annee));
+ const rows=hist.map(i=>{const c=cls(i.classeId);let m='—';if(c&&c.ecole==='primaire'){m=fmtN2(annualResults(c.id,i.annee).res[i.id]?.moy)}
+  return `<tr><td>${esc(i.annee)}</td><td>${esc(c?.nom||'?')}</td><td>${esc(i.type)}${i.redoublant?' · redoublant(e)':''}</td><td class="num">${m}</td><td>${esc(i.decision||'')}</td><td class="num">${fcfa(du(i))}</td><td class="num">${fcfa(paye(i.id))}</td></tr>`}).join('')||'<tr><td colspan="7" class="muted">Aucune inscription.</td></tr>';
+ const cur=inscOf(eid);
+ modal(`<h3>${esc(fullName(e))} <span class="muted" style="font-weight:400">· ${esc(e.matricule)}</span> ${statTag(e.statut)}</h3>
+ <div class="form-grid" style="gap:8px 14px">${kv('Sexe',e.sexe==='F'?'Féminin':'Masculin')}${kv('Né(e) le',fmtDate(e.dateNaiss)+(e.lieuNaiss?' à '+e.lieuNaiss:''))}${kv('Nationalité',e.nationalite)}${kv('Acte de naissance',e.acte)}
+ ${kv('Père',e.pere)}${kv('Mère',e.mere)}${kv('Tuteur / contact',e.tuteur)}${kv('Téléphone',e.telephone)}${kv('Adresse',e.adresse)}${kv("Entrée à l'école",fmtDate(e.dateEntree))}${kv("École d'origine",e.ecoleOrigine)}${kv('Boursier',e.boursier?'Oui':'Non')}${e.arriereEnAttente?kv('Arriéré à reporter',fcfa(e.arriereEnAttente)):''}</div>
+ ${e.observations?`<p><span class="muted" style="font-size:12px">Observations</span><br>${esc(e.observations)}</p>`:''}
+ <h3 style="margin:16px 0 8px;font-size:15px">Parcours scolaire</h3>
+ <div style="overflow:auto"><table class="data"><thead><tr><th>Année</th><th>Classe</th><th>Type</th><th class="num">Moy. annuelle</th><th>Décision</th><th class="num">Dû</th><th class="num">Payé</th></tr></thead><tbody>${rows}</tbody></table></div>
+ <div class="actions" style="justify-content:flex-start">
+ <button onclick="formEleve('${eid}')">Modifier</button>
+ ${cur?`<button onclick="formInscription('${cur.id}')">Inscription ${esc(S().annee)}</button><button onclick="formPaiement('${cur.id}')">Nouveau paiement</button><button onclick="formCertificat('${eid}')">Certificat de scolarité</button>`:(e.statut==='Actif'?`<button class="primary" onclick="formInscription(null,'${eid}',suggestClass('${eid}'))">Inscrire en ${esc(S().annee)}</button>`:'')}
+ <button onclick="printDoc(ficheHTML('${eid}'))">Imprimer la fiche</button>
+ <button class="danger" onclick="delEleve('${eid}')">Supprimer</button>
+ <span style="flex:1"></span><button onclick="closeModal()">Fermer</button></div>`,true);
+}
+function delEleve(eid){requirePin(()=>delEleve2(eid),'supprimer un élève')}
+function delEleve2(eid){
+ const ids=DB.inscriptions.filter(i=>i.eleveId===eid).map(i=>i.id);
+ if(DB.paiements.some(p=>ids.includes(p.inscriptionId))){alert("Cet élève a des paiements enregistrés : il ne peut pas être supprimé.\nChangez plutôt son statut (Abandon, Transféré…) avec « Modifier ».");return}
+ if(!confirm(`Supprimer définitivement ${fullName(elv(eid))} ?${ids.length?`\n${ids.length} inscription(s) ainsi que les paiements et notes liés seront aussi supprimés.`:''}\n\nPour un élève parti, il vaut mieux changer son statut (Transféré, Abandon…).`))return;
+ DB.inscriptions=DB.inscriptions.filter(i=>i.eleveId!==eid);DB.paiements=DB.paiements.filter(p=>!ids.includes(p.inscriptionId));ids.forEach(id=>delete DB.evals[id]);
+ logJ('Élève supprimé',`${elv(eid)?.matricule} — ${fullName(elv(eid))}`);DB.eleves=DB.eleves.filter(e=>e.id!==eid);save();closeModal();render();toast('Élève supprimé');
+}
+
+/* ---------- Inscrire un élève ---------- */
+function vInscrire(){
+ const rec=yearInscs().slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,8);
+ return `${backupBanner()}<h1>Inscrire un élève — ${esc(S().annee)}</h1>
+ <div class="card"><div class="field"><label style="font-size:14px;color:var(--ink)"><b>1.</b> Cherchez l'élève par son nom ou son numéro</label><input id="ins_q" style="font-size:17px;padding:10px;max-width:520px" placeholder="ex. Sanou Rosalie, 0179 ou P0179" value="${esc(UI.f.insq||'')}" oninput="UI.f.insq=this.value;fillInscrire()" autocomplete="off"></div>
+ <div id="ins_res" style="margin-top:10px"></div>
+ <div class="row" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px;align-items:center"><span><b>2.</b> L'élève n'a jamais fréquenté l'école ?</span><button class="primary" onclick="formEleve(null,'',fval('ins_q'))">+ Nouvel élève</button></div></div>
+ <div class="card" style="padding:0;overflow:auto"><div style="padding:10px 14px;font-weight:600">Dernières inscriptions</div><table class="data"><tbody>${rec.map(i=>{const e=elv(i.eleveId);return `<tr><td>${fmtDate(i.date)}</td><td><b>${esc(fullName(e))}</b> <span class="muted">${esc(e?.matricule)}</span></td><td>${esc(cls(i.classeId)?.nom||'')}</td><td>${esc(i.type)}</td><td class="num">${reste(i)>0?'Reste '+fcfa(reste(i)):'<span class="tag ok">soldé</span>'}</td><td><button class="small" onclick="formPaiement('${i.id}')">Paiement</button></td></tr>`}).join('')||'<tr><td class="muted">Aucune inscription.</td></tr>'}</tbody></table></div>`;
+}
+function fillInscrire(){
+ const box=document.getElementById('ins_res');if(!box)return;const raw=fval('ins_q'),q=norm(raw),digits=q.replace(/[^0-9]/g,'');
+ if(q.length<2){box.innerHTML='<div class="muted">Tapez au moins 2 lettres ou chiffres.</div>';return}
+ const L=DB.eleves.filter(e=>{const k=norm(fullName(e)+' '+e.matricule);return k.includes(q)||(digits&&/^[a-z]?\d+$/.test(q.replace(/\s/g,''))&&String(e.matricule||'').replace(/\D/g,'').endsWith(digits.padStart(4,'0')))}).sort(byName);
+ if(!L.length){box.innerHTML=`<div class="banner" style="background:#f4f6f8;border-color:#e2e6ea">Aucun élève trouvé pour « ${esc(raw)} ». Si c'est un nouvel élève, cliquez sur <b>+ Nouvel élève</b> ci-dessous.</div>`;return}
+ box.innerHTML=`<table class="data"><thead><tr><th>Élève</th><th>Né(e) le</th><th>Parcours</th><th>Statut</th><th></th></tr></thead><tbody>${L.slice(0,15).map(e=>{const cur=inscOf(e.id);const last=DB.inscriptions.filter(i=>i.eleveId===e.id&&i.annee<S().annee).sort((a,b)=>b.annee.localeCompare(a.annee))[0];
+  const parc=last?`${esc(cls(last.classeId)?.nom||'')} en ${esc(last.annee)}`:(e.niveauPrevu?`attendu en ${esc(e.niveauPrevu)}`:'—');
+  return `<tr><td><b>${esc(fullName(e))}</b><br><span class="muted">${esc(e.matricule)} · ${esc(e.sexe)}</span></td><td>${fmtDate(e.dateNaiss)}</td><td>${parc}</td><td>${statTag(e.statut)}</td><td style="white-space:nowrap">${cur?`<span class="tag ok">Déjà inscrit(e) en ${esc(cls(cur.classeId)?.nom||'')}</span> <button class="small" onclick="formPaiement('${cur.id}')">Paiement</button>`:`<button class="primary small" onclick="formInscription(null,'${e.id}',suggestClass('${e.id}'))">Inscrire</button>`} <button class="small" onclick="openFiche('${e.id}')">Fiche</button></td></tr>`}).join('')}</tbody></table>${L.length>15?`<div class="muted" style="margin-top:6px">${L.length} élèves trouvés — précisez la recherche.</div>`:''}`;
+}
+function suggestClass(eid){
+ const a=S().annee,e=elv(eid);const prev=DB.inscriptions.filter(i=>i.eleveId===eid&&i.annee<a).sort((x,y)=>y.annee.localeCompare(x.annee))[0];
+ let niv=null;if(prev){const c=cls(prev.classeId);if(c)niv=prev.decision==='Redouble'?c.niveau:(NEXT[c.niveau]||null)}else if(e?.niveauPrevu)niv=e.niveauPrevu;
+ return niv?(findClassByNiveau(niv)?.id||''):'';
+}
+function afterInscription(iid){
+ const i=ins(iid);if(!i)return;const e=elv(i.eleveId);
+ modal(`<h3>✓ Inscription enregistrée</h3><p><b>${esc(fullName(e))}</b> (${esc(e.matricule)}) est inscrit(e) en <b>${esc(cls(i.classeId)?.nom||'')}</b> pour ${esc(i.annee)}.</p><p>Montant à payer pour l'année : <b>${fcfa(du(i))}</b>${i.arriere?` (dont arriéré ${fcfa(i.arriere)})`:''}.</p>
+ <div class="actions"><button onclick="closeModal()">Plus tard</button><button class="primary" onclick="formPaiement('${iid}')">Recevoir le premier paiement</button></div>`);
+}
+
+/* ---------- Inscriptions ---------- */
+function vInscr(){
+ const a=S().annee,cl=UI.f.icl||'',money=isAdmin()&&UI.f.imoney;
+ let L=cl?classInscs(cl):yearInscs().sort((x,y)=>NIV_ALL.indexOf(cls(x.classeId)?.niveau)-NIV_ALL.indexOf(cls(y.classeId)?.niveau)||byName(elv(x.eleveId),elv(y.eleveId)));
+ let tD=0,tP=0,tR=0,g=0,f=0;
+ const rows=L.map((i,k)=>{const e=elv(i.eleveId);e?.sexe==='F'?f++:g++;let mc='';if(money){const d=du(i),p=paye(i.id),r=reste(i);tD+=d;tP+=p;tR+=r;mc=`<td class="num">${fcfa(d)}</td><td class="num">${fcfa(p)}</td><td class="num">${r>0?`<span style="color:var(--danger)">${fcfa(r)}</span>`:'<span class="tag ok">soldé</span>'}</td>`}
+  return `<tr data-s="${rowKey(e)}"><td>${k+1}</td><td>${esc(e?.matricule)}</td><td><a href="#" onclick="openFiche('${i.eleveId}');return false"><b>${esc(fullName(e))}</b></a></td><td>${esc(e?.sexe)}</td><td>${fmtDate(e?.dateNaiss)}</td><td>${esc(cls(i.classeId)?.nom||'')}</td><td>${esc(i.type)}${i.redoublant?' <span class="tag warn">redoublant(e)</span>':''}</td><td>${[e?.tuteur||e?.pere||e?.mere,e?.telephone].filter(Boolean).map(esc).join('<br>')}</td>${mc}<td style="white-space:nowrap"><button class="small" onclick="formInscription('${i.id}')">Modifier</button></td></tr>`}).join('');
+ const nc=money?12:9;
+ return `${backupBanner()}<h1>Classes et effectifs ${esc(a)}</h1>
+ <div class="card row">${FS('Classe','i_cl','<option value="">Toutes les classes</option>'+classOpts(cl),'onchange="UI.f.icl=this.value;render()"')}
+ <div class="field" style="min-width:220px"><label>Rechercher (nom ou numéro)</label><input oninput="filterRows('tb_i',this.value)" placeholder="ex. 0178 ou Sanou"></div><button class="primary" onclick="go('inscrire')">+ Inscrire un élève</button>
+ ${cl?`<button onclick="printDoc(listeHTML('${cl}'))">Imprimer la liste de classe</button>`:''}<span style="flex:1"></span>${isAdmin()?`<button onclick="UI.f.imoney=!UI.f.imoney;render()">${money?'Masquer les montants':'Afficher les montants'}</button>`:''}</div>
+ <div class="card" style="padding:0;overflow:auto"><table class="data"><thead><tr><th>N°</th><th>Matricule</th><th>Nom et prénoms</th><th>Sexe</th><th>Né(e) le</th><th>Classe</th><th>Type</th><th>Parent / Téléphone</th>${money?'<th class="num">Dû</th><th class="num">Payé</th><th class="num">Reste</th>':''}<th></th></tr></thead>
+ <tbody id="tb_i">${rows||`<tr><td colspan="${nc}" class="muted" style="padding:24px;text-align:center">Aucune inscription.</td></tr>`}</tbody>
+ ${L.length?`<tfoot><tr><td colspan="8">${L.length} élève(s) — ${g} garçon(s), ${f} fille(s)</td>${money?`<td class="num">${fcfa(tD)}</td><td class="num">${fcfa(tP)}</td><td class="num">${fcfa(tR)}</td>`:''}<td></td></tr></tfoot>`:''}</table></div>`;
+}
+function formInscription(iid,eid,presetCid){
+ const a=S().annee;let i=iid?ins(iid):null;if(!i&&eid)i=inscOf(eid)||null;
+ const pick=eid||i?.eleveId;
+ const eleveSel=pick?`<input type="hidden" id="f_e" value="${pick}"><div class="field"><label>Élève</label><b style="padding:6px 0">${esc(fullName(elv(pick)))}</b></div>`
+  :pickerHTML('f_e','Élève * (nom ou numéro)',DB.eleves.filter(e=>!inscOf(e.id)&&!['Sorti (fin de cycle)','Exclu'].includes(e.statut)).sort(byName).map(e=>[e.id,fullName(e)+' — '+e.matricule,e.matricule]),'autoType');
+ const cid=i?.classeId||presetCid||UI.f.icl||'';const c0=cls(cid);
+ const typeDef=i?.type||(pick&&DB.inscriptions.some(x=>x.eleveId===pick&&x.annee!==a)?'Ancien':'Nouveau');
+ modal(`<h3>${i?"Modifier l'inscription":'Inscription'} ${esc(a)}</h3><div class="form-grid">${eleveSel}
+ ${FS('Classe *','f_cl','<option value="">— choisir —</option>'+classOpts(cid),'onchange="prefillFees()"')}
+ ${FS('Type','f_type',opts(['Nouveau','Ancien'],typeDef))}
+ ${FS('Redoublant(e)','f_red',opts([['0','Non'],['1','Oui']],i?.redoublant?'1':'0'))}
+ ${RUB().map(r=>F(esc(r.l)+' (F)','f_fr_'+r.k,i?((i.frais||{})[r.k]||0):((c0?.frais||{})[r.k]||0),'number','min="0" step="any"')).join('')}
+ ${F('Arriéré des années passées (F)','f_arr',i?(i.arriere||0):((pick&&elv(pick)?.arriereEnAttente)||0),'number','min="0" step="any"')}
+ ${F('Réduction sur la scolarité (F)','f_rem',i?.remise||0,'number','min="0" step="any"')}
+ ${F("Date d'inscription",'f_dt',i?.date||today(),'date')}
+ </div><div class="actions">${i?`<button class="danger" style="margin-right:auto" onclick="delInscription('${i.id}')">Annuler cette inscription</button>`:''}<button onclick="closeModal()">Annuler</button><button class="primary" onclick="saveInscription('${i?.id||''}')">Enregistrer</button></div>`);
+}
+function autoType(){const e=fval('f_e');const t=document.getElementById('f_type');if(t&&e)t.value=DB.inscriptions.some(x=>x.eleveId===e)?'Ancien':'Nouveau'}
+function prefillFees(){const c=cls(fval('f_cl'));if(!c)return;RUB().forEach(r=>{const el=document.getElementById('f_fr_'+r.k);if(el)el.value=(c.frais||{})[r.k]||0})}
+function saveInscription(id){
+ const eid=fval('f_e'),cid=fval('f_cl');if(!eid){alert('Choisissez un élève.');return}if(!cid){alert('Choisissez une classe.');return}
+ const frais={};RUB().forEach(r=>frais[r.k]=+fval('f_fr_'+r.k)||0);const data={classeId:cid,type:fval('f_type'),redoublant:fval('f_red')==='1',frais,remise:+fval('f_rem')||0,date:fval('f_dt')};const arr=+fval('f_arr')||0;
+ let newI=null;if(id){Object.assign(ins(id),data,{arriere:arr})}else{if(inscOf(eid)){alert('Cet élève est déjà inscrit cette année.');return}const e=elv(eid);if(e){e.arriereEnAttente=0;e.statut='Actif'}newI=createInscription(eid,cid,null,Object.assign(data,{arriere:arr}));logJ('Inscription',`${fullName(e)} — ${cls(cid)?.nom} ${S().annee}`)}
+ save();closeModal();render();if(newI)afterInscription(newI.id);else toast('Inscription enregistrée');
+}
+function delInscription(iid){requirePin(()=>delInscription2(iid),'annuler une inscription')}
+function delInscription2(iid){
+ const n=DB.paiements.filter(p=>p.inscriptionId===iid).length;
+ if(n){alert("Cette inscription a des paiements : elle ne peut pas être annulée.\nSi l'élève est parti, changez son statut (Abandon, Transféré…) dans sa fiche.");return}
+ if(!confirm(`Annuler cette inscription ?${n?`\n${n} paiement(s) et les notes de cette année seront aussi supprimés.`:'\nLes notes de cette année seront aussi supprimées.'}`))return;
+ const i0=ins(iid);logJ('Inscription annulée',`${fullName(elv(i0?.eleveId))} — ${cls(i0?.classeId)?.nom||''} ${i0?.annee||''}`);DB.inscriptions=DB.inscriptions.filter(i=>i.id!==iid);delete DB.evals[iid];save();closeModal();render();
+}
+
+/* ---------- Paiements ---------- */
+function formCloture(){modal(`<h3>Clôture de caisse</h3><div class="row">${F('Date','cl_d',today(),'date')}${FS('École','cl_e',opts([['','Les deux écoles'],['primaire','Primaire'],['maternelle','Maternelle']],UI.f.pec||''))}</div><p class="muted">Liste des reçus du jour, totaux par rubrique et par mode de paiement, reçus annulés, et cases à remplir : montant compté en caisse et écart.</p><div class="actions"><button onclick="closeModal()">Fermer</button><button class="primary" onclick="const h=clotureHTML(fval('cl_d'),fval('cl_e'));closeModal();printDoc(h)">Imprimer</button></div>`)}
+function clotureHTML(d,ec){
+ const inEc=p=>{const i=ins(p.inscriptionId);return i&&(!ec||cls(i.classeId)?.ecole===ec)};
+ const P=DB.paiements.filter(p=>p.date===d&&inEc(p)&&!p.annule).sort((a,b)=>(a.recu||'').localeCompare(b.recu||''));
+ const A=DB.paiements.filter(p=>p.annule&&inEc(p)&&(p.date===d||(p.annule.t||'').slice(0,10)===d));
+ const K=keysAll().filter(k=>P.some(p=>+(p.parts||{})[k]));const tk={},tm={};let T=0;
+ P.forEach(p=>{K.forEach(k=>tk[k]=(tk[k]||0)+(+(p.parts||{})[k]||0));tm[p.mode||'?']=(tm[p.mode||'?']||0)+(+p.montant||0);T+=+p.montant||0});
+ const rows=P.map(p=>{const i=ins(p.inscriptionId),e=elv(i.eleveId);return `<tr><td>${esc(p.recu)}</td><td>${esc(fullName(e))}</td><td>${esc(cls(i.classeId)?.nom||'')}</td><td>${esc(p.mode||'')}</td>${K.map(k=>`<td class="r">${+(p.parts||{})[k]?fcfa(p.parts[k]):''}</td>`).join('')}<td class="r"><b>${fcfa(p.montant)}</b></td></tr>`}).join('');
+ const esp=tm['Espèces']||0;
+ return `<div class="pg">${pageHeader(ec?S().ecoles[ec]:{nom:'Écoles Être et Avoir en Jésus-Christ (primaire et maternelle)'},S().annee)}<div class="title">Clôture de caisse du ${fmtDate(d)}${ec?' — '+(ec==='primaire'?'Primaire':'Maternelle'):''}</div>
+ <table class="small"><thead><tr><th>Reçu</th><th>Élève</th><th>Classe</th><th>Mode</th>${K.map(k=>`<th class="r">${esc(rubLabel(k))}</th>`).join('')}<th class="r">Total</th></tr></thead><tbody>${rows||`<tr><td colspan="${5+K.length}" class="c">Aucun reçu ce jour</td></tr>`}</tbody>
+ <tfoot><tr><th colspan="4">Total (${P.length} reçu(s))</th>${K.map(k=>`<th class="r">${fcfa(tk[k])}</th>`).join('')}<th class="r">${fcfa(T)}</th></tr></tfoot></table>
+ <table style="margin-top:10px;width:60%"><tr><th colspan="2">Par mode de paiement</th></tr>${Object.entries(tm).map(([m,v])=>`<tr><td>${esc(m)}</td><td class="r">${fcfa(v)}</td></tr>`).join('')||'<tr><td colspan="2">—</td></tr>'}</table>
+ ${A.length?`<table class="small" style="margin-top:10px"><tr><th colspan="4">Reçus annulés</th></tr>${A.map(p=>`<tr><td>${esc(p.recu)}</td><td>${esc(fullName(elv(ins(p.inscriptionId)?.eleveId)))}</td><td class="r">${fcfa(p.montant)}</td><td>${esc(p.annule.motif)}</td></tr>`).join('')}</table>`:''}
+ <table style="margin-top:14px"><tr><td style="width:50%">Espèces attendues en caisse : <b>${fcfa(esp)}</b></td><td>Espèces comptées : ..............................</td></tr><tr><td>Écart : ..............................</td><td>Observations : ..............................</td></tr></table>
+ <div class="sign"><div>Le/La Caissier(ère)</div><div>Le Directeur / La Directrice</div></div></div>`;
+}
+function partsTxt(p){return Object.entries(p.parts||{}).filter(([k,v])=>+v).map(([k,v])=>`${rubLabel(k)} ${fcfa(v)}`).join(' · ')}
+function vPaie(){
+ const cl=UI.f.pcl||'',ec=UI.f.pec||'';const yIds=new Set(yearInscs().filter(i=>(!cl||i.classeId===cl)&&(!ec||cls(i.classeId)?.ecole===ec)).map(i=>i.id));
+ const P=DB.paiements.filter(p=>yIds.has(p.inscriptionId)).sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.recu||'').localeCompare(a.recu||''));
+ let tot=0;const rows=P.slice(0,UI.f.pall?99999:300).map(p=>{const i=ins(p.inscriptionId),e=elv(i.eleveId);tot+=0;const an=p.annule;return `<tr data-s="${rowKey(e)} ${esc(norm(p.recu))}"${an?' style="color:#98a2b3"':''}><td>${fmtDate(p.date)}</td><td>${esc(p.recu)}</td><td><b>${esc(fullName(e))}</b><br><span class="muted">${esc(e.matricule)}</span></td><td>${esc(cls(i.classeId)?.nom||'')}</td><td>${esc(partsTxt(p))}<br><span class="muted">${esc(p.remarque||'')}</span></td><td>${esc(p.mode)}</td><td class="num">${an?`<s>${fcfa(p.montant)}</s><br><span class="tag bad">ANNULÉ</span>`:`<b>${fcfa(p.montant)}</b>`}</td><td style="white-space:nowrap"><button class="small" onclick="printDoc(recuHTML(DB.paiements.find(x=>x.id==='${p.id}')))">Voir le reçu</button> ${an?`<span class="muted" title="${esc(an.motif)}">motif</span>`:`<button class="small danger" title="Annuler ce reçu" onclick="delPaiement('${p.id}')">Annuler</button>`}</td></tr>`}).join('');
+ P.forEach(p=>{if(!p.annule)tot+=+p.montant||0});
+ return `${backupBanner()}<h1>Paiements / frais ${esc(S().annee)}</h1>
+ <div class="card row">${FS('École','p_ec',opts([['','Les deux écoles'],['primaire','Primaire'],['maternelle','Maternelle']],ec),'onchange="UI.f.pec=this.value;render()"')}${FS('Classe','p_cl','<option value="">Toutes les classes</option>'+classOpts(cl),'onchange="UI.f.pcl=this.value;render()"')}
+ <div class="field" style="min-width:200px"><label>Rechercher (nom, numéro, reçu)</label><input oninput="filterRows('tb_p',this.value)" placeholder="ex. 0178 ou p0284"></div><button class="primary" onclick="formPaiement()">+ Nouveau paiement</button><button onclick="formCloture()">Clôture de caisse</button><button onclick="printDoc(paiementsHTML(UI.f.pcl||'',true,UI.f.pec||''))">Imprimer les impayés</button><button onclick="paiementsXLSX(UI.f.pcl||'',true,UI.f.pec||'')">Impayés en Excel</button><button onclick="printDoc(paiementsHTML(UI.f.pcl||'',false,UI.f.pec||''))">Imprimer l'état des paiements</button></div>
+ <div class="card" style="padding:0;overflow:auto"><table class="data"><thead><tr><th>Date</th><th>Reçu N°</th><th>Élève</th><th>Classe</th><th>Détail</th><th>Mode</th><th class="num">Montant</th><th></th></tr></thead>
+ <tbody id="tb_p">${rows||'<tr><td colspan="8" class="muted" style="padding:24px;text-align:center">Aucun paiement enregistré.</td></tr>'}</tbody>
+ ${P.length?`<tfoot><tr><td colspan="6">${P.length} paiement(s)${P.length>300&&!UI.f.pall?` — 300 plus récents affichés <button class="small" onclick="UI.f.pall=1;render()">Tout afficher</button>`:''}</td><td class="num">${fcfa(tot)}</td><td></td></tr></tfoot>`:''}</table></div>`;
+}
+function formPaiement(iid){
+ const list=yearInscs().map(i=>{const e=elv(i.eleveId);return [i.id,fullName(e)+' — '+(cls(i.classeId)?.nom||'')+' — '+(e?.matricule||'')]}).sort((a,b)=>a[1].localeCompare(b[1],'fr'));
+ const sel=iid?`<input type="hidden" id="f_i" value="${iid}"><div class="field"><label>Élève</label><b style="padding:6px 0">${esc(fullName(elv(ins(iid).eleveId)))}</b></div>`:pickerHTML('f_i','Élève * (nom ou numéro)',yearInscs().map(i=>{const e=elv(i.eleveId);return [i.id,fullName(e)+' — '+(cls(i.classeId)?.nom||'')+' — '+(e?.matricule||''),e?.matricule||'']}).sort((a,b)=>a[1].localeCompare(b[1],'fr')),'payInfo');
+ modal(`<h3>Nouveau paiement</h3><div class="form-grid">${sel}${F('Date','f_d',today(),'date')}
+ <div class="field"><label>Remarque (tranche)</label><input id="f_r" list="f_tr" value=""><datalist id="f_tr">${TRANCHES.map(t=>`<option value="${t}">`).join('')}</datalist></div>
+ ${FS('Mode de paiement','f_mo',opts(['Espèces','Orange Money','Moov Money','Bourse','Chèque','Virement']))}</div>
+ <div id="payinfo" style="margin-top:12px"></div>
+ <div class="actions"><span id="f_tot" style="margin-right:auto;font-size:16px"></span><button onclick="closeModal()">Annuler</button><button class="primary" onclick="savePaiement()">Enregistrer</button></div>`,true);
+ payInfo();
+}
+function payInfo(){
+ const b=document.getElementById('payinfo');if(!b)return;const i=ins(fval('f_i'));
+ if(!i){b.innerHTML='<div class="muted">Choisissez un élève.</div>';payTot();return}
+ const rows=keysAll().map(k=>{const d=dueC(i,k),p=paidC(i.id,k),r=Math.max(0,d-p);if(k==='arriere'&&!d&&!p)return '';return `<tr><td>${esc(rubLabel(k))}</td><td class="num">${fcfa(d)}</td><td class="num">${fcfa(p)}</td><td class="num">${r?`<b style="color:var(--danger)">${fcfa(r)}</b>`:'—'}</td><td><input id="f_p_${k}" type="number" min="0" step="any" style="width:110px" oninput="payTot()" placeholder="${r||''}"></td></tr>`}).join('');
+ const arr=i.arriere&&paidC(i.id,'arriere')<i.arriere?'<div class="banner" style="margin:8px 0 0">⚠ Cet élève a un arriéré des années passées : il est conseillé de le payer d\'abord.</div>':'';
+ b.innerHTML=`<table class="data"><thead><tr><th>Rubrique</th><th class="num">Dû</th><th class="num">Déjà payé</th><th class="num">Reste</th><th>Ce paiement (F)</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td>Total</td><td class="num">${fcfa(du(i))}</td><td class="num">${fcfa(paye(i.id))}</td><td class="num">${fcfa(reste(i))}</td><td></td></tr></tfoot></table>${arr}`;
+ payTot();
+}
+function payParts(){const parts={};keysAll().forEach(k=>{const v=+fval('f_p_'+k);if(v>0)parts[k]=v});return parts}
+function payTot(){const t=document.getElementById('f_tot');if(t){const s=Object.values(payParts()).reduce((a,b)=>a+b,0);t.innerHTML=`Montant total : <b>${fcfa(s)}</b>`}}
+function savePaiement(){
+ const iid=fval('f_i');if(!iid){alert('Choisissez un élève.');return}
+ const parts=payParts(),m=Object.values(parts).reduce((a,b)=>a+b,0);if(!(m>0)){alert('Saisissez au moins un montant.');return}
+ const i=ins(iid);const p={id:uid(),inscriptionId:iid,date:fval('f_d')||today(),montant:m,parts,mode:fval('f_mo'),remarque:fval('f_r'),recu:nextRecu(cls(i.classeId)?.ecole)};
+ DB.paiements.push(p);logJ('Paiement',`${p.recu} — ${fullName(elv(i.eleveId))} — ${fcfa(m)}`);save();closeModal();render();
+ toast(`Paiement enregistré — reçu N° ${p.recu}`);printDoc(recuHTML(p));
+}
+function delPaiement(pid){requirePin(()=>{const p=DB.paiements.find(x=>x.id===pid);if(!p||p.annule)return;const e=elv(ins(p.inscriptionId)?.eleveId);
+ modal(`<h3>Annuler le reçu N° ${esc(p.recu)}</h3><p>${esc(fullName(e))} — ${fcfa(p.montant)} du ${fmtDate(p.date)}</p><p class="muted">Le reçu n'est pas effacé : il reste dans la liste et dans le journal, marqué « ANNULÉ », et son montant ne compte plus. Son numéro n'est pas réutilisé.</p>
+ <div class="field"><label>Motif de l'annulation *</label><input id="an_m" placeholder="ex. erreur de montant, mauvais élève"></div><div class="actions"><button onclick="closeModal()">Retour</button><button class="danger" onclick="confirmAnnul('${pid}')">Annuler ce reçu</button></div>`)},'annuler un reçu')}
+function confirmAnnul(pid){const m=fval('an_m');if(!m){alert('Indiquez le motif.');return}const p=DB.paiements.find(x=>x.id===pid);const e=elv(ins(p.inscriptionId)?.eleveId);
+ p.annule={t:new Date().toISOString(),motif:m,dev:devName()||'?'};logJ('Reçu annulé',`${p.recu} — ${fullName(e)} — ${fcfa(p.montant)} — motif : ${m}`);save();closeModal();render();toast('Reçu annulé')}
+
+/* ---------- Saisie des notes ---------- */
+function vNotes(){
+ const cs=sortedClasses();if(!cs.length)return '<h1>Saisie des notes</h1><div class="card">Aucune classe. Ajoutez des classes dans Paramètres.</div>';
+ if(!cls(UI.f.ncl))UI.f.ncl=(cs.find(c=>c.ecole==='primaire')||cs[0]).id;
+ const c=cls(UI.f.ncl),T=UI.f.nt||'T1',prim=c.ecole==='primaire';
+ const sel=`<div class="card row">${FS('Classe','n_cl',classOpts(c.id),'onchange="UI.f.ncl=this.value;render()"')}${FS('Composition','n_t',opts(TRIMS.map(t=>[t,TLABEL[t]]),T),'onchange="UI.f.nt=this.value;render()"')}
+ <div class="muted" style="flex:1;min-width:220px">Enregistrement automatique. Touche Entrée ou flèches ↑ ↓ pour passer d'un élève à l'autre.${prim?' Décimales acceptées (ex. 7,5).':' A = Acquis · EC = En cours · NA = Non acquis.'}</div>
+ <button onclick="UI.f.bcl='${c.id}';UI.f.bt='${T}';go('bull')">Voir les bulletins →</button></div>`;
+ const L=classInscs(c.id);
+ if(!L.length)return `<h1>Saisie des notes</h1>${sel}<div class="card">Aucun élève inscrit dans cette classe pour ${esc(S().annee)}.</div>`;
+ if(!c.matieres.length)return `<h1>Saisie des notes</h1>${sel}<div class="card">Aucune matière définie pour cette classe. Allez dans Paramètres → Classes → Matières.</div>`;
+ const tail=(i,ev2,r)=>`<td><input style="width:44px" data-r="${r}" data-c="abs" value="${esc(ev2.abs||'')}" onchange="setEvF('${i.id}','${T}','abs',this.value)" onkeydown="navKey(event,this)"></td><td><input style="width:100%;min-width:220px;text-align:left" data-r="${r}" data-c="appr" value="${esc(ev2.appr||'')}" onchange="setEvF('${i.id}','${T}','appr',this.value)" onkeydown="navKey(event,this)"></td>`;
+ let head,rows;
+ if(prim){
+  const sm=c.matieres.reduce((s,m)=>s+(+m.max||0),0);
+  head=`<tr><th>N°</th><th style="text-align:left">Élève</th>${c.matieres.map(m=>`<th>${esc(m.nom)}<br><span class="muted">/${m.max}</span></th>`).join('')}<th>Total<br><span class="muted">/${sm}</span></th><th>Moy.<br><span class="muted">/10</span></th><th>Rang</th><th>Abs.</th><th>Appréciation de l'enseignant(e)</th></tr>`;
+  rows=L.map((i,r)=>{const e=elv(i.eleveId),ev2=evGet(i.id,T);return `<tr><td>${r+1}</td><td class="name">${esc(fullName(e))}</td>${c.matieres.map((m,j)=>`<td><input data-r="${r}" data-c="${j}" inputmode="decimal" value="${fmtN(ev2.n[m.id])}" onchange="setNote(this,'${i.id}','${T}','${m.id}',${+m.max||0})" onkeydown="navKey(event,this)"></td>`).join('')}<td id="tot_${i.id}"></td><td id="moy_${i.id}" style="font-weight:700"></td><td id="rg_${i.id}"></td>${tail(i,ev2,r)}</tr>`}).join('');
+ }else{
+  head=`<tr><th>N°</th><th style="text-align:left">Élève</th>${c.matieres.map(m=>`<th>${esc(m.nom)}</th>`).join('')}<th>Abs.</th><th>Appréciation de l'enseignant(e)</th></tr>`;
+  rows=L.map((i,r)=>{const e=elv(i.eleveId),ev2=evGet(i.id,T);return `<tr><td>${r+1}</td><td class="name">${esc(fullName(e))}</td>${c.matieres.map((m,j)=>`<td><select data-r="${r}" data-c="${j}" onchange="setNote(this,'${i.id}','${T}','${m.id}',null)" onkeydown="navKey(event,this)">${opts([['','—'],['A','A'],['EC','EC'],['NA','NA']],ev2.n[m.id]||'')}</select></td>`).join('')}${tail(i,ev2,r)}</tr>`}).join('');
+ }
+ return `<h1>Saisie des notes — ${esc(c.nom)} · ${TLABEL[T]}</h1>${sel}<div id="nstats" class="muted" style="margin:-4px 0 8px"></div><div class="card" style="padding:0;overflow:auto"><table class="grid-notes"><thead>${head}</thead><tbody>${rows}</tbody></table></div>`;
+}
+function setNote(el,iid,T,mid,max){
+ const e=ev(iid,T);el.classList.remove('err');
+ if(max===null){if(el.value)e.n[mid]=el.value;else delete e.n[mid]}
+ else{const raw=el.value.trim().replace(',','.');
+  if(raw===''){delete e.n[mid]}
+  else{const v=parseFloat(raw);if(!/^\d+(\.\d+)?$/.test(raw)||v>max){el.classList.add('err');toast(`Note invalide : entre 0 et ${max}`);return}e.n[mid]=v}}
+ save();recalcGrid();
+}
+function setEvF(iid,T,f,v){ev(iid,T)[f]=v.trim();save()}
+function navKey(evt,el){
+ const k=evt.key;if(el.tagName==='SELECT'&&k!=='Enter')return;
+ if(k==='Enter'||k==='ArrowDown'||k==='ArrowUp'){evt.preventDefault();const r=+el.dataset.r+(k==='ArrowUp'?-1:1);const n=document.querySelector(`[data-r="${r}"][data-c="${el.dataset.c}"]`);if(n){n.focus();if(n.select)n.select()}else el.blur()}
+}
+function recalcGrid(){
+ const c=cls(UI.f.ncl),T=UI.f.nt||'T1';if(!c||c.ecole!=='primaire')return;
+ const {res,stats}=classResults(c.id,T);
+ Object.entries(res).forEach(([iid,r])=>{const g=k=>document.getElementById(k+'_'+iid);if(!g('tot'))return;g('tot').textContent=r.cnt?fmtN(r.tot):'';g('moy').textContent=r.moy!=null?fmtN2(r.moy):'';g('rg').textContent=r.rang?rangTxt(r,elv(ins(iid).eleveId)?.sexe):''});
+ const s=document.getElementById('nstats');if(s)s.textContent=stats?`Moyenne de la classe : ${fmtN2(stats.moy)} · Plus forte : ${fmtN2(stats.max)} · Plus faible : ${fmtN2(stats.min)} · Moyenne ≥ ${fmtN(S().seuil)} : ${stats.admis}/${stats.n}`:'';
+}
+
+/* ---------- Bulletins ---------- */
+function vBull(){
+ const cs=sortedClasses();if(!cls(UI.f.bcl))UI.f.bcl=cs[0]?.id;const c=cls(UI.f.bcl);const T=UI.f.bt||'T1';
+ if(!c)return '<h1>Bulletins</h1><div class="card">Aucune classe.</div>';
+ const L=classInscs(c.id);if(!L.find(i=>i.id===UI.f.bi))UI.f.bi=L[0]?.id;
+ return `<h1>Bulletins</h1><div class="card row">${FS('Classe','b_cl',classOpts(c.id),'onchange="UI.f.bcl=this.value;render()"')}${FS('Composition','b_t',opts(TRIMS.map(t=>[t,TLABEL[t]]),T),'onchange="UI.f.bt=this.value;render()"')}
+ <button class="primary" ${L.length?'':'disabled'} onclick="printDoc(classInscs(UI.f.bcl).map(i=>bulletinHTML(i.id,UI.f.bt||'T1')).join(''))">Imprimer toute la classe (${L.length})</button>
+ <span class="muted">Un bulletin par page A4, en noir et blanc.${T==='T3'?' Chaque bulletin montre les compositions déjà faites et la moyenne générale ; celui de la 3ème composition donne la moyenne annuelle et la décision.':''}</span></div>
+ ${L.length?`<div class="bwrap"><div class="card blist"><input style="width:100%;margin-bottom:6px" placeholder="Nom ou numéro" oninput="filterRows('tb_b',this.value)"><div id="tb_b">${L.map(i=>{const e=elv(i.eleveId);return `<div class="bitem ${i.id===UI.f.bi?'on':''}" data-s="${rowKey(e)}" onclick="UI.f.bi='${i.id}';render()">${esc(fullName(e))} <span class="muted" style="font-size:11px">${esc(e.matricule)}</span></div>`}).join('')}</div></div>
+ <div><div class="row" style="margin-bottom:8px"><button onclick="printDoc(bulletinHTML(UI.f.bi,UI.f.bt||'T1'))">Imprimer ce bulletin</button><span class="muted">Aperçu</span></div><div class="sheet">${bulletinHTML(UI.f.bi,T)}</div></div></div>`:'<div class="card">Aucun élève inscrit dans cette classe.</div>'}`;
+}
+function pageHeader(sc,a,big){const lg=logoSrc();return `<div class="hdr" style="align-items:center"><div style="display:flex;align-items:center;gap:4mm">${lg?`<img src="${lg}" alt="" style="height:${big?24:17}mm;width:auto">`:''}<div><b style="font-size:${big?19:16}px">${esc(sc.nom)}</b>${sc.devise?'<br><i>'+esc(sc.devise)+'</i>':''}${sc.arrete?'<br><span class="small">'+esc(sc.arrete)+'</span>':''}<br><span class="small">${esc(sc.adresse||'')}${sc.tel?' · Tél. : '+esc(sc.tel):''}</span></div></div><div style="text-align:right;white-space:nowrap">Année scolaire<br><b style="font-size:14px">${esc(a)}</b></div></div>`}
+function infoBlock(e,c,n){return `<table class="info" style="margin-bottom:8px"><tr><td>Nom et prénoms : <b>${esc(fullName(e))}</b></td><td>Matricule : <b>${esc(e.matricule)}</b></td></tr><tr><td>Né(e) le : ${fmtDate(e.dateNaiss)||'..........'} à ${esc(e.lieuNaiss||'..........')}</td><td>Sexe : ${esc(e.sexe)}</td></tr><tr><td>Classe : <b>${esc(c.nom)}</b> &nbsp;&nbsp; Effectif : ${n}</td><td>Enseignant(e) : ${esc(c.enseignant||'')}</td></tr></table>`}
+function signBlock(){return `<div class="sign"><div>L'enseignant(e)</div><div>Le Directeur / La Directrice</div><div>Le Parent</div></div>`}
+function bulletinHTML(iid,T){
+ const i=ins(iid);if(!i)return '';const e=elv(i.eleveId),c=cls(i.classeId),sc=ecoleOf(c),a=i.annee;const n=classInscs(c.id,a).length;
+ const evv=evGet(iid,T);let body='';
+ if(c.ecole==='primaire'){
+  const upto=TRIMS.indexOf(T)+1,TS=TRIMS.slice(0,upto);
+  const R={};TS.forEach(t=>R[t]=classResults(c.id,t,a));
+  const A=annualResults(c.id,a,upto),ra=A.res[iid];
+  const cell=(t,f)=>R[t]?f(R[t]):'';
+  const rows=c.matieres.map(m=>`<tr><td>${esc(m.nom)}</td>${TRIMS.map(t=>{const v=R[t]?evGet(iid,t).n[m.id]:undefined;return `<td class="c">${has(v)?fmtN(v):''}</td>`}).join('')}<td class="c">${m.max}</td></tr>`).join('');
+  const line=(lab,f,bold)=>`<tr><${bold?'th':'td'}>${lab}</${bold?'th':'td'}>${TRIMS.map(t=>`<td class="c">${cell(t,f)}</td>`).join('')}<td></td></tr>`;
+  const sm=c.matieres.reduce((s,m)=>s+(+m.max||0),0);
+  body=`<table><thead><tr><th>Matières</th>${TRIMS.map(t=>`<th class="c" style="width:95px">${TLABEL[t]}</th>`).join('')}<th class="c" style="width:45px">Sur</th></tr></thead><tbody>${rows}
+  <tr><th>TOTAL</th>${TRIMS.map(t=>`<th class="c">${cell(t,X=>X.res[iid].cnt?fmtN(X.res[iid].tot):'')}</th>`).join('')}<th class="c">${sm}</th></tr>
+  ${line('Moyenne de l\'élève (/10)',X=>X.res[iid].moy!=null?`<b>${fmtN2(X.res[iid].moy)}</b>`:'',true)}
+  ${line('Rang',X=>X.res[iid].rang?`${rangTxt(X.res[iid],e.sexe)} / ${n}`:'')}
+  ${line('Moyenne de la classe',X=>X.stats?fmtN2(X.stats.moy):'')}
+  ${line('Plus forte moyenne',X=>X.stats?fmtN2(X.stats.max):'')}
+  ${line('Plus faible moyenne',X=>X.stats?fmtN2(X.stats.min):'')}
+  ${line('Mention',X=>mention(X.res[iid].moy))}</tbody></table>
+  <table style="margin-top:8px"><tr><th colspan="3" class="c">RÉSULTATS GÉNÉRAUX ${upto<3?`(moyenne des compositions 1 à ${upto})`:'DE L\'ANNÉE'}</th></tr>
+  <tr><td>Moyenne générale : <b style="font-size:14px">${ra&&ra.moy!=null?fmtN2(ra.moy):'—'} / 10</b></td><td>Rang général : <b>${rangTxt(ra,e.sexe)}</b> sur ${n}</td><td>Mention : <b>${mention(ra?.moy)}</b></td></tr>
+  <tr><td>Moyenne générale de la classe : ${fmtN2(A.stats?.moy)}</td><td>Plus forte : ${fmtN2(A.stats?.max)}</td><td>Plus faible : ${fmtN2(A.stats?.min)}</td></tr></table>`;
+  if(T==='T3')body+=`<p style="margin:8px 0 0"><b>Décision du conseil des maîtres :</b> ${esc(decisionLabel(i.decision||proposition(i,ra),c))||'..............................................'}</p>`;
+ }else{
+  const rows=c.matieres.map(m=>{const v=evv.n[m.id]||'';return `<tr><td>${esc(m.nom)}</td>${MAT_SCALE.map(([k])=>`<td class="c">${v===k?'X':''}</td>`).join('')}</tr>`}).join('');
+  body=`<table><thead><tr><th>Domaines d'apprentissage</th>${MAT_SCALE.map(([,t])=>`<th class="c" style="width:85px">${t}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
+  if(T==='T3')body+=`<p style="margin:8px 0 0"><b>Décision :</b> ${esc(decisionLabel(i.decision||'Admis(e)',c))}</p>`;
+ }
+ body+=`<table style="margin-top:8px"><tr><td style="width:28%">Absences : ${esc(evv.abs||'0')}</td><td style="height:48px;vertical-align:top">Appréciation de l'enseignant(e) : ${esc(evv.appr||'')}</td></tr></table>`;
+ return `<div class="pg">${pageHeader(sc,a)}<div class="title">Bulletin ${c.ecole==='primaire'?'de notes':"d'évaluation"} — ${TLABEL[T]}</div>${infoBlock(e,c,n)}${body}${signBlock()}</div>`;
+}
+
+/* ---------- Documents imprimables ---------- */
+let _pv='';
+function printDoc(html,title){if(!html){alert('Rien à imprimer.');return}_pv=html;const n=(html.match(/class="pg"/g)||[]).length;
+ const d=document.createElement('div');d.className='modal-bg';d.id='pvbg';d.innerHTML=`<div class="modal" style="width:min(940px,100%);background:#eef0f3;padding:0">
+ <div style="position:sticky;top:0;z-index:2;background:#fff;border-bottom:1px solid var(--line);padding:10px 16px;display:flex;gap:8px;align-items:center;border-radius:10px 10px 0 0"><b>Aperçu avant impression</b><span class="muted">${n} page(s) A4</span><span style="flex:1"></span><button onclick="closePv()">Fermer</button><button class="primary" onclick="printNow()">🖨 Imprimer</button></div>
+ <div class="pv" style="padding:16px">${html}</div></div>`;document.body.appendChild(d)}
+function closePv(){const m=document.getElementById('pvbg');if(m)m.remove()}
+function printNow(){document.getElementById('print').innerHTML=_pv;closePv();setTimeout(()=>window.print(),60)}
+window.addEventListener('afterprint',()=>{document.getElementById('print').innerHTML=''});
+const DEFAULT_LOGO='data:image/png;base64,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';
+function logoSrc(){return S().logo===''?'':(S().logo||DEFAULT_LOGO)}
+function nombreEnLettres(n){n=Math.round(+n||0);if(n===0)return 'zéro';
+ const u=['','un','deux','trois','quatre','cinq','six','sept','huit','neuf','dix','onze','douze','treize','quatorze','quinze','seize','dix-sept','dix-huit','dix-neuf'];
+ const t=['','dix','vingt','trente','quarante','cinquante','soixante','soixante','quatre-vingt','quatre-vingt'];
+ const b100=(n,fin)=>{if(n<20)return u[n];const d=Math.floor(n/10),r=n%10;if(d===7||d===9)return t[d]+(d===7&&r===1?' et ':'-')+u[10+r];let s=t[d];if(r===1&&d<8)s+=' et un';else if(r)s+='-'+u[r];else if(d===8&&fin)s+='s';return s};
+ const b1000=(n,fin)=>{const c=Math.floor(n/100),r=n%100;let s='';if(c){s=c===1?'cent':u[c]+' cent';if(!r&&c>1&&fin)s+='s'}if(r)s+=(s?' ':'')+b100(r,fin);return s};
+ const m=Math.floor(n/1e6),k=Math.floor(n%1e6/1000),r=n%1000;const out=[];
+ if(m)out.push(b1000(m,true)+(m>1?' millions':' million'));
+ if(k)out.push(k===1?'mille':b1000(k,false)+' mille');
+ if(r)out.push(b1000(r,true));
+ return out.join(' ');
+}
+function paidAsOf(p,k){return DB.paiements.filter(x=>x.inscriptionId===p.inscriptionId&&!x.annule&&((x.date||'')<(p.date||'')||((x.date||'')===(p.date||'')&&(x.recu||'')<=(p.recu||''))||x.id===p.id)).reduce((s,x)=>s+(+(x.parts||{})[k]||0),0)}
+function recuHTML(p){
+ const i=ins(p.inscriptionId),e=elv(i.eleveId),c=cls(i.classeId),sc=ecoleOf(c);
+ const K=keysAll().filter(k=>+(p.parts||{})[k]||dueC(i,k));const dense=K.length>=4||!!p.annule;
+ let tP=0,tR=0,tPaid=0,tDue=0;
+ const lines=K.map(k=>{const d=dueC(i,k),pa=p.annule?paidC(i.id,k):paidAsOf(p,k),r=Math.max(0,d-pa),now=+(p.parts||{})[k]||0;tP+=now;tR+=r;tPaid+=pa;tDue+=d;return `<tr><td>${esc(rubLabel(k))}</td><td class="r">${now?fcfa(now):'—'}</td><td class="r">${r?fcfa(r):'Soldé'}</td></tr>`}).join('');
+ const lg=logoSrc();
+ const nm=String(sc.nom||''),cut=nm.search(/\sÊtre\s/),n1=cut>0?nm.slice(0,cut):nm,n2=cut>0?nm.slice(cut+1):'';
+ const sub=[sc.arrete?esc(sc.arrete):'',[sc.adresse,sc.tel?'Tél. : '+sc.tel:''].filter(Boolean).map(esc).join(' · ')].filter(Boolean);
+ const hdr=`<div style="display:grid;grid-template-columns:30mm 1fr 30mm;align-items:center;border-bottom:2px solid #000;padding-bottom:5px">
+ <div>${lg?`<img src="${lg}" alt="" style="height:${dense?17:22}mm;width:auto;display:block">`:''}</div>
+ <div style="text-align:center;line-height:1.25"><b style="font-size:${dense?16:18}px">${esc(n1)}</b>${n2?`<br><b style="font-size:${dense?16:18}px">${esc(n2)}</b>`:''}${sc.devise?`<br><i>${esc(sc.devise)}</i>`:''}<br><span style="font-size:11px">${sub.join('<br>')}</span></div>
+ <div style="text-align:right;white-space:nowrap">Année scolaire<br><b style="font-size:14px">${esc(i.annee)}</b></div></div>`;
+ const one=lab=>`<div class="recu-box${dense?' dense':''}">${hdr}
+ <div><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-size:20px;font-weight:bold;text-transform:uppercase">Reçu N° ${esc(p.recu)}</span><span style="border:${p.annule?2:1}px solid #000;padding:2px 8px;font-weight:bold">${p.annule?'ANNULÉ — ':''}${lab}</span></div>
+ <table class="info"><tr><td style="width:62%">Élève : <b>${esc(fullName(e))}</b> (${esc(e.matricule)}) — Classe : <b>${esc(c.nom)}</b></td><td>Date : <b>${fmtDate(p.date)}</b></td></tr><tr><td>${p.annule?`<b>Annulé le ${fmtDate(p.annule.t.slice(0,10))} — motif : ${esc(p.annule.motif)}</b>`:`Objet : ${esc(p.remarque||'Paiement des frais scolaires')}`}</td><td>Mode : ${esc(p.mode||'')}</td></tr></table></div>
+ <table><thead><tr><th>Rubrique</th><th class="r" style="width:32%">Montant payé</th><th class="r" style="width:32%">Reste à payer</th></tr></thead><tbody>${lines}</tbody><tfoot><tr><th>TOTAL</th><th class="r" style="font-size:16px">${fcfa(tP)}</th><th class="r">${fcfa(tR)}</th></tr></tfoot></table>
+ <div><div>Arrêté le présent reçu à la somme de : <b>${nombreEnLettres(tP)} (${fcfa(tP).replace(' F','')}) francs CFA</b>.</div>
+ <div style="font-size:12px;margin-top:2px">Situation au ${fmtDate(p.date)} : payé pour l'année ${fcfa(tPaid)} sur ${fcfa(tDue)} — reste ${fcfa(tR)}.</div></div>
+ <div class="sign"><div>Le Parent</div><div>Reçu par : ${esc(S().caissier||'..................................')}<br><span style="font-size:11px">(signature et cachet de l'école)</span></div></div>${S().piedRecu?`<div class="c" style="font-size:10.5px"><i>${esc(S().piedRecu)}</i></div>`:''}</div>`;
+ return `<div class="pg recu-page"><div class="recu-wrap"><div class="recu-half">${one('Copie PARENTS')}</div><div class="recu-cut">✂ ${'- '.repeat(70)}✂</div><div class="recu-half">${one('Copie ÉCOLE')}</div></div></div>`;
+}
+function certificatHTML(eid,num){
+ const e=elv(eid),i=inscOf(eid);if(!i)return '';const c=cls(i.classeId),sc=ecoleOf(c),f=e.sexe==='F',lg=logoSrc();
+ const dir=sc.directeur||'';
+ return `<div class="pg" style="font-size:15.5px;line-height:1.5">
+ <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:10px">${lg?`<img src="${lg}" alt="" style="height:30mm;width:auto"><br>`:''}<b style="font-size:21px">${esc(sc.nom)}</b>${sc.devise?`<br><i>${esc(sc.devise)}</i>`:''}<br><span style="font-size:12px">${[sc.arrete,sc.adresse,sc.tel?'Tél. : '+sc.tel:''].filter(Boolean).map(esc).join(' · ')}</span></div>
+ <div style="display:flex;justify-content:space-between;margin-top:14px;font-size:13px"><span>N° ${esc(num||'........')}/${esc(c.ecole==='maternelle'?'EMP':'EPP')}-EAenJC/${esc(anneeCourte(i.annee))}</span><span>Année scolaire ${esc(i.annee)}</span></div>
+ <div style="text-align:center;margin:36px 0 34px"><span style="display:inline-block;border:2px solid #000;padding:10px 28px;font-size:24px;font-weight:bold;letter-spacing:2px">CERTIFICAT DE SCOLARITÉ</span></div>
+ <p style="line-height:2.2;text-align:justify;margin:0 6mm">Je soussigné(e), <b>${esc(dir||'........................................................')}</b>, Directeur / Directrice de l'<b>${esc(sc.nom)}</b>, certifie que l'élève :</p>
+ <table class="info" style="margin:14px 14mm 14px;width:auto;font-size:15.5px;line-height:2"><tr><td style="width:62mm">Nom et prénoms</td><td>: <b>${esc(fullName(e))}</b></td></tr><tr><td>${f?'Née':'Né'} le</td><td>: ${fmtDate(e.dateNaiss)||'....................'} à ${esc(e.lieuNaiss||'....................')}</td></tr><tr><td>Matricule</td><td>: ${esc(e.matricule)}</td></tr><tr><td>Classe</td><td>: <b>${esc(c.nom)}</b></td></tr></table>
+ <p style="line-height:2.2;text-align:justify;margin:0 6mm">est régulièrement ${f?'inscrite':'inscrit'} dans notre établissement pour l'année scolaire <b>${esc(i.annee)}</b>${e.dateEntree?`, et ${f?'le fréquente':'le fréquente'} depuis le ${fmtDate(e.dateEntree)}`:''}.</p>
+ <p style="line-height:2.2;margin:10px 6mm 0">En foi de quoi, le présent certificat lui est délivré pour servir et valoir ce que de droit.</p>
+ <div style="display:flex;justify-content:flex-end;margin-top:40px"><div style="text-align:center;min-width:80mm">Fait à ${esc(S().ville||'')}, le ${fmtDate(today())}<br><br><b>Le Directeur / La Directrice</b><br><span style="font-size:12px">(signature et cachet)</span><div style="height:30mm"></div>${dir?`<b>${esc(dir)}</b>`:''}</div></div>
+ </div>`;
+}
+function formCertificat(eid){
+ const list=yearInscs().map(i=>{const e=elv(i.eleveId);return [e.id,fullName(e)+' — '+(cls(i.classeId)?.nom||'')+' — '+e.matricule,e.matricule]}).sort((a,b)=>a[1].localeCompare(b[1],'fr'));
+ const sel=eid?`<input type="hidden" id="cert_e" value="${eid}"><div class="field"><label>Élève</label><b style="padding:6px 0">${esc(fullName(elv(eid)))}</b></div>`:pickerHTML('cert_e','Élève inscrit(e) en '+esc(S().annee)+' (nom ou numéro)',list,'certPreview');
+ modal(`<h3>Certificat de scolarité</h3><div class="form-grid">${sel}${F('Numéro du certificat (facultatif)','cert_n','','text','oninput="certPreview()" placeholder="ex. 012"')}</div>
+ <div id="cert_pv" style="margin-top:12px;background:#eef0f3;border-radius:8px;padding:12px;max-height:62vh;overflow:auto"></div>
+ <div class="actions"><button onclick="closeModal()">Fermer</button><button class="primary" onclick="printCert()">🖨 Imprimer</button></div>`,true);
+ certPreview();
+}
+function certPreview(){const box=document.getElementById('cert_pv');if(!box)return;const e=fval('cert_e');box.innerHTML=e?`<div class="pv" style="zoom:.7">${certificatHTML(e,fval('cert_n'))}</div>`:'<div class="muted" style="padding:30px;text-align:center">Choisissez un élève : l\'aperçu du certificat s\'affiche ici.</div>'}
+function printCert(){const e=fval('cert_e');if(!e){alert('Choisissez un élève.');return}const h=certificatHTML(e,fval('cert_n'));logJ('Certificat de scolarité',fullName(elv(e)));save();closeModal();_pv=h;printNow()}
+
+function ficheHTML(eid){
+ const e=elv(eid),cur=inscOf(eid),c=cur?cls(cur.classeId):DB.classes[0];
+ const hist=DB.inscriptions.filter(i=>i.eleveId===eid).sort((a,b)=>a.annee.localeCompare(b.annee)).map(i=>{const cc=cls(i.classeId);const m=cc&&cc.ecole==='primaire'?fmtN2(annualResults(cc.id,i.annee).res[i.id]?.moy):'—';return `<tr><td>${esc(i.annee)}</td><td>${esc(cc?.nom||'')}</td><td>${esc(i.type)}${i.redoublant?' (redoublant)':''}</td><td class="c">${m}</td><td>${esc(i.decision||'')}</td></tr>`}).join('');
+ const L=(a,b)=>`<tr><td style="width:35%">${a}</td><td><b>${esc(b||'')}</b></td></tr>`;
+ return `<div class="pg">${pageHeader(ecoleOf(c),S().annee)}<div class="title">Fiche de renseignements de l'élève</div>
+ <table>${L('Matricule',e.matricule)}${L('Nom et prénoms',fullName(e))}${L('Sexe',e.sexe==='F'?'Féminin':'Masculin')}${L('Date et lieu de naissance',fmtDate(e.dateNaiss)+(e.lieuNaiss?' à '+e.lieuNaiss:''))}${L('Nationalité',e.nationalite)}${L("N° d'acte de naissance",e.acte)}${L('Nom du père',e.pere)}${L('Nom de la mère',e.mere)}${L('Tuteur / contact',e.tuteur)}${L('Téléphone',e.telephone)}${L('Adresse',e.adresse)}${L("Date d'entrée",fmtDate(e.dateEntree))}${L("École d'origine",e.ecoleOrigine)}${L('Classe actuelle',cur?cls(cur.classeId)?.nom:'')}${L('Statut',e.statut)}${L('Observations',e.observations)}</table>
+ <h3 style="margin:16px 0 6px">Parcours scolaire</h3><table><thead><tr><th>Année</th><th>Classe</th><th>Type</th><th class="c">Moy. annuelle</th><th>Décision</th></tr></thead><tbody>${hist||'<tr><td colspan="5">—</td></tr>'}</tbody></table>
+ <p style="text-align:right;margin-top:30px">Fait à ${esc(S().ville||'')}, le ${fmtDate(today())}</p></div>`;
+}
+function listeHTML(cid){
+ const c=cls(cid);if(!c)return '';const L=classInscs(cid);let g=0,f=0;
+ const rows=L.map((i,k)=>{const e=elv(i.eleveId);e.sexe==='F'?f++:g++;return `<tr><td class="c">${k+1}</td><td>${esc(e.matricule)}</td><td>${esc(fullName(e))}</td><td class="c">${esc(e.sexe)}</td><td>${fmtDate(e.dateNaiss)}</td><td>${esc(e.lieuNaiss||'')}</td><td>${esc(e.tuteur||e.pere||e.mere||'')}</td><td>${esc(e.telephone||'')}</td></tr>`}).join('');
+ return `<div class="pg">${pageHeader(ecoleOf(c),S().annee)}<div class="title">Liste des élèves — ${esc(c.nom)}</div><p>Enseignant(e) : <b>${esc(c.enseignant||'')}</b> &nbsp;·&nbsp; Effectif : <b>${L.length}</b> (Garçons : ${g} · Filles : ${f})</p>
+ <table class="small"><thead><tr><th>N°</th><th>Matricule</th><th>Nom et prénoms</th><th>Sexe</th><th>Né(e) le</th><th>Lieu</th><th>Parent / tuteur</th><th>Téléphone</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+function grilleHTML(cid,T){
+ const c=cls(cid);if(!c)return '';const L=classInscs(cid);
+ const rows=L.map((i,k)=>`<tr><td class="c">${k+1}</td><td style="white-space:nowrap">${esc(fullName(elv(i.eleveId)))}</td>${c.matieres.map(()=>'<td></td>').join('')}<td></td></tr>`).join('');
+ return `<div class="pg">${pageHeader(ecoleOf(c),S().annee)}<div class="title">Grille de ${c.ecole==='primaire'?'notes':'évaluation'} — ${esc(c.nom)} — ${TLABEL[T]||''}</div><p>Enseignant(e) : ${esc(c.enseignant||'')}${c.ecole==='maternelle'?' &nbsp;·&nbsp; A = Acquis · EC = En cours · NA = Non acquis':''}</p>
+ <table class="small"><thead><tr><th>N°</th><th>Nom et prénoms</th>${c.matieres.map(m=>`<th class="c" style="font-size:10px">${esc(m.nom)}${m.max?'<br>/'+m.max:''}</th>`).join('')}<th class="c">Abs.</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+function classementHTML(cid,T){
+ const c=cls(cid);if(!c)return '';const L=classInscs(cid);
+ if(c.ecole!=='primaire'){
+  const rows=L.map((i,k)=>{const ev2=evGet(i.id,T==='AN'?'T3':T);return `<tr><td class="c">${k+1}</td><td>${esc(fullName(elv(i.eleveId)))}</td>${c.matieres.map(m=>`<td class="c">${esc(ev2.n[m.id]||'')}</td>`).join('')}</tr>`}).join('');
+  return `<div class="pg">${pageHeader(ecoleOf(c),S().annee)}<div class="title">Tableau des évaluations — ${esc(c.nom)} — ${TLABEL[T==='AN'?'T3':T]}</div><table class="small"><thead><tr><th>N°</th><th>Nom et prénoms</th>${c.matieres.map(m=>`<th class="c" style="font-size:10px">${esc(m.nom)}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table><p class="small">A = Acquis · EC = En cours · NA = Non acquis</p></div>`;
+ }
+ const sortByRank=(res)=>L.slice().sort((x,y)=>(res[x.id].rang||999)-(res[y.id].rang||999)||byName(elv(x.eleveId),elv(y.eleveId)));
+ let head,rows,stats;
+ if(T==='AN'){const A=annualResults(cid);stats=A.stats;head=`<th class="c">T1</th><th class="c">T2</th><th class="c">T3</th><th class="c">Moy. annuelle</th><th class="c">Rang</th><th>Décision</th>`;
+  rows=sortByRank(A.res).map(i=>{const r=A.res[i.id],e=elv(i.eleveId);return `<td>${esc(fullName(e))}</td>${r.tri.map(x=>`<td class="c">${fmtN2(x)}</td>`).join('')}<td class="c"><b>${fmtN2(r.moy)}</b></td><td class="c">${rangTxt(r,e.sexe)}</td><td>${esc(i.decision||proposition(i,r))}</td>`});}
+ else{const R=classResults(cid,T);stats=R.stats;head=`${c.matieres.map(m=>`<th class="c" style="font-size:10px">${esc(m.nom)}<br>/${m.max}</th>`).join('')}<th class="c">Total</th><th class="c">Moy.</th><th class="c">Rang</th>`;
+  rows=sortByRank(R.res).map(i=>{const r=R.res[i.id],e=elv(i.eleveId),ev2=evGet(i.id,T);return `<td style="white-space:nowrap">${esc(fullName(e))}</td>${c.matieres.map(m=>`<td class="c">${fmtN(ev2.n[m.id])}</td>`).join('')}<td class="c">${r.cnt?fmtN(r.tot):''}</td><td class="c"><b>${fmtN2(r.moy)}</b></td><td class="c">${rangTxt(r,e.sexe)}</td>`});}
+ return `<div class="pg">${pageHeader(ecoleOf(c),S().annee)}<div class="title">Tableau des résultats — ${esc(c.nom)} — ${T==='AN'?'Résultats annuels':TLABEL[T]}</div>
+ <p>Enseignant(e) : ${esc(c.enseignant||'')} &nbsp;·&nbsp; Effectif : ${L.length}${stats?` &nbsp;·&nbsp; Moyenne de la classe : ${fmtN2(stats.moy)} &nbsp;·&nbsp; Moyenne ≥ ${fmtN(S().seuil)} : ${stats.admis}/${stats.n} (${Math.round(stats.admis/stats.n*100)} %)`:''}</p>
+ <table class="small"><thead><tr><th>N°</th><th>Nom et prénoms</th>${head}</tr></thead><tbody>${rows.map((r,k)=>`<tr><td class="c">${k+1}</td>${r}</tr>`).join('')}</tbody></table>${signBlock()}</div>`;
+}
+function paiementsHTML(cid,onlyImp,ec){
+ let L=yearInscs().filter(i=>(!cid||i.classeId===cid)&&(!ec||cls(i.classeId)?.ecole===ec)).sort((x,y)=>NIV_ALL.indexOf(cls(x.classeId)?.niveau)-NIV_ALL.indexOf(cls(y.classeId)?.niveau)||byName(elv(x.eleveId),elv(y.eleveId)));
+ if(onlyImp)L=L.filter(i=>reste(i)>0);
+ let tD=0,tP=0,tR=0;const rows=L.map((i,k)=>{const e=elv(i.eleveId),d=du(i),p=paye(i.id),r=reste(i);tD+=d;tP+=p;tR+=r;return `<tr><td class="c">${k+1}</td><td>${esc(e.matricule)}</td><td>${esc(fullName(e))}</td><td>${esc(cls(i.classeId)?.nom||'')}</td><td>${esc(e.telephone||'')}</td><td class="r">${fcfa(d)}</td><td class="r">${fcfa(p)}</td><td class="r"><b>${fcfa(r)}</b></td></tr>`}).join('');
+ const c=cls(cid);
+ return `<div class="pg">${pageHeader(c?ecoleOf(c):S().ecoles[ec||'primaire'],S().annee)}<div class="title">${onlyImp?'Liste des impayés':'État des paiements'}${c?' — '+esc(c.nom):''}</div><p>Arrêté au ${fmtDate(today())}</p>
+ <table class="small"><thead><tr><th>N°</th><th>Matricule</th><th>Nom et prénoms</th><th>Classe</th><th>Téléphone</th><th class="r">Dû</th><th class="r">Payé</th><th class="r">Reste</th></tr></thead><tbody>${rows||'<tr><td colspan="8" class="c">Aucun</td></tr>'}</tbody>
+ <tfoot><tr><th colspan="5">Total (${L.length} élève(s))</th><th class="r">${fcfa(tD)}</th><th class="r">${fcfa(tP)}</th><th class="r">${fcfa(tR)}</th></tr></tfoot></table></div>`;
+}
+function recettesHTML(ec,d1,d2){
+ const P=DB.paiements.filter(p=>{const i=ins(p.inscriptionId);return i&&!p.annule&&(!ec||cls(i.classeId)?.ecole===ec)&&(!d1||p.date>=d1)&&(!d2||p.date<=d2)}).sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.recu||'').localeCompare(b.recu||''));
+ const K=keysAll().filter(k=>P.some(p=>+(p.parts||{})[k]));const tot={};K.forEach(k=>tot[k]=0);let T=0;
+ const rows=P.map(p=>{const i=ins(p.inscriptionId),e=elv(i.eleveId);K.forEach(k=>tot[k]+=+(p.parts||{})[k]||0);T+=+p.montant||0;return `<tr><td>${fmtDate(p.date)}</td><td>${esc(p.recu)}</td><td>${esc(fullName(e))}</td><td>${esc(cls(i.classeId)?.nom||'')}</td>${K.map(k=>`<td class="r">${+(p.parts||{})[k]?fcfa(p.parts[k]):''}</td>`).join('')}<td class="r"><b>${fcfa(p.montant)}</b></td></tr>`}).join('');
+ const sc=S().ecoles[ec||'primaire'];
+ return `<div class="pg">${pageHeader(ec?sc:{nom:'Écoles Être et Avoir en Jésus-Christ (primaire et maternelle)'},S().annee)}<div class="title">Journal des recettes${ec?' — '+(ec==='primaire'?'Primaire':'Maternelle'):''}</div><p>Période : du ${fmtDate(d1)||'début'} au ${fmtDate(d2)||fmtDate(today())} · ${P.length} reçu(s)</p>
+ <table class="small"><thead><tr><th>Date</th><th>Reçu</th><th>Élève</th><th>Classe</th>${K.map(k=>`<th class="r">${esc(rubLabel(k))}</th>`).join('')}<th class="r">Total</th></tr></thead><tbody>${rows||`<tr><td colspan="${5+K.length}" class="c">Aucune recette</td></tr>`}</tbody>
+ <tfoot><tr><th colspan="4">Total</th>${K.map(k=>`<th class="r">${fcfa(tot[k])}</th>`).join('')}<th class="r">${fcfa(T)}</th></tr></tfoot></table>${signBlock().replace("L'enseignant(e)","Le/La Caissier(ère)").replace('<div>Le Parent</div>','')}</div>`;
+}
+function effectifsHTML(){
+ const part=ec=>{let G=0,Fi=0;const rows=sortedClasses().filter(c=>c.ecole===ec).map(c=>{const L=classInscs(c.id);let g=0,f=0;L.forEach(i=>elv(i.eleveId)?.sexe==='F'?f++:g++);G+=g;Fi+=f;return `<tr><td>${esc(c.nom)}</td><td>${esc(c.enseignant||'')}</td><td class="c">${g}</td><td class="c">${f}</td><td class="c"><b>${g+f}</b></td></tr>`}).join('');
+  return `<h3 style="margin:14px 0 6px">${esc(S().ecoles[ec].nom)}</h3><table><thead><tr><th>Classe</th><th>Enseignant(e)</th><th class="c">Garçons</th><th class="c">Filles</th><th class="c">Total</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><th colspan="2">Total</th><th class="c">${G}</th><th class="c">${Fi}</th><th class="c">${G+Fi}</th></tr></tfoot></table>`};
+ return `<div class="pg">${pageHeader(S().ecoles.primaire,S().annee)}<div class="title">Effectifs par classe</div><p>Arrêté au ${fmtDate(today())}</p>${part('maternelle')}${part('primaire')}</div>`;
+}
+function registreHTML(){
+ const L=DB.eleves.slice().sort((a,b)=>(a.matricule||'').localeCompare(b.matricule||''));
+ const rows=L.map(e=>{const i=inscOf(e.id);return `<tr><td>${esc(e.matricule)}</td><td>${esc(fullName(e))}</td><td class="c">${esc(e.sexe)}</td><td>${fmtDate(e.dateNaiss)}</td><td>${esc(e.lieuNaiss||'')}</td><td>${fmtDate(e.dateEntree)}</td><td>${esc(i?cls(i.classeId)?.nom:'')}</td><td>${esc(e.statut)}</td></tr>`}).join('');
+ return `<div class="pg">${pageHeader(S().ecoles.primaire,S().annee)}<div class="title">Registre matricule</div><table class="small"><thead><tr><th>Matricule</th><th>Nom et prénoms</th><th>Sexe</th><th>Né(e) le</th><th>Lieu</th><th>Entrée</th><th>Classe ${esc(S().annee)}</th><th>Statut</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+/* ---------- Listes & impressions ---------- */
+function vRapports(){
+ if(!cls(UI.f.rcl))UI.f.rcl=sortedClasses()[0]?.id;
+ return `<h1>Listes & impressions</h1>
+ <div class="card"><h2 style="margin-top:0">Par classe</h2><div class="row">${FS('Classe','r_cl',classOpts(UI.f.rcl),'onchange="UI.f.rcl=this.value"')}${FS('Période','r_t',opts([...TRIMS.map(t=>[t,TLABEL[t]]),['AN','Résultats annuels']],UI.f.rt||'T1'),'onchange="UI.f.rt=this.value"')}</div>
+ <div class="row" style="margin-top:12px"><button onclick="printDoc(listeHTML(fval('r_cl')))">Liste de classe</button><button onclick="printDoc(grilleHTML(fval('r_cl'),fval('r_t')))">Grille de notes vierge (pour l'enseignant)</button><button onclick="printDoc(classementHTML(fval('r_cl'),fval('r_t')))">Tableau des résultats / classement</button><button onclick="printDoc(paiementsHTML(fval('r_cl'),false))">État des paiements</button><button onclick="printDoc(paiementsHTML(fval('r_cl'),true))">Impayés</button></div></div>
+ <div class="card"><h2 style="margin-top:0">Documents pour un élève</h2><div class="row"><button onclick="formCertificat()">Certificat de scolarité</button><span class="muted">Aussi disponible depuis la fiche de l'élève.</span></div></div>
+ <div class="card"><h2 style="margin-top:0">Toute l'école</h2><div class="row"><button onclick="printDoc(effectifsHTML())">Effectifs par classe</button><button onclick="printDoc(paiementsHTML('',true))">Liste de tous les impayés</button><button onclick="printDoc(registreHTML())">Registre matricule complet</button><button onclick="elevesXLSX()">Exporter les élèves (Excel)</button></div></div>
+ <div class="card"><h2 style="margin-top:0">Journal des recettes (caisse)</h2><div class="row">${FS('École','r_ec',opts([['','Les deux écoles'],['primaire','Primaire'],['maternelle','Maternelle']],UI.f.rec||''),'onchange="UI.f.rec=this.value"')}${F('Du','r_d1',UI.f.rd1||today().slice(0,8)+'01','date','onchange="UI.f.rd1=this.value"')}${F('Au','r_d2',UI.f.rd2||today(),'date','onchange="UI.f.rd2=this.value"')}<button onclick="const a=fval('r_ec'),b=fval('r_d1'),c=fval('r_d2');requirePin(()=>printDoc(recettesHTML(a,b,c)),'imprimer le journal des recettes')">Imprimer le journal des recettes${isAdmin()?'':' 🔒'}</button><button onclick="const a=fval('r_ec'),b=fval('r_d1'),c=fval('r_d2');requirePin(()=>recettesXLSX(a,b,c),'exporter le journal des recettes')">Exporter en Excel${isAdmin()?'':' 🔒'}</button></div><p class="muted" style="margin-bottom:0">Détail par rubrique (scolarité, APE, goûter, livres, arriérés) avec les totaux — remplace les feuilles « Recettes journalières » et « Export ».</p></div>
+ <p class="muted">Tous les documents s'impriment en A4, noir et blanc. Dans la fenêtre d'impression, choisissez « Enregistrer au format PDF » pour obtenir un PDF.</p>`;
+}
+
+/* ---------- Fin d'année ---------- */
+function vFin(){
+ const a=S().annee,n=nextYear(a);
+ const blocks=sortedClasses().map(c=>{const L=classInscs(c.id);if(!L.length)return '';const A=c.ecole==='primaire'?annualResults(c.id,a).res:{};
+  const rows=L.map(i=>{const e=elv(i.eleveId),r=A[i.id];return `<tr><td><b>${esc(fullName(e))}</b></td>${c.ecole==='primaire'?`${r.tri.map(x=>`<td class="num">${fmtN2(x)}</td>`).join('')}<td class="num"><b>${fmtN2(r.moy)}</b></td><td>${rangTxt(r,e.sexe)}</td>`:'<td colspan="5" class="muted">maternelle — pas de moyenne</td>'}<td class="muted">${esc(proposition(i,r))}</td><td><select onchange="ins('${i.id}').decision=this.value;save()">${opts([['','—'],...DECISIONS],i.decision)}</select></td></tr>`}).join('');
+  return `<div class="card" style="padding:0;overflow:auto"><div style="padding:10px 14px"><b>${esc(c.nom)}</b> <span class="muted">· ${L.length} élève(s) · les admis passent en ${esc(NEXT[c.niveau]||'— fin de cycle (sortie)')}</span></div><table class="data"><thead><tr><th>Élève</th><th class="num">T1</th><th class="num">T2</th><th class="num">T3</th><th class="num">Annuelle</th><th>Rang</th><th>Proposition</th><th>Décision</th></tr></thead><tbody>${rows}</tbody></table></div>`}).join('');
+ return `<h1>Fin d'année ${esc(a)} → passage en ${esc(n)}</h1>
+ <div class="card"><ol class="steps" style="margin-top:0"><li>Vérifiez les décisions. Proposition automatique : moyenne annuelle ≥ ${fmtN(S().seuil)}/10 → Admis(e), sinon Redouble (modifiable dans Paramètres).</li>
+ <li>Cliquez sur « Passer à ${esc(n)} » : les admis sont inscrits dans la classe supérieure (GS → CP1), les redoublants dans la même classe, les CM2 admis passent au statut « Sorti (fin de cycle) ». Les frais reprennent les montants définis pour chaque classe, et ce qui reste impayé est reporté automatiquement en arriéré.</li>
+ <li>Une sauvegarde de l'année ${esc(a)} est téléchargée automatiquement avant le passage. Les données de ${esc(a)} restent consultables (Paramètres → année scolaire).</li></ol>
+ <div class="row"><button onclick="applyPropositions()">Remplir les décisions vides avec les propositions</button><button class="primary" onclick="doPassage()">Passer à l'année ${esc(n)}</button></div></div>${blocks||'<div class="card">Aucune inscription cette année.</div>'}`;
+}
+function applyPropositions(){
+ let k=0;sortedClasses().forEach(c=>{const A=c.ecole==='primaire'?annualResults(c.id).res:{};classInscs(c.id).forEach(i=>{if(!i.decision){const p=proposition(i,A[i.id]);if(p){i.decision=p;k++}}})});
+ save();render();toast(`${k} décision(s) remplie(s)`);
+}
+function doPassage(){
+ const a=S().annee,n=nextYear(a),L=yearInscs(a);
+ if(!L.length){alert('Aucune inscription cette année.');return}
+ const sans=L.filter(i=>!i.decision).length;
+ if(!confirm(`Passer de ${a} à ${n} ?${sans?`\n\nAttention : ${sans} élève(s) sans décision ne seront pas réinscrits (vous pourrez les inscrire à la main).`:''}\n\nUne sauvegarde sera d'abord téléchargée.`))return;
+ downloadBackup();
+ let nb=0,sortis=0;const manque=new Set();
+ let arrT=0;
+ L.forEach(i=>{const e=elv(i.eleveId),c=cls(i.classeId);if(!e||!c||inscOf(e.id,n))return;const d=i.decision;const r=reste(i);if(r>0){e.arriereEnAttente=(+e.arriereEnAttente||0)+r;arrT+=r}
+  if(d==='Admis(e)'){const nx=NEXT[c.niveau];if(!nx){e.statut='Sorti (fin de cycle)';sortis++;return}const tc=findClassByNiveau(nx);if(!tc){manque.add(nx);return}createInscription(e.id,tc.id,n,{type:'Ancien'});nb++}
+  else if(d==='Redouble'){createInscription(e.id,c.id,n,{type:'Ancien',redoublant:true});nb++}
+  else if(d==='Abandon')e.statut='Abandon';else if(d==='Transféré(e)')e.statut='Transféré';else if(d==='Exclu(e)')e.statut='Exclu';
+ });
+ S().annee=n;save();UI.view='inscr';UI.f.icl='';render();
+ alert(`Année ${n} ouverte.\n${nb} élève(s) réinscrit(s), ${sortis} sortie(s) en fin de cycle.\nArriérés reportés : ${fcfa(arrT)} (ajoutés aux nouvelles inscriptions).${manque.size?`\nClasses introuvables : ${[...manque].join(', ')} — élèves concernés non réinscrits.`:''}\n\nInscrivez maintenant les nouveaux élèves. S'il y a plusieurs sections d'un même niveau, vérifiez la répartition.`);
+}
+
+/* ---------- Paramètres & données ---------- */
+function vParam(){
+ const s=S();
+ const ec=k=>{const e=s.ecoles[k];const lab={nom:"Nom de l'école",devise:'Devise',arrete:"Arrêté d'ouverture",adresse:'Adresse',tel:'Téléphone',directeur:'Directeur / Directrice'};return `<div class="card" style="flex:1;min-width:300px;margin:0"><h2 style="margin-top:0">${k==='primaire'?'École primaire':'École maternelle'}</h2><div class="form-grid">${Object.keys(lab).map(f=>`<div class="field"><label>${lab[f]}</label><input value="${esc(e[f]||'')}" onchange="S().ecoles['${k}']['${f}']=this.value;save()"></div>`).join('')}</div></div>`};
+ const years=[...new Set([s.annee,...DB.inscriptions.map(i=>i.annee)])].sort();
+ const crow=sortedClasses().map(c=>{const n=DB.inscriptions.filter(i=>i.classeId===c.id).length;return `<tr><td>${c.ecole==='primaire'?'Primaire':'Maternelle'}</td><td>${c.niveau}</td><td><input value="${esc(c.nom)}" style="width:110px" onchange="setCls('${c.id}','nom',this.value)"></td><td><input value="${esc(c.enseignant||'')}" style="width:160px" onchange="setCls('${c.id}','enseignant',this.value)"></td>${RUB().map(r=>`<td><input type="number" min="0" value="${+(c.frais||{})[r.k]||0}" style="width:85px" onchange="setFrais('${c.id}','${r.k}',this.value)"></td>`).join('')}<td style="white-space:nowrap"><button class="small" onclick="editMatieres('${c.id}')">${c.ecole==='primaire'?'Matières':'Domaines'} (${c.matieres.length})</button> <button class="small danger" ${n?'disabled title="Classe utilisée"':''} onclick="delClass('${c.id}')">✕</button></td></tr>`}).join('');
+ return `<h1>Paramètres & données</h1>
+ <div class="row" style="align-items:stretch;margin-bottom:14px">${ec('primaire')}${ec('maternelle')}</div>
+ <div class="card"><h2 style="margin-top:0">Général</h2><div class="row">
+  ${FS('Année scolaire en cours','p_an',opts(years,s.annee),'onchange="S().annee=this.value;save();render()"')}
+  <div class="field"><label>Ouvrir une autre année (ex. 2026-2027)</label><div class="row" style="gap:6px"><input id="p_newan" placeholder="AAAA-AAAA" style="width:120px"><button onclick="setAnnee()">Ouvrir</button></div></div>
+  ${F('Moyenne de passage (/10)','p_seuil',s.seuil,'number','min="0" max="10" step="0.5" onchange="S().seuil=+this.value||5;save()"')}
+  ${F('Préfixe matricule primaire','p_pp',s.prefixes.primaire,'text','style="width:70px" onchange="S().prefixes.primaire=this.value.trim();save()"')}
+  ${F('Préfixe matricule maternelle','p_pm',s.prefixes.maternelle,'text','style="width:70px" onchange="S().prefixes.maternelle=this.value.trim();save()"')}
+  ${F('Nom du/de la comptable (reçus)','p_cais',s.caissier||'','text','onchange="S().caissier=this.value.trim();save()"')}
+  <div class="field"><label>Logo (reçus)</label><div class="row" style="gap:6px;align-items:center">${logoSrc()?`<img src="${logoSrc()}" style="height:34px">`:'<span class="muted">aucun</span>'}<label class="btn" style="padding:4px 8px;font-size:12px">Changer<input type="file" accept="image/*" hidden onchange="setLogo(this.files[0])"></label>${S().logo!==undefined&&S().logo!==null?'<button class="small" onclick="S().logo=null;save();render()">Logo d\'origine</button>':''}${logoSrc()?'<button class="small" onclick="S().logo=\'\';save();render()">Sans logo</button>':''}</div></div>
+  <div class="field" style="flex:1;min-width:260px"><label>Phrase en bas des reçus</label><input value="${esc(s.piedRecu||'')}" onchange="S().piedRecu=this.value.trim();save()"></div>
+  ${F('Ville (certificats)','p_ville',s.ville,'text','onchange="S().ville=this.value.trim();save()"')}
+ </div><p class="muted" style="margin-bottom:0">Pour passer à l'année suivante avec réinscription automatique, utilisez plutôt « Fin d'année / passage ».</p></div>
+ <div class="card" style="overflow:auto"><h2 style="margin-top:0">Classes, enseignants et frais</h2>
+ <table class="data"><thead><tr><th>École</th><th>Niveau</th><th>Nom de la classe</th><th>Enseignant(e)</th>${RUB().map(r=>`<th>${esc(r.l)} (F)</th>`).join('')}<th></th></tr></thead><tbody>${crow}</tbody></table>
+ <p class="muted" style="margin:6px 0 0">Une rubrique à 0 n'est pas due pour cette classe (elle peut quand même être encaissée).</p>
+ <div class="row" style="margin-top:12px">${FS('Niveau','p_niv',opts(NIV_ALL))}${F('Nom (ex. CP1 B)','p_cnom','')}<button onclick="addClass()">+ Ajouter une classe</button><span style="flex:1"></span><button onclick="applyFees()">Appliquer les frais des classes aux inscriptions ${esc(s.annee)}</button></div></div>
+ <div class="card"><h2 style="margin-top:0">Fichier de données partagé (école ↔ maison, OneDrive)</h2>
+ ${FS_OK?`<p class="muted" style="margin-top:0">Les données sont enregistrées automatiquement dans un fichier placé dans un dossier OneDrive (ou Google Drive) synchronisé. Chaque ordinateur (laptop de l'école, MacBook) ouvre ce même fichier : les modifications passent d'un ordinateur à l'autre. Sans internet, on continue à travailler ; OneDrive envoie le fichier dès que la connexion revient. Pensez à choisir « Toujours conserver sur cet appareil » pour ce fichier.</p>
+ <div class="row">${F('Nom de cet ordinateur','p_dev',devName(),'text','placeholder="ex. Laptop école" onchange="setDevName(this.value);render()"')}
+ <div class="field"><label>État</label><div style="padding:6px 0"><b>${esc(syncLabel())}</b>${FH&&FSTATE==='ok'&&FH.name?` <span class="muted">(${esc(FH.name)})</span>`:''}</div></div></div>
+ <div class="row" style="margin-top:10px">${FH||FSTATE==='need'?`${FSTATE==='need'?'<button class="primary" onclick="reconnect()">Reconnecter le fichier</button>':''}<button onclick="disconnectFile()">Déconnecter</button>`:`<button class="primary" onclick="createDataFile()">Créer le fichier de données dans OneDrive (1er ordinateur)</button><button onclick="openDataFile()">Ouvrir le fichier existant (autre ordinateur)</button>`}</div>`:'<p>Cette fonction nécessite Google Chrome (ou Edge).</p>'}</div>
+ <div class="card"><h2 style="margin-top:0">Sécurité : codes PIN</h2><div class="row"><button onclick="formPin('admin')">${s.pinAdmin?'Changer':'Créer'} le code Direction</button><button onclick="formPin('staff')" ${s.pinAdmin?'':'disabled'}>${s.pinStaff?'Changer':'Créer'} le code Comptable</button><span style="flex:1"></span><button onclick="printDoc(journalHTML())">Imprimer le journal des opérations (${(DB.journal||[]).length})</button></div>
+ <p class="muted" style="margin-bottom:0">${s.pinAdmin?`Code Direction actif.${s.pinStaff?' Code Comptable actif.':' Pas encore de code Comptable.'} Au démarrage, le programme demande un code ; il se verrouille après 15 minutes sans activité.`:'Aucun code : tout le monde a accès à tout. Créez d\'abord le code Direction, puis le code Comptable.'}</p></div>
+ <div class="card"><h2 style="margin-top:0">Sauvegarde et import</h2>
+ <p class="muted" style="margin-top:0">Les données sont enregistrées automatiquement dans ce navigateur, sur cet ordinateur. Téléchargez une sauvegarde chaque semaine et copiez-la sur une clé USB. Pour utiliser un autre ordinateur, restaurez-y la dernière sauvegarde.</p>
+ <div class="row"><button class="primary" onclick="downloadBackup()">Télécharger une sauvegarde (.json)</button><label class="btn">Restaurer une sauvegarde<input type="file" accept=".json,application/json" hidden onchange="restoreBackup(this.files[0]);this.value=''"></label></div>
+ <h2>Importer une liste d'élèves depuis Excel</h2>
+ <p class="muted" style="margin-top:0">Dans Excel : Fichier → Enregistrer sous → « CSV (séparateur : point-virgule) ». Colonnes reconnues : Matricule, Nom, Prénoms, Sexe, Date de naissance, Lieu de naissance, Classe, Père, Mère, Tuteur, Téléphone, Adresse. Si la colonne Classe correspond à une classe (ex. CP1, CE2, Petite Section), l'élève est inscrit en ${esc(s.annee)} avec les frais de la classe.</p>
+ <div class="field" style="margin-bottom:10px"><label>Copier-coller direct : dans Excel, sélectionnez le tableau AVEC la ligne des titres, copiez (Cmd+C / Ctrl+C), puis collez ici (Cmd+V / Ctrl+V).</label><textarea id="p_paste" style="min-height:110px;font-family:monospace;font-size:12px" placeholder="Nom	Prénoms	Sexe	Date de naissance	Classe	Téléphone&#10;OUEDRAOGO	Awa	F	12/03/2017	CE1	70000000"></textarea><div class="row" style="margin-top:6px"><button class="primary" onclick="importPaste()">Importer les lignes collées</button></div></div>
+ <div class="row"><button onclick="downloadTemplate()">Télécharger le modèle CSV</button><label class="btn">Importer un fichier CSV<input type="file" accept=".csv,.txt,text/csv" hidden onchange="importCSV(this.files[0]);this.value=''"></label><button onclick="elevesXLSX()">Exporter les élèves (Excel)</button><span style="flex:1"></span><button class="danger" onclick="resetAll()">Tout effacer</button></div></div>`;
+}
+function setCls(id,f,v){const c=cls(id);c[f]=v.trim();save()}
+function setLogo(f){if(!f)return;const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{const c=document.createElement('canvas');const sc=Math.min(1,260/Math.max(img.width,img.height));c.width=Math.round(img.width*sc);c.height=Math.round(img.height*sc);const x=c.getContext('2d');x.drawImage(img,0,0,c.width,c.height);const d=x.getImageData(0,0,c.width,c.height);for(let k=0;k<d.data.length;k+=4){const g=Math.round(.299*d.data[k]+.587*d.data[k+1]+.114*d.data[k+2]);d.data[k]=d.data[k+1]=d.data[k+2]=g}x.putImageData(d,0,0);S().logo=c.toDataURL('image/png');save();render();toast('Logo enregistré (noir et blanc)')};img.src=r.result};r.readAsDataURL(f)}
+function setFrais(id,k,v){const c=cls(id);c.frais=c.frais||{};c.frais[k]=+v||0;save()}
+function addClass(){const niv=fval('p_niv'),nom=fval('p_cnom')||niv;const ecole=NIV_MAT.includes(niv)?'maternelle':'primaire';const src=sortedClasses().find(c=>c.niveau===niv);
+ DB.classes.push({id:uid(),ecole,niveau:niv,nom,enseignant:'',frais:Object.assign(zeroFrais(),src?.frais||{}),matieres:src?src.matieres.map(m=>({...m,id:uid()})):defaultMatieres(niv)});save();render();toast('Classe ajoutée')}
+function delClass(id){if(DB.inscriptions.some(i=>i.classeId===id)){alert('Cette classe a des inscriptions.');return}if(!confirm('Supprimer cette classe ?'))return;DB.classes=DB.classes.filter(c=>c.id!==id);save();render()}
+function applyFees(){if(!confirm(`Remplacer les frais de toutes les inscriptions ${S().annee} par les montants des classes ?\n(Les réductions et arriérés sont conservés.)`))return;yearInscs().forEach(i=>{const c=cls(i.classeId);if(c)i.frais=Object.assign(zeroFrais(),c.frais||{})});save();render();toast('Frais appliqués')}
+function setAnnee(){const v=fval('p_newan');if(!/^\d{4}-\d{4}$/.test(v)||+v.slice(5)!==+v.slice(0,4)+1){alert('Format attendu : 2026-2027');return}S().annee=v;save();render();toast('Année '+v+' ouverte')}
+let _mat=null,_matCid=null;
+function editMatieres(cid){_matCid=cid;_mat=JSON.parse(JSON.stringify(cls(cid).matieres));renderMat()}
+function renderMat(){
+ const c=cls(_matCid),prim=c.ecole==='primaire';
+ modal(`<h3>${prim?'Matières et barème':"Domaines d'apprentissage"} — ${esc(c.nom)}</h3>
+ <table class="data"><thead><tr><th>${prim?'Matière':'Domaine'}</th>${prim?'<th>Noté sur</th>':''}<th></th></tr></thead><tbody>${_mat.map((m,k)=>`<tr><td><input style="width:100%" value="${esc(m.nom)}" onchange="_mat[${k}].nom=this.value"></td>${prim?`<td><input type="number" min="1" style="width:80px" value="${m.max}" onchange="_mat[${k}].max=+this.value||10"></td>`:''}<td style="white-space:nowrap"><button class="small" onclick="mvMat(${k},-1)">↑</button> <button class="small" onclick="mvMat(${k},1)">↓</button> <button class="small danger" onclick="_mat.splice(${k},1);renderMat()">✕</button></td></tr>`).join('')}</tbody></table>
+ <div class="row" style="margin-top:10px"><button onclick="_mat.push({id:uid(),nom:'Nouvelle ${prim?'matière':'compétence'}',max:${prim?10:null}});renderMat()">+ Ajouter</button></div>
+ <p class="muted">${prim?"Moyenne = total des points ÷ total du barème × 10. ":''}Supprimer une ligne efface aussi les notes déjà saisies pour celle-ci.</p>
+ <div class="actions"><label style="margin-right:auto"><input type="checkbox" id="m_all"> Appliquer aussi aux autres classes du niveau ${c.niveau}</label><button onclick="closeModal()">Annuler</button><button class="primary" onclick="saveMat()">Enregistrer</button></div>`);
+}
+function mvMat(k,d){const j=k+d;if(j<0||j>=_mat.length)return;[_mat[k],_mat[j]]=[_mat[j],_mat[k]];renderMat()}
+function saveMat(){const c=cls(_matCid);c.matieres=_mat.filter(m=>m.nom.trim());if(fval('m_all'))DB.classes.filter(x=>x.niveau===c.niveau&&x.id!==c.id).forEach(x=>x.matieres=c.matieres.map(m=>({...m})));save();closeModal();render();toast('Matières enregistrées')}
+function downloadBackup(){S().lastBackup=new Date().toISOString();save();download(`EAenJC_sauvegarde_${today()}.json`,JSON.stringify(DB),'application/json');render()}
+function restoreBackup(file){if(!file)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d||!Array.isArray(d.eleves)||!Array.isArray(d.classes))throw new Error('format');
+ if(!confirm(`Restaurer cette sauvegarde (${d.eleves.length} élèves, année ${d.settings?.annee||'?'}) ?\nLes données actuelles de ce navigateur seront remplacées.`))return;DB=migrate(d);logJ('Sauvegarde restaurée',`${d.eleves.length} élèves`);save();render();toast('Sauvegarde restaurée')}catch(e){alert("Ce fichier n'est pas une sauvegarde valide.")}};r.readAsText(file)}
+function resetAll(){if(!confirm('Effacer TOUTES les données ?'+(FH?'\nAttention : le fichier partagé sera aussi effacé pour les autres ordinateurs.':'')))return;if(prompt('Tapez EFFACER pour confirmer')!=='EFFACER')return;DB=defaultDB();logJ('Toutes les données effacées','');save();UI={view:'dash',f:{}};render()}
+const CSV_COLS=['Matricule','Nom','Prénoms','Sexe','Date de naissance','Lieu de naissance','Classe','Père','Mère','Tuteur','Téléphone','Adresse'];
+function csvCell(v){v=String(v??'');return /[;"\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
+function downloadTemplate(){download('modele_import_eleves.csv','﻿'+CSV_COLS.join(';')+'\r\nEA2025-0001;OUEDRAOGO;Awa Mariam;F;12/03/2017;Bobo-Dioulasso;CE1;OUEDRAOGO Issa;SANOU Fatou;;70 00 00 00;Secteur 22\r\n','text/csv')}
+function exportCSV(){const rows=DB.eleves.slice().sort(byName).map(e=>{const i=inscOf(e.id);return [e.matricule,e.nom,e.prenoms,e.sexe,fmtDate(e.dateNaiss),e.lieuNaiss,i?cls(i.classeId)?.nom:'',e.pere,e.mere,e.tuteur,e.telephone,e.adresse,e.statut].map(csvCell).join(';')});download(`eleves_${S().annee}.csv`,'﻿'+[...CSV_COLS,'Statut'].join(';')+'\r\n'+rows.join('\r\n'),'text/csv')}
+function parseCSV(text){
+ text=text.replace(/^﻿/,'');const first=text.split(/\r?\n/)[0];const cnt=ch=>first.split(ch).length;const d=[';',',','\t'].sort((a,b)=>cnt(b)-cnt(a))[0];
+ const rows=[];let row=[],cur='',q=false;
+ for(let k=0;k<text.length;k++){const ch=text[k];if(q){if(ch==='"'){if(text[k+1]==='"'){cur+='"';k++}else q=false}else cur+=ch}else{if(ch==='"')q=true;else if(ch===d){row.push(cur);cur=''}else if(ch==='\n'){row.push(cur);rows.push(row);row=[];cur=''}else if(ch!=='\r')cur+=ch}}
+ if(cur||row.length){row.push(cur);rows.push(row)}return rows.filter(r=>r.some(x=>x.trim()));
+}
+function toISO(s){s=String(s||'').trim();if(!s)return '';let m=/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/.exec(s);if(m){let y=+m[3];if(y<100)y+=y>50?1900:2000;return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`}
+ if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10);if(/^\d{5}$/.test(s)){const dt=new Date(Date.UTC(1899,11,30)+(+s)*864e5);return dt.toISOString().slice(0,10)}return s}
+function importCSV(file){if(!file)return;const r=new FileReader();r.onload=()=>importText(r.result);r.readAsText(file,'utf-8')}
+function importPaste(){const t=document.getElementById('p_paste').value;if(!t.trim()){alert("Collez d'abord les cellules copiées depuis Excel (avec la ligne des titres).");return}importText(t);document.getElementById('p_paste')&&(document.getElementById('p_paste').value='')}
+function importText(text){{
+ const rows=parseCSV(text);if(rows.length<2){alert('Fichier vide ou illisible.');return}
+ const H=rows[0].map(h=>norm(h).replace(/[^a-z]/g,''));
+ const find=(...keys)=>H.findIndex(h=>keys.some(k=>h===k||h.startsWith(k)));
+ const ix={mat:find('matricule','mle'),nom:find('nom'),pre:find('prenom'),sexe:find('sexe','genre'),dn:find('datedenaissance','datenaissance','naissance','nele','neele','datenaiss','dn'),ln:find('lieudenaissance','lieu'),cl:find('classe','niveau'),pere:find('pere'),mere:find('mere'),tut:find('tuteur','parent','contact'),tel:find('telephone','tel','phone','cel'),adr:find('adresse','quartier','domicile')};
+ if(ix.nom<0){alert('Colonne « Nom » introuvable dans la première ligne.');return}
+ if(ix.pre===ix.nom)ix.pre=-1;
+ let added=0,skipped=0,inscrits=0;const unknown=new Set();
+ rows.slice(1).forEach(c=>{const g=k=>ix[k]>=0?String(c[ix[k]]??'').trim():'';let nom=g('nom'),pre=g('pre');if(!nom)return;
+  if(ix.pre<0&&nom.includes(' ')){const p=nom.split(/\s+/);nom=p.shift();pre=p.join(' ')}
+  const sx=norm(g('sexe'));const sexe=/^(f|fille|feminin)/.test(sx)?'F':'M';const dn=toISO(g('dn'));const mat=g('mat');
+  if(DB.eleves.some(x=>(mat&&x.matricule===mat)||(norm(x.nom)===norm(nom)&&norm(x.prenoms)===norm(pre)&&(x.dateNaiss||'')===dn))){skipped++;return}
+  const e={id:uid(),matricule:mat||'',nom:nom.toUpperCase(),prenoms:pre,sexe,dateNaiss:dn,lieuNaiss:g('ln'),nationalite:'Burkinabè',pere:g('pere'),mere:g('mere'),tuteur:g('tut'),telephone:g('tel'),adresse:g('adr'),dateEntree:'',ecoleOrigine:'',statut:'Actif',boursier:false,observations:''};
+  if(!e.matricule){const cv0=norm(g('cl'));const c0=DB.classes.find(x=>norm(x.nom)===cv0||norm(x.niveau)===cv0);e.matricule=nextMatricule(c0?.ecole)}DB.eleves.push(e);added++;
+  const cv=norm(g('cl')).replace(/\s+/g,' ');if(cv){const c=DB.classes.find(x=>norm(x.nom)===cv||norm(x.niveau)===cv||norm(x.nom).replace(/\s/g,'')===cv.replace(/\s/g,''));if(c){createInscription(e.id,c.id);inscrits++}else unknown.add(g('cl'))}
+ });
+ save();render();alert(`Import terminé.\n${added} élève(s) ajouté(s), dont ${inscrits} inscrit(s) en ${S().annee}.\n${skipped} doublon(s) ignoré(s).${unknown.size?`\nClasses non reconnues : ${[...unknown].join(', ')} (élèves ajoutés sans inscription).`:''}`);
+}}
+
+/* ---------- accès : comptable / direction ---------- */
+let ROLE=null,ROLE_UNTIL=0;const IDLE_MS=15*60*1000;
+function secured(){return !!(S().pinAdmin||S().pinStaff)}
+function role(){if(!secured())return 'admin';if(ROLE&&ROLE_UNTIL>Date.now())return ROLE;return null}
+function isAdmin(){return role()==='admin'}
+['click','keydown'].forEach(ev=>document.addEventListener(ev,()=>{if(ROLE&&ROLE_UNTIL>Date.now())ROLE_UNTIL=Date.now()+IDLE_MS},true));
+setInterval(()=>{if(secured()&&ROLE&&ROLE_UNTIL<=Date.now()){ROLE=null;closeModal();closePv();render()}},20000);
+async function hashPin(pin){const t=new TextEncoder().encode('eaenjc:'+pin);if(window.crypto&&crypto.subtle){const b=await crypto.subtle.digest('SHA-256',t);return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}let h=0;for(const c of t)h=(h*31+c)|0;return 'x'+h}
+function vLogin(){return `<div class="card" style="max-width:400px;margin:10vh auto"><h2 style="margin-top:0">EAenJC — Gestion scolaire</h2><p class="muted" style="margin-top:0">Entrez votre code PIN pour commencer.</p>
+ <div class="row">${F('Code PIN','login_pin','','password','inputmode="numeric" autocomplete="off" onkeydown="if(event.key===\'Enter\')doLogin()"')}<button class="primary" onclick="doLogin()">Entrer</button></div>
+ <div id="login_msg" style="color:var(--danger);min-height:18px;margin-top:8px"></div><p class="muted" style="font-size:12px;margin-bottom:0">Code comptable : inscriptions, paiements, reçus, notes, bulletins.<br>Code direction : tout, y compris les finances et les paramètres.<br>Verrouillage automatique après 15 minutes sans activité.</p></div>`}
+async function doLogin(){const h=await hashPin(fval('login_pin'));const r=h===S().pinAdmin?'admin':(S().pinStaff&&h===S().pinStaff)?'staff':null;
+ if(!r){document.getElementById('login_msg').textContent='Code incorrect.';document.getElementById('login_pin').value='';return}
+ ROLE=r;ROLE_UNTIL=Date.now()+IDLE_MS;UI.view='dash';render()}
+function lockNow(){ROLE=null;closeModal();render()}
+function requirePin(cb,what){
+ if(isAdmin())return cb();
+ modal(`<h3>Code de la direction requis</h3><p class="muted" style="margin-top:0">Pour ${esc(what||'continuer')}.</p><div class="row">${F('Code PIN direction','pin_in','','password','inputmode="numeric" autocomplete="off" onkeydown="if(event.key===\'Enter\')checkPin()"')}</div><div id="pin_msg" style="color:var(--danger);min-height:18px;margin-top:6px"></div><div class="actions"><button onclick="closeModal()">Annuler</button><button class="primary" onclick="checkPin()">Valider</button></div>`);
+ window._pinCb=cb;
+}
+async function checkPin(){const h=await hashPin(fval('pin_in'));if(h===S().pinAdmin){ROLE='admin';ROLE_UNTIL=Date.now()+IDLE_MS;closeModal();const cb=window._pinCb;window._pinCb=null;render();if(cb)cb()}else{document.getElementById('pin_msg').textContent='Code incorrect.';document.getElementById('pin_in').value=''}}
+function formPin(kind){
+ const lab=kind==='admin'?'Direction':'Comptable';const cur=kind==='admin'?S().pinAdmin:S().pinStaff;
+ if(kind==='staff'&&!S().pinAdmin){alert("Créez d'abord le code de la direction.");return}
+ modal(`<h3>${cur?'Changer':'Créer'} le code ${lab}</h3><p class="muted" style="margin-top:0">${kind==='admin'?'Accès complet : finances, paramètres, annulation de reçus, fin d\'année.':'Accès comptable : inscriptions, paiements, reçus, clôture de caisse, notes, bulletins, listes. Pas les totaux financiers ni les paramètres.'}</p>
+ <div class="row">${F('Nouveau code (4 à 8 chiffres)','pin1','','password','inputmode="numeric"')}${F('Confirmer','pin2','','password','inputmode="numeric"')}</div>
+ <div class="actions">${cur?`<button class="danger" style="margin-right:auto" onclick="removePin('${kind}')">Supprimer ce code</button>`:''}<button onclick="closeModal()">Annuler</button><button class="primary" onclick="savePin('${kind}')">Enregistrer</button></div>`);
+}
+async function savePin(kind){const a=fval('pin1'),b=fval('pin2');if(!/^\d{4,8}$/.test(a)){alert('Le code doit avoir 4 à 8 chiffres.');return}if(a!==b){alert('Les deux codes sont différents.');return}
+ const h=await hashPin(a);if(kind==='staff'&&h===S().pinAdmin){alert('Le code comptable doit être différent du code direction.');return}if(kind==='admin'&&h===S().pinStaff){alert('Le code direction doit être différent du code comptable.');return}
+ S()[kind==='admin'?'pinAdmin':'pinStaff']=h;ROLE='admin';ROLE_UNTIL=Date.now()+IDLE_MS;logJ('Code PIN modifié',kind==='admin'?'Direction':'Comptable');save();closeModal();render();toast('Code enregistré')}
+function removePin(kind){
+ if(kind==='admin'&&S().pinStaff){alert('Supprimez d\'abord le code comptable.');return}
+ if(!confirm('Supprimer ce code ?'+(kind==='admin'?'\nSans code direction, le programme ne sera plus protégé.':'')))return;
+ S()[kind==='admin'?'pinAdmin':'pinStaff']=null;logJ('Code PIN supprimé',kind==='admin'?'Direction':'Comptable');save();closeModal();render()}
+
+/* ---------- journal des opérations ---------- */
+function logJ(action,detail){DB.journal=DB.journal||[];DB.journal.push({t:new Date().toISOString(),dev:(devName()||'?')+(secured()?' / '+(role()==='admin'?'Direction':'Comptable'):''),a:action,d:detail||''});if(DB.journal.length>3000)DB.journal=DB.journal.slice(-3000)}
+function journalHTML(){const J=(DB.journal||[]).slice().reverse();return `<div class="pg">${pageHeader(S().ecoles.primaire,S().annee)}<div class="title">Journal des opérations</div><table class="small"><thead><tr><th>Date et heure</th><th>Ordinateur</th><th>Opération</th><th>Détail</th></tr></thead><tbody>${J.map(j=>`<tr><td>${new Date(j.t).toLocaleString('fr-FR')}</td><td>${esc(j.dev)}</td><td>${esc(j.a)}</td><td>${esc(j.d)}</td></tr>`).join('')||'<tr><td colspan="4">—</td></tr>'}</tbody></table></div>`}
+
+/* ---------- recherche d'élève (nom ou numéro) ---------- */
+const PK={};
+function pickerHTML(id,label,list,cb){
+ PK[id]={list,cb};
+ return `<div class="field" style="grid-column:1/-1"><label for="${id}_q">${label}</label><input id="${id}_q" list="${id}_dl" autocomplete="off" oninput="pickResolve('${id}')" placeholder="Tapez le nom ou le numéro (ex. 0178, P0178 ou Sanou Rosalie)"><datalist id="${id}_dl">${list.map(x=>`<option value="${esc(x[1])}">`).join('')}</datalist><input type="hidden" id="${id}" value=""><div id="${id}_ok" style="font-size:13px;min-height:18px;margin-top:2px"></div></div>`;
+}
+function pickResolve(id){
+ const P=PK[id];if(!P)return;const q=norm(fval(id+'_q'));const L=P.list;let m=L.find(x=>norm(x[1])===q),msg='';
+ if(!m&&q){
+  const digits=q.replace(/[^0-9]/g,'');
+  const byMat=/\d/.test(q)?L.filter(x=>norm(x[2])===q||(digits&&norm(x[2]).replace(/[^0-9]/g,'')===digits&&q.replace(/[0-9\s-]/g,'')==='')):[];
+  if(byMat.length===1)m=byMat[0];
+  else if(byMat.length>1)msg=`${byMat.length} élèves ont ce numéro : ${byMat.map(x=>x[2]).join(', ')} — tapez la lettre (P = primaire, M = maternelle).`;
+  else{const c=L.filter(x=>norm(x[1]).includes(q));if(c.length===1)m=c[0];else if(c.length>1)msg=`${c.length} élèves correspondent — continuez à taper ou choisissez dans la liste.`;else msg='Aucun élève trouvé.'}
+ }
+ document.getElementById(id).value=m?m[0]:'';
+ document.getElementById(id+'_ok').innerHTML=m?`<span style="color:var(--ok)">✓ <b>${esc(m[1])}</b></span>`:`<span class="muted">${esc(msg)}</span>`;
+ if(P.cb)window[P.cb]();
+}
+function filterRows(tb,q){q=norm(q);document.querySelectorAll('#'+tb+' [data-s]').forEach(tr=>{tr.style.display=!q||tr.dataset.s.includes(q)?'':'none'})}
+function rowKey(e){return esc(norm(fullName(e)+' '+(e?.matricule||'')+' '+String(e?.matricule||'').replace(/^[A-Za-z]+/,'')))}
+
+/* ---------- export Excel (.xlsx, sans connexion) ---------- */
+const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+function crc32(b){let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=CRC[(c^b[i])&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0}
+function zipStore(files){const enc=new TextEncoder();const parts=[],central=[];let off=0;
+ const d=new Date(),dt=((d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1))&0xFFFF,dd=(((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate())&0xFFFF;
+ files.forEach(f=>{const name=enc.encode(f.name),data=typeof f.data==='string'?enc.encode(f.data):f.data,crc=crc32(data);
+  const h=new DataView(new ArrayBuffer(30));h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(6,0x0800,true);h.setUint16(8,0,true);h.setUint16(10,dt,true);h.setUint16(12,dd,true);h.setUint32(14,crc,true);h.setUint32(18,data.length,true);h.setUint32(22,data.length,true);h.setUint16(26,name.length,true);h.setUint16(28,0,true);
+  parts.push(new Uint8Array(h.buffer),name,data);
+  const c=new DataView(new ArrayBuffer(46));c.setUint32(0,0x02014b50,true);c.setUint16(4,20,true);c.setUint16(6,20,true);c.setUint16(8,0x0800,true);c.setUint16(10,0,true);c.setUint16(12,dt,true);c.setUint16(14,dd,true);c.setUint32(16,crc,true);c.setUint32(20,data.length,true);c.setUint32(24,data.length,true);c.setUint16(28,name.length,true);c.setUint32(42,off,true);
+  central.push(new Uint8Array(c.buffer),name);off+=30+name.length+data.length});
+ const csize=central.reduce((s,x)=>s+x.length,0);const e=new DataView(new ArrayBuffer(22));e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,csize,true);e.setUint32(16,off,true);
+ return new Blob([...parts,...central,new Uint8Array(e.buffer)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})}
+function colL(n){let s='';n++;while(n){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-1)/26)}return s}
+function xEsc(v){return String(v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function isoSerial(iso){const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||'');return m?(Date.UTC(+m[1],+m[2]-1,+m[3])-Date.UTC(1899,11,30))/864e5:null}
+// cellule : nombre, texte, {d:'AAAA-MM-JJ'} date, {f:'SUM(..)'} formule ; style : 1 gras, 2 nombre, 3 gras+nombre, 4 date
+function sheetXML(sh){
+ const rows=sh.rows.map((r,ri)=>`<row r="${ri+1}">${r.map((v,ci)=>{if(v===null||v===undefined||v==='')return '';const ref=colL(ci)+(ri+1);const bold=(sh.bold||[]).includes(ri);
+  if(typeof v==='number')return `<c r="${ref}" s="${bold?3:2}"><v>${v}</v></c>`;
+  if(v&&v.f)return `<c r="${ref}" s="${bold?3:2}"><f>${xEsc(v.f)}</f></c>`;
+  if(v&&v.d!==undefined){const n=isoSerial(v.d);return n===null?'':`<c r="${ref}" s="4"><v>${n}</v></c>`}
+  return `<c r="${ref}" t="inlineStr"${bold?' s="1"':''}><is><t xml:space="preserve">${xEsc(v)}</t></is></c>`}).join('')}</row>`).join('');
+ const cols=sh.widths?`<cols>${sh.widths.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join('')}</cols>`:'';
+ const frz=sh.freeze?`<sheetViews><sheetView workbookViewId="0"><pane ySplit="${sh.freeze}" topLeftCell="A${sh.freeze+1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>`:'';
+ return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${frz}${cols}<sheetData>${rows}</sheetData></worksheet>`}
+function downloadXLSX(fname,sheets){
+ const ct=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((x,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>`;
+ const rels=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
+ const wb=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheets.map((x,i)=>`<sheet name="${xEsc(x.name.slice(0,31))}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join('')}</sheets></workbook>`;
+ const wbr=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((x,i)=>`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join('')}<Relationship Id="rId${sheets.length+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
+ const st=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="dd/mm/yyyy"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="3" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="3" fontId="1" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs></styleSheet>`;
+ const blob=zipStore([{name:'[Content_Types].xml',data:ct},{name:'_rels/.rels',data:rels},{name:'xl/workbook.xml',data:wb},{name:'xl/_rels/workbook.xml.rels',data:wbr},{name:'xl/styles.xml',data:st},...sheets.map((x,i)=>({name:`xl/worksheets/sheet${i+1}.xml`,data:sheetXML(x)}))]);
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fname;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},800);
+}
+function recettesXLSX(ec,d1,d2){
+ const P=DB.paiements.filter(p=>{const i=ins(p.inscriptionId);return i&&!p.annule&&(!ec||cls(i.classeId)?.ecole===ec)&&(!d1||p.date>=d1)&&(!d2||p.date<=d2)}).sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.recu||'').localeCompare(b.recu||''));
+ const K=keysAll();const head=['Date','Reçu N°','Matricule','Élève','Classe','École','Mode','Remarque',...K.map(rubLabel),'Total'];
+ const rows=[[`Journal des recettes — ${ec?(ec==='primaire'?'Primaire':'Maternelle'):'Primaire et maternelle'} — du ${fmtDate(d1)||'début'} au ${fmtDate(d2)||fmtDate(today())}`],[],head];
+ P.forEach(p=>{const i=ins(p.inscriptionId),e=elv(i.eleveId),c=cls(i.classeId);rows.push([{d:p.date},p.recu,e?.matricule||'',fullName(e),c?.nom||'',c?.ecole==='maternelle'?'Maternelle':'Primaire',p.mode||'',p.remarque||'',...K.map(k=>+(p.parts||{})[k]||0),+p.montant||0])});
+ const n=rows.length,first=4;const tot=['TOTAL','','','','','','','',...[...K,'t'].map((k,j)=>P.length?{f:`SUM(${colL(8+j)}${first}:${colL(8+j)}${n})`}:0)];rows.push([],tot);
+ const bm={};P.forEach(p=>{const m=p.mode||'?';bm[m]=(bm[m]||0)+(+p.montant||0)});
+ const res=[['Résumé'],[],['Rubrique','Montant'],...K.map(k=>[rubLabel(k),P.reduce((s,p)=>s+(+(p.parts||{})[k]||0),0)]),['TOTAL',P.reduce((s,p)=>s+(+p.montant||0),0)],[],['Mode de paiement','Montant'],...Object.entries(bm),[],['Nombre de reçus',P.length]];
+ downloadXLSX(`Recettes_${ec||'ecoles'}_${d1||'debut'}_${d2||today()}.xlsx`,[{name:'Recettes',rows,bold:[0,2,rows.length-1],widths:[11,15,10,30,8,11,13,16,...K.map(()=>12),12],freeze:3},{name:'Résumé',rows:res,bold:[0,2,3+K.length,5+K.length],widths:[22,14]}]);
+ logJ('Export Excel','Journal des recettes '+(d1||'')+' → '+(d2||''));save();
+}
+function paiementsXLSX(cid,onlyImp,ec){
+ let L=yearInscs().filter(i=>(!cid||i.classeId===cid)&&(!ec||cls(i.classeId)?.ecole===ec)).sort((x,y)=>NIV_ALL.indexOf(cls(x.classeId)?.niveau)-NIV_ALL.indexOf(cls(y.classeId)?.niveau)||byName(elv(x.eleveId),elv(y.eleveId)));
+ if(onlyImp)L=L.filter(i=>reste(i)>0);const K=keysAll();
+ const rows=[[`${onlyImp?'Impayés':'État des paiements'} ${S().annee} — arrêté au ${fmtDate(today())}`],[],['Matricule','Élève','Classe','Téléphone',...K.map(k=>'Reste '+rubLabel(k)),'Dû','Payé','Reste']];
+ L.forEach(i=>{const e=elv(i.eleveId);rows.push([e?.matricule||'',fullName(e),cls(i.classeId)?.nom||'',e?.telephone||'',...K.map(k=>Math.max(0,dueC(i,k)-paidC(i.id,k))),du(i),paye(i.id),reste(i)])});
+ const n=rows.length;rows.push([],['TOTAL','','','',...[...K,'d','p','r'].map((k,j)=>L.length?{f:`SUM(${colL(4+j)}4:${colL(4+j)}${n})`}:0)]);
+ downloadXLSX(`${onlyImp?'Impayes':'Etat_paiements'}_${S().annee}.xlsx`,[{name:onlyImp?'Impayés':'Paiements',rows,bold:[0,2,rows.length-1],widths:[10,32,8,16,...K.map(()=>13),11,11,11],freeze:3}]);
+}
+function elevesXLSX(){
+ const rows=[['Matricule','Nom','Prénoms','Sexe','Date de naissance','Lieu de naissance','Classe '+S().annee,'Père','Mère','Tuteur','Téléphone','Adresse','Statut']];
+ DB.eleves.slice().sort(byName).forEach(e=>{const i=inscOf(e.id);rows.push([e.matricule,e.nom,e.prenoms,e.sexe,e.dateNaiss?{d:e.dateNaiss}:'',e.lieuNaiss,i?cls(i.classeId)?.nom:'',e.pere,e.mere,e.tuteur,e.telephone,e.adresse,e.statut])});
+ downloadXLSX(`Eleves_${S().annee}.xlsx`,[{name:'Élèves',rows,bold:[0],widths:[10,16,26,6,12,16,10,20,20,20,16,18,16],freeze:1}]);
+}
+
+/* ---------- fenêtre modale ---------- */
+function modal(html,wide){closeModal();const d=document.createElement('div');d.className='modal-bg';d.id='mbg';d.innerHTML=`<div class="modal"${wide?' style="width:min(980px,100%)"':''}>${html}</div>`;document.body.appendChild(d);const f=d.querySelector('input:not([type=hidden]):not([type=checkbox]),select');if(f)f.focus()}
+function closeModal(){const m=document.getElementById('mbg');if(m)m.remove()}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(document.getElementById('pvbg'))closePv();else closeModal()}});
+
+render();initFile();
+if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){navigator.serviceWorker.register('sw.js').catch(()=>{});let _rl=false;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(_rl)return;_rl=true;if(!SYNC.dirty&&!document.getElementById('mbg'))location.reload();else toast('Nouvelle version installée : elle sera utilisée au prochain démarrage.')})}
+</script>
+</body>
+</html>
