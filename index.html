@@ -204,7 +204,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='27 (18/11/2026)';
+const APP_VERSION='28 (18/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -500,15 +500,57 @@ function saveEleve(id){
  save();closeModal();if(newI){UI.f.insq='';render();afterInscription(newI.id)}else{render();toast('Élève enregistré')}
 }
 function kv(l,v){return `<div><span class="muted" style="font-size:12px">${l}</span><br>${esc(v||'—')}</div>`}
+/* ---------- Photos des élèves (dossier « photos » sur OneDrive, un fichier par matricule) ---------- */
+const DIR_OK=typeof window.showDirectoryPicker==='function';let PDIR=null,PDIR_OK=false;const PHOTO_URL={};
+async function photoInit(){if(!DIR_OK)return;try{PDIR=await idbGet('pdir');if(PDIR)PDIR_OK=(await PDIR.queryPermission({mode:'readwrite'}))==='granted'}catch(e){PDIR=null}}
+async function photoDirEnsure(){
+ if(!DIR_OK){alert("Ce navigateur ne permet pas d'utiliser un dossier de photos. Utilisez Chrome ou Edge sur l'ordinateur.");return false}
+ if(PDIR&&!PDIR_OK){try{PDIR_OK=(await PDIR.requestPermission({mode:'readwrite'}))==='granted'}catch(e){}}
+ if(PDIR&&PDIR_OK)return true;
+ if(!confirm("Choisissez le dossier « photos » sur OneDrive (à côté du fichier de données).\n\nS'il n'existe pas encore, créez-le dans la fenêtre qui va s'ouvrir (« Nouveau dossier »), puis sélectionnez-le."))return false;
+ try{PDIR=await window.showDirectoryPicker({id:'eaenjc-photos',mode:'readwrite'});PDIR_OK=true;await idbSet('pdir',PDIR);toast('Dossier des photos connecté');return true}catch(e){return false}
+}
+async function photoDirConnect(){PDIR=null;PDIR_OK=false;if(await photoDirEnsure())render()}
+async function photoDirForget(){if(!confirm('Déconnecter le dossier des photos ? (Les photos ne sont pas effacées.)'))return;PDIR=null;PDIR_OK=false;await idbSet('pdir',null);Object.keys(PHOTO_URL).forEach(k=>delete PHOTO_URL[k]);render()}
+function photoNames(e){return [e.matricule,e.matriculeMat].filter(Boolean).map(m=>String(m).replace(/[^A-Za-z0-9_-]/g,'')+'.jpg')}
+async function photoURL(e){
+ if(!PDIR||!PDIR_OK||!e)return null;
+ for(const n of photoNames(e)){try{const f=await (await PDIR.getFileHandle(n)).getFile();const k=n+'|'+f.lastModified;if(PHOTO_URL[k])return PHOTO_URL[k];return PHOTO_URL[k]=URL.createObjectURL(f)}catch(x){}}
+ return null;
+}
+function photoBox(eid){
+ setTimeout(()=>photoFill(eid),0);
+ return `<div style="width:120px;flex:none;text-align:center"><div id="ph_${eid}" style="width:120px;height:160px;border:1px solid var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#f8fafc;color:#98a2b3;font-size:12px">${DIR_OK?(PDIR?(PDIR_OK?'Pas de photo':'Photos : accès à autoriser'):'Pas de photo'):'Photo indisponible'}</div>
+ ${DIR_OK?`<button class="small" style="margin-top:6px;width:100%" onclick="photoPick('${eid}')">${PDIR&&!PDIR_OK?'Autoriser / ':''}Photo…</button>`:''}</div>`;
+}
+async function photoFill(eid){const box=document.getElementById('ph_'+eid);if(!box)return;const u=await photoURL(elv(eid));if(u)box.innerHTML=`<img src="${u}" alt="" style="width:100%;height:100%;object-fit:cover">`}
+async function photoPick(eid){
+ if(TRY){alert("En mode essai, les photos ne sont pas enregistrées.");return}
+ if(!(await photoDirEnsure()))return;
+ const u=await photoURL(elv(eid));if(u){photoFill(eid);if(!confirm('Cet élève a déjà une photo. La remplacer ?'))return}
+ const inp=document.createElement('input');inp.type='file';inp.accept='image/*';
+ inp.onchange=async()=>{const f=inp.files&&inp.files[0];if(!f)return;try{await photoSave(eid,f);toast('Photo enregistrée');photoFill(eid)}catch(x){alert("La photo n'a pas pu être enregistrée : "+(x.message||x))}};
+ inp.click();
+}
+async function photoSave(eid,file){
+ const e=elv(eid);const bmp=await createImageBitmap(file,{imageOrientation:'from-image'});
+ const W=300,H=400,r=W/H;let sw=bmp.width,sh=bmp.height,sx=0,sy=0;
+ if(sw/sh>r){const nw=sh*r;sx=(sw-nw)/2;sw=nw}else{const nh=sw/r;sy=Math.max(0,(sh-nh)*0.35);sh=nh}
+ const cv=document.createElement('canvas');cv.width=W;cv.height=H;const cx=cv.getContext('2d');cx.imageSmoothingQuality='high';cx.drawImage(bmp,sx,sy,sw,sh,0,0,W,H);
+ const blob=await new Promise(res=>cv.toBlob(res,'image/jpeg',0.82));
+ const name=photoNames(e)[0];const fh=await PDIR.getFileHandle(name,{create:true});const w=await fh.createWritable();await w.write(blob);await w.close();
+ Object.keys(PHOTO_URL).filter(k=>k.startsWith(name+'|')).forEach(k=>delete PHOTO_URL[k]);
+ logJ('Photo',`${fullName(e)} (${e.matricule}) — ${Math.round(blob.size/1024)} Ko`);save();
+}
 function openFiche(eid){
  const e=elv(eid);if(!e)return;
  const hist=DB.inscriptions.filter(i=>i.eleveId===eid).sort((a,b)=>a.annee.localeCompare(b.annee));
  const rows=hist.map(i=>{const c=cls(i.classeId);let m='—';if(c&&c.ecole==='primaire'){m=fmtN2(annualResults(c.id,i.annee).res[i.id]?.moy)}
   return `<tr><td>${esc(i.annee)}</td><td>${esc(i.arrOnly?'Arriéré seul':(c?.nom||'?'))}</td><td>${esc(i.type)}${i.redoublant?' · redoublant(e)':''}</td><td class="num">${m}</td><td>${esc(i.decision||'')}</td><td class="num">${fcfa(du(i))}</td><td class="num">${fcfa(paye(i.id))}</td></tr>`}).join('')||'<tr><td colspan="7" class="muted">Aucune inscription.</td></tr>';
  const cur=inscOf(eid);
- modal(`<h3>${esc(fullName(e))} <span class="muted" style="font-weight:400">· ${esc(e.matricule)}</span> ${statTag(e.statut)}</h3>
+ modal(`<div style="display:flex;gap:16px;align-items:flex-start"><div style="flex:1;min-width:0"><h3>${esc(fullName(e))} <span class="muted" style="font-weight:400">· ${esc(e.matricule)}</span> ${statTag(e.statut)}</h3>
  <div class="form-grid" style="gap:8px 14px">${kv('Sexe',e.sexe==='F'?'Féminin':'Masculin')}${kv('Né(e) le',fmtDate(e.dateNaiss)+(e.lieuNaiss?' à '+e.lieuNaiss:''))}${kv('Nationalité',e.nationalite)}${kv('Acte de naissance',e.acte)}
- ${kv('Père',e.pere)}${kv('Mère',e.mere)}${kv('Tuteur / contact',e.tuteur)}${kv('Téléphone',e.telephone)}${kv('Adresse',e.adresse)}${kv("Entrée à l'école",fmtDate(e.dateEntree))}${kv("École d'origine",e.ecoleOrigine)}${e.matriculeMat?kv('Ancien matricule (maternelle)',e.matriculeMat):''}${kv('Boursier',e.boursier?'Oui':'Non')}${arrPending(eid)?kv('Arriéré des années passées',fcfa(arrPending(eid))):''}</div>
+ ${kv('Père',e.pere)}${kv('Mère',e.mere)}${kv('Tuteur / contact',e.tuteur)}${kv('Téléphone',e.telephone)}${kv('Adresse',e.adresse)}${kv("Entrée à l'école",fmtDate(e.dateEntree))}${kv("École d'origine",e.ecoleOrigine)}${e.matriculeMat?kv('Ancien matricule (maternelle)',e.matriculeMat):''}${kv('Boursier',e.boursier?'Oui':'Non')}${arrPending(eid)?kv('Arriéré des années passées',fcfa(arrPending(eid))):''}</div></div>${photoBox(eid)}</div>
  ${e.observations?`<p><span class="muted" style="font-size:12px">Observations</span><br>${esc(e.observations)}</p>`:''}
  ${(()=>{const H=(DB.hist||[]).filter(h=>h.eid===eid).slice().reverse();return H.length?`<details style="margin-top:12px"><summary style="cursor:pointer;font-weight:600">Historique des modifications (${H.length})</summary><div style="overflow:auto;margin-top:6px"><table class="data"><thead><tr><th>Date</th><th>Par</th><th>Champ</th><th>Avant</th><th>Après</th><th></th></tr></thead><tbody>${hRows(H.slice(0,100),false)}</tbody></table></div></details>`:''})()}
  <h3 style="margin:16px 0 8px;font-size:15px">Parcours scolaire</h3>
@@ -1110,7 +1152,7 @@ function vParam(){
  const ec=k=>{const e=s.ecoles[k];const lab={nom:"Nom de l'école",devise:'Devise',arrete:"Arrêté d'ouverture",adresse:'Adresse',tel:'Téléphone',directeur:'Directeur / Directrice'};return `<div class="card" style="flex:1;min-width:300px;margin:0"><h2 style="margin-top:0">${k==='primaire'?'École primaire':'École maternelle'}</h2><div class="form-grid">${Object.keys(lab).map(f=>`<div class="field"><label>${lab[f]}</label><input value="${esc(e[f]||'')}" onchange="S().ecoles['${k}']['${f}']=this.value;save()"></div>`).join('')}</div></div>`};
  const years=[...new Set([s.annee,...DB.inscriptions.map(i=>i.annee)])].sort();
  const crow=sortedClasses().map(c=>{const n=DB.inscriptions.filter(i=>i.classeId===c.id).length;return `<tr><td>${c.ecole==='primaire'?'Primaire':'Maternelle'}</td><td>${c.niveau}</td><td><input value="${esc(c.nom)}" style="width:110px" onchange="setCls('${c.id}','nom',this.value)"></td><td><input value="${esc(c.enseignant||'')}" style="width:160px" onchange="setCls('${c.id}','enseignant',this.value)"></td>${RUB().map(r=>`<td><input type="number" min="0" value="${+(c.frais||{})[r.k]||0}" style="width:85px" onchange="setFrais('${c.id}','${r.k}',this.value)"></td>`).join('')}<td style="white-space:nowrap"><button class="small" onclick="editMatieres('${c.id}')">${c.ecole==='primaire'?'Matières':'Domaines'} (${c.matieres.length})</button> <button class="small danger" ${n?'disabled title="Classe utilisée"':''} onclick="delClass('${c.id}')">✕</button></td></tr>`}).join('');
- return `<h1>Paramètres & données</h1><div class="card"><h2 style="margin-top:0">Mode essai (pour s'entraîner)</h2><p style="margin-top:0">Pour apprendre à utiliser le programme sans toucher aux vraies données : inscrire un élève, saisir un paiement, imprimer un reçu… Rien n'est enregistré, et les reçus portent la mention « ESSAI ».</p>${TRY?`<button class="primary" onclick="stopEssai()">Terminer l'essai</button>`:`<button class="primary" onclick="startEssai()">Commencer un essai</button>`}</div>
+ return `<h1>Paramètres & données</h1><div class="card"><h2 style="margin-top:0">Photos des élèves</h2><p style="margin-top:0">Les photos sont gardées dans un dossier « photos » sur OneDrive (à côté du fichier de données), une photo par élève, nommée par son numéro (ex. P0185.jpg). Le programme réduit chaque photo (environ 25 Ko). À faire une fois sur chaque ordinateur. On ajoute une photo depuis la fiche de l'élève.</p>${DIR_OK?(PDIR?`<p>Dossier : <b>${esc(PDIR.name)}</b> — ${PDIR_OK?'connecté':'accès à autoriser'}</p><button onclick="photoDirConnect()">${PDIR_OK?'Choisir un autre dossier':'Autoriser / choisir le dossier'}</button> <button onclick="photoDirForget()">Déconnecter</button>`:`<button class="primary" onclick="photoDirConnect()">Connecter le dossier des photos</button>`):'<p class="muted">Non disponible dans ce navigateur (utilisez Chrome ou Edge sur l\'ordinateur).</p>'}</div><div class="card"><h2 style="margin-top:0">Mode essai (pour s'entraîner)</h2><p style="margin-top:0">Pour apprendre à utiliser le programme sans toucher aux vraies données : inscrire un élève, saisir un paiement, imprimer un reçu… Rien n'est enregistré, et les reçus portent la mention « ESSAI ».</p>${TRY?`<button class="primary" onclick="stopEssai()">Terminer l'essai</button>`:`<button class="primary" onclick="startEssai()">Commencer un essai</button>`}</div>
  <div class="row" style="align-items:stretch;margin-bottom:14px">${ec('primaire')}${ec('maternelle')}</div>
  <div class="card"><h2 style="margin-top:0">Général</h2><div class="row">
   ${FS('Année scolaire en cours','p_an',opts(years,s.annee),'onchange="S().annee=this.value;save();render()"')}
@@ -1361,7 +1403,7 @@ function modal(html,wide){closeModal();const d=document.createElement('div');d.c
 function closeModal(){const m=document.getElementById('mbg');if(m)m.remove()}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(document.getElementById('pvbg'))closePv();else closeModal()}});
 
-render();initFile();
+render();initFile();photoInit();
 if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){navigator.serviceWorker.register('sw.js').catch(()=>{});navigator.serviceWorker.addEventListener('message',ev=>{if(ev.data!=='eaenjc-update'||document.getElementById('updbar'))return;const d=document.createElement('div');d.id='updbar';d.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:99;background:#1f2937;color:#fff;padding:10px 14px;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.25);display:flex;gap:10px;align-items:center';d.innerHTML='Une nouvelle version du programme est disponible. <button class="small primary" onclick="location.reload()">Recharger</button>';document.body.appendChild(d)});let _rl=false;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(_rl)return;_rl=true;if(!SYNC.dirty&&!document.getElementById('mbg'))location.reload();else toast('Nouvelle version installée : elle sera utilisée au prochain démarrage.')})}
 </script>
 </body>
