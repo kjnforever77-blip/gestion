@@ -213,7 +213,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='40 (18/11/2026)';
+const APP_VERSION='41 (18/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -710,17 +710,48 @@ function clotureHTML(d,ec){
  <div class="sign"><div>Le/La Caissier(ère)</div><div>Le Directeur / La Directrice</div></div></div>`;
 }
 function partsTxt(p){return Object.entries(p.parts||{}).filter(([k,v])=>+v).map(([k,v])=>`${rubLabel(k)} ${fcfa(v)}`).join(' · ')}
+function payRow(p,withEleve){const i=ins(p.inscriptionId),e=elv(i?.eleveId);const an=p.annule;
+ return `<tr${an?' style="color:#98a2b3"':''}><td>${fmtDate(p.date)}</td><td>${esc(p.recu)}</td>${withEleve?`<td><a href="#" onclick="UI.f.pq='${esc(e?.matricule||'')}';render();return false"><b>${esc(fullName(e))}</b></a><br><span class="muted">${esc(e?.matricule||'')}</span></td><td>${esc(clsNom(i))}</td>`:`<td>${esc(i?.annee||'')} · ${esc(clsNom(i))}</td>`}<td>${esc(partsTxt(p))}<br><span class="muted">${esc(p.remarque||'')}</span></td><td>${esc(p.mode)}</td><td class="num">${an?`<s>${fcfa(p.montant)}</s><br><span class="tag bad">ANNULÉ</span>`:`<b>${fcfa(p.montant)}</b>`}</td><td style="white-space:nowrap"><button class="small" onclick="printDoc(recuHTML(DB.paiements.find(x=>x.id==='${p.id}')))">Voir le reçu</button> ${an?`<span class="muted" title="${esc(an.motif)}">motif</span>`:`<button class="small danger" title="Annuler ce reçu" onclick="delPaiement('${p.id}')">Annuler</button>`}</td></tr>`}
+function payCard(e){
+ const i=inscOf(e.id),ao=arrOnlyOf(e.id);const YK=keysAll().filter(k=>k!=='arriere');
+ const ids=new Set(DB.inscriptions.filter(x=>x.eleveId===e.id).map(x=>x.id));
+ const P=DB.paiements.filter(p=>ids.has(p.inscriptionId)).sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.recu||'').localeCompare(a.recu||''));
+ let yr='';if(i){const fr=YK.reduce((s,k)=>s+(+(i.frais||{})[k]||0),0),d=YK.reduce((s,k)=>s+dueC(i,k),0),pd=YK.reduce((s,k)=>s+paidC(i.id,k),0),r=Math.max(0,d-pd);
+  yr=`<div style="font-size:15px;margin:6px 0">Frais ${esc(i.annee)} : ${fcfa(fr)}${+i.remise?` · réduction ${fcfa(i.remise)} → à payer <b>${fcfa(d)}</b>`:''} · payé <b>${fcfa(pd)}</b> · reste <b style="color:${r>0?'var(--danger)':'var(--ok)'}">${r>0?fcfa(r):'soldé'}</b></div>`}
+ else yr=`<div class="muted" style="margin:6px 0">Pas inscrit(e) en ${esc(S().annee)}.</div>`;
+ const ar=arrPending(e.id),arPaid=[i,ao].filter(Boolean).reduce((s,x)=>s+paidC(x.id,'arriere'),0);
+ const arl=(ar||arPaid)?`<div style="margin:2px 0 6px">Arriéré des années passées (à part, reçus série A) : payé ${fcfa(arPaid)} · reste <b style="color:${ar>0?'var(--danger)':'var(--ok)'}">${ar>0?fcfa(ar):'soldé'}</b></div>`:'';
+ const btn=i?`<button class="primary" onclick="formPaiement('${i.id}')">+ Nouveau paiement</button>`:(ar>0?`<button class="primary" onclick="payArr('${e.id}')">Payer l'arriéré</button>`:'');
+ return `<div class="card"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start"><div><h2 style="margin:0">${esc(fullName(e))} <span class="muted" style="font-weight:400;font-size:15px">· ${esc(e.matricule)}${i?' · '+esc(cls(i.classeId)?.nom||''):''}</span></h2>${yr}${arl}</div><div class="row">${btn}<button onclick="openFiche('${e.id}')">Fiche de l'élève</button></div></div>
+ <div style="overflow:auto;margin-top:8px"><table class="data"><thead><tr><th>Date</th><th>Reçu N°</th><th>Année · classe</th><th>Détail</th><th>Mode</th><th class="num">Montant</th><th></th></tr></thead><tbody>${P.map(p=>payRow(p,false)).join('')||'<tr><td colspan="7" class="muted">Aucun paiement.</td></tr>'}</tbody></table></div></div>`;
+}
+function fillPaie(){
+ const box=document.getElementById('pres');if(!box)return;const raw=(UI.f.pq||'').trim(),q=norm(raw);
+ if(q.length<2){box.innerHTML='';return}
+ const rq=q.replace(/\s/g,'');let RB='';
+ if(/^(\d{4}-\d{2}-)?[pma]\d+$/.test(rq)){const key=rq.replace(/^.*?([pma])(\d+)$/,(m,x,y)=>x+y.padStart(4,'0'));const R=DB.paiements.filter(p=>norm(p.recu||'').endsWith(key));
+  if(R.length)RB=`<div class="card" style="padding:0;overflow:auto"><div style="padding:10px 14px;font-weight:600">Reçu(s) ${esc(raw)}</div><table class="data"><thead><tr><th>Date</th><th>Reçu N°</th><th>Élève</th><th>Classe</th><th>Détail</th><th>Mode</th><th class="num">Montant</th><th></th></tr></thead><tbody>${R.map(p=>payRow(p,true)).join('')}</tbody></table></div>`}
+ const digits=q.replace(/[^0-9]/g,'');
+ const L=DB.eleves.filter(e=>{const k=norm(fullName(e)+' '+e.matricule+' '+(e.matriculeMat||''));return k.includes(q)||(digits&&/^[a-z]?\d+$/.test(rq)&&[e.matricule,e.matriculeMat].some(m=>String(m||'').replace(/\D/g,'').endsWith(digits.padStart(4,'0'))))}).sort((a,b)=>(inscOf(b.id)?1:0)-(inscOf(a.id)?1:0)||byName(a,b));
+ if(!L.length){box.innerHTML=RB||'<div class="card muted">Aucun élève ni reçu trouvé.</div>';return}
+ if(L.length===1){box.innerHTML=RB+payCard(L[0]);return}
+ box.innerHTML=RB+`<div class="card" style="padding:0;overflow:auto"><div style="padding:10px 14px" class="muted">${L.length} élève(s) — cliquez sur un nom</div><table class="data"><tbody>${L.slice(0,30).map(e=>{const i=inscOf(e.id);return `<tr><td><a href="#" onclick="UI.f.pq='${esc(e.matricule)}';document.getElementById('pq').value='${esc(e.matricule)}';fillPaie();return false"><b>${esc(fullName(e))}</b></a></td><td>${esc(e.matricule)}</td><td>${i?esc(cls(i.classeId)?.nom||''):'<span class="muted">non inscrit(e)</span>'}</td><td class="num">${i?(reste(i)>0?'reste '+fcfa(reste(i)):'<span class="tag ok">soldé</span>'):''}</td></tr>`}).join('')}</tbody></table></div>`;
+}
 function vPaie(){
- const cl=UI.f.pcl||'',ec=UI.f.pec||'';const yIds=new Set(allYearInscs().filter(i=>(!cl||i.classeId===cl)&&(!ec||insEcole(i)===ec)).map(i=>i.id));
- const na=UI.f.pna||'';const P=DB.paiements.filter(p=>yIds.has(p.inscriptionId)&&(!na||(na==='A')===isArrPay(p))).sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.recu||'').localeCompare(a.recu||''));
- let tot=0;const rows=P.slice(0,UI.f.pall?99999:300).map(p=>{const i=ins(p.inscriptionId),e=elv(i.eleveId);tot+=0;const an=p.annule;return `<tr data-s="${rowKey(e)} ${esc(norm(p.recu))}"${an?' style="color:#98a2b3"':''}><td>${fmtDate(p.date)}</td><td>${esc(p.recu)}</td><td><b>${esc(fullName(e))}</b><br><span class="muted">${esc(e.matricule)}</span></td><td>${esc(clsNom(i))}</td><td>${esc(partsTxt(p))}<br><span class="muted">${esc(p.remarque||'')}</span></td><td>${esc(p.mode)}</td><td class="num">${an?`<s>${fcfa(p.montant)}</s><br><span class="tag bad">ANNULÉ</span>`:`<b>${fcfa(p.montant)}</b>`}</td><td style="white-space:nowrap"><button class="small" onclick="printDoc(recuHTML(DB.paiements.find(x=>x.id==='${p.id}')))">Voir le reçu</button> ${an?`<span class="muted" title="${esc(an.motif)}">motif</span>`:`<button class="small danger" title="Annuler ce reçu" onclick="delPaiement('${p.id}')">Annuler</button>`}</td></tr>`}).join('');
- P.forEach(p=>{if(!p.annule)tot+=+p.montant||0});
+ const cl=UI.f.pcl||'',ec=UI.f.pec||'',na=UI.f.pna||'';
+ let per='';
+ if(UI.f.pd1&&UI.f.pd2){const yIds=new Set(allYearInscs().filter(i=>(!cl||i.classeId===cl)&&(!ec||insEcole(i)===ec)).map(i=>i.id));
+  const P=DB.paiements.filter(p=>p.date>=UI.f.pd1&&p.date<=UI.f.pd2&&(cl||ec?yIds.has(p.inscriptionId):true)&&(!na||(na==='A')===isArrPay(p))).sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.recu||'').localeCompare(a.recu||''));
+  const tot=P.reduce((s,p)=>s+(p.annule?0:+p.montant||0),0);
+  per=`<div class="card" style="padding:0;overflow:auto"><div style="padding:10px 14px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><b>Paiements du ${fmtDate(UI.f.pd1)} au ${fmtDate(UI.f.pd2)}</b><button class="small" onclick="UI.f.pd1=UI.f.pd2='';render()">Fermer la liste</button></div><table class="data"><thead><tr><th>Date</th><th>Reçu N°</th><th>Élève</th><th>Classe</th><th>Détail</th><th>Mode</th><th class="num">Montant</th><th></th></tr></thead><tbody>${P.map(p=>payRow(p,true)).join('')||'<tr><td colspan="8" class="muted" style="padding:20px;text-align:center">Aucun paiement sur cette période.</td></tr>'}</tbody>${P.length?`<tfoot><tr><td colspan="6">${P.length} reçu(s) (annulés compris, non comptés)</td><td class="num">${fcfa(tot)}</td><td></td></tr></tfoot>`:''}</table></div>`}
+ setTimeout(fillPaie,0);
  return `${backupBanner()}<h1>Paiements / frais ${esc(S().annee)}</h1>
- <div class="card row">${FS('École','p_ec',opts([['','Les deux écoles'],['primaire','Primaire'],['maternelle','Maternelle']],ec),'onchange="UI.f.pec=this.value;render()"')}${FS('Classe','p_cl','<option value="">Toutes les classes</option>'+classOpts(cl),'onchange="UI.f.pcl=this.value;render()"')}${FS('Reçus','p_na',opts([['','Tous'],['Y',"Frais de l'année"],['A','Arriérés (série A)']],na),'onchange="UI.f.pna=this.value;render()"')}
- <div class="field" style="min-width:200px"><label>Rechercher (nom, numéro, reçu)</label><input oninput="filterRows('tb_p',this.value)" placeholder="ex. 0178 ou p0284"></div><button class="primary" onclick="formPaiement()">+ Nouveau paiement</button><button onclick="formCloture()">Clôture de caisse</button><button onclick="printDoc(paiementsHTML(UI.f.pcl||'',true,UI.f.pec||''))">Imprimer les impayés</button><button onclick="paiementsXLSX(UI.f.pcl||'',true,UI.f.pec||'')">Impayés en Excel</button><button onclick="printDoc(paiementsHTML(UI.f.pcl||'',false,UI.f.pec||''))">Imprimer l'état des paiements</button></div>
- <div class="card" style="padding:0;overflow:auto"><table class="data"><thead><tr><th>Date</th><th>Reçu N°</th><th>Élève</th><th>Classe</th><th>Détail</th><th>Mode</th><th class="num">Montant</th><th></th></tr></thead>
- <tbody id="tb_p">${rows||'<tr><td colspan="8" class="muted" style="padding:24px;text-align:center">Aucun paiement enregistré.</td></tr>'}</tbody>
- ${P.length?`<tfoot><tr><td colspan="6">${P.length} paiement(s)${P.length>300&&!UI.f.pall?` — 300 plus récents affichés <button class="small" onclick="UI.f.pall=1;render()">Tout afficher</button>`:''}</td><td class="num">${fcfa(tot)}</td><td></td></tr></tfoot>`:''}</table></div>`;
+ <div class="card"><div class="row" style="align-items:flex-end"><div class="field" style="flex:1;min-width:260px"><label style="font-size:14px;color:var(--ink)">Rechercher un élève (nom ou numéro) ou un reçu (ex. p0282)</label><input id="pq" style="font-size:17px;padding:10px;max-width:520px" value="${esc(UI.f.pq||'')}" oninput="UI.f.pq=this.value;fillPaie()" autocomplete="off" placeholder="ex. Sanou Jean, 0058 ou p0282"></div><button class="primary" onclick="formPaiement()">+ Nouveau paiement</button><button onclick="formCloture()">Clôture de caisse</button></div></div>
+ <div id="pres"></div>
+ <details class="card"${UI.f.pd1?' open':''}><summary style="cursor:pointer;font-weight:600">Consulter par période, listes des impayés</summary>
+ <div class="row" style="margin-top:12px">${FS('École','p_ec',opts([['','Les deux écoles'],['primaire','Primaire'],['maternelle','Maternelle']],ec),'onchange="UI.f.pec=this.value"')}${FS('Classe','p_cl','<option value="">Toutes les classes</option>'+classOpts(cl),'onchange="UI.f.pcl=this.value"')}${FS('Reçus','p_na',opts([['','Tous'],['Y',"Frais de l'année"],['A','Arriérés (série A)']],na),'onchange="UI.f.pna=this.value"')}${F('Du','p_d1',UI.f.pd1||today().slice(0,8)+'01','date')}${F('Au','p_d2',UI.f.pd2||today(),'date')}<button onclick="const a=fval('p_d1'),b=fval('p_d2');if(!a||!b||a>b){alert('Choisissez une période valide.');return}UI.f.pd1=a;UI.f.pd2=b;render()">Afficher les paiements</button></div>
+ <div class="row" style="margin-top:10px"><button onclick="printDoc(paiementsHTML(fval('p_cl'),true,fval('p_ec')))">Imprimer les impayés</button><button onclick="paiementsXLSX(fval('p_cl'),true,fval('p_ec'))">Impayés en Excel</button><button onclick="printDoc(paiementsHTML(fval('p_cl'),false,fval('p_ec')))">Imprimer l'état des paiements</button></div></details>
+ ${per}`;
 }
 function formPaiement(iid){
  const PL=yearInscs().map(i=>{const e=elv(i.eleveId);return [i.id,fullName(e)+' — '+(cls(i.classeId)?.nom||'')+' — '+(e?.matricule||''),e?.matricule||'']});
