@@ -311,7 +311,7 @@ function paye(iid){return DB.paiements.filter(p=>p.inscriptionId===iid&&!p.annul
 function reste(i){return keysAll().reduce((s,k)=>s+Math.max(0,dueC(i,k)-paidC(i.id,k)),0)}
 function anneeCourte(a){return a.slice(0,5)+a.slice(7)}
 function sortedClasses(){return [...DB.classes].sort((a,b)=>NIV_ALL.indexOf(a.niveau)-NIV_ALL.indexOf(b.niveau)||a.nom.localeCompare(b.nom,'fr'))}
-function classOpts(sel){return opts(sortedClasses().map(c=>[c.id,c.nom+(c.ecole==='maternelle'?' (maternelle)':'')]),sel)}
+function classOpts(sel){return opts(sortedClasses().map(c=>[c.id,c.nom+(c.ecole==='maternelle'?' (maternelle)':'')+(c.enseignant?' — '+c.enseignant:'')]),sel)}
 function ecoleOf(c){return S().ecoles[c?.ecole||'primaire']}
 function findClassByNiveau(niv){return sortedClasses().find(c=>c.niveau===niv)}
 function nextMatricule(ec){
@@ -652,7 +652,7 @@ function vNotes(){
   head=`<tr><th>N°</th><th style="text-align:left">Élève</th>${c.matieres.map(m=>`<th>${esc(m.nom)}</th>`).join('')}<th>Abs.</th><th>Appréciation de l'enseignant(e)</th></tr>`;
   rows=L.map((i,r)=>{const e=elv(i.eleveId),ev2=evGet(i.id,T);return `<tr><td>${r+1}</td><td class="name">${esc(fullName(e))}</td>${c.matieres.map((m,j)=>`<td><select data-r="${r}" data-c="${j}" onchange="setNote(this,'${i.id}','${T}','${m.id}',null)" onkeydown="navKey(event,this)">${opts([['','—'],['A','A'],['EC','EC'],['NA','NA']],ev2.n[m.id]||'')}</select></td>`).join('')}${tail(i,ev2,r)}</tr>`}).join('');
  }
- return `<h1>Saisie des notes — ${esc(c.nom)} · ${TLABEL[T]}</h1>${sel}<div id="nstats" class="muted" style="margin:-4px 0 8px"></div><div class="card" style="padding:0;overflow:auto"><table class="grid-notes"><thead>${head}</thead><tbody>${rows}</tbody></table></div>`;
+ return `<h1>Saisie des notes — ${esc(c.nom)} · ${TLABEL[T]}</h1><p style="margin:-8px 0 12px;font-size:15px">Enseignant(e) : <b>${esc(c.enseignant||'— non renseigné (Paramètres → Classes)')}</b></p>${sel}<div id="nstats" class="muted" style="margin:-4px 0 8px"></div><div class="card" style="padding:0;overflow:auto"><table class="grid-notes"><thead>${head}</thead><tbody>${rows}</tbody></table></div>`;
 }
 function setNote(el,iid,T,mid,max){
  const e=ev(iid,T);el.classList.remove('err');
