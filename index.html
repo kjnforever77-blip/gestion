@@ -198,7 +198,7 @@ let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
 function save(){saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
-/* ---------- Fichier de données partagé (Google Drive) ---------- */
+/* ---------- Fichier de données partagé (OneDrive) ---------- */
 const FS_OK=typeof window.showOpenFilePicker==='function';
 let FH=null,FSTATE='none',FERR='',CONFLICT=null,LASTMOD=0;
 let SYNC=(()=>{try{return JSON.parse(localStorage.getItem(KEY+'_sync'))||{}}catch(e){return {}}})();SYNC.timer=null;
@@ -643,7 +643,7 @@ function payInfo(){
  if(v&&v.startsWith('E:')){const ni=ensureArrOnly(v.slice(2));if(ni){document.getElementById('f_i').value=ni.id;v=ni.id;save()}}
  const i=ins(v);
  if(!i){b.innerHTML='<div class="muted">Choisissez un élève.</div>';payTot();return}
- const rows=keysAll().map(k=>{const d=dueC(i,k),p=paidC(i.id,k),r=Math.max(0,d-p);if(k==='arriere'&&!d&&!p)return '';if(i.arrOnly&&k!=='arriere')return '';return `<tr><td>${esc(rubLabel(k))}</td><td class="num">${fcfa(d)}</td><td class="num">${fcfa(p)}</td><td class="num">${r?`<b style="color:var(--danger)">${fcfa(r)}</b>`:'—'}</td><td><input id="f_p_${k}" type="number" min="0" step="any" style="width:110px" oninput="payTot()" placeholder="${r||''}"></td></tr>`}).join('');
+ const rows=keysAll().map(k=>{const d=dueC(i,k),p=paidC(i.id,k),r=Math.max(0,d-p);if(!d&&!p)return '';if(i.arrOnly&&k!=='arriere')return '';return `<tr><td>${esc(rubLabel(k))}</td><td class="num">${fcfa(d)}</td><td class="num">${fcfa(p)}</td><td class="num">${r?`<b style="color:var(--danger)">${fcfa(r)}</b>`:'—'}</td><td><input id="f_p_${k}" type="number" min="0" step="any" style="width:110px" oninput="payTot()" placeholder="${r||''}"></td></tr>`}).join('');
  const arr=i.arrOnly?'<div class="banner" style="margin:8px 0 0">Élève non inscrit cette année : seul l\'arriéré des années passées peut être payé.</div>':i.arriere&&paidC(i.id,'arriere')<i.arriere?'<div class="banner" style="margin:8px 0 0">⚠ Cet élève a un arriéré des années passées : il est conseillé de le payer d\'abord.</div>':'';
  b.innerHTML=`<table class="data"><thead><tr><th>Rubrique</th><th class="num">Dû</th><th class="num">Déjà payé</th><th class="num">Reste</th><th>Ce paiement (F)</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td>Total</td><td class="num">${fcfa(du(i))}</td><td class="num">${fcfa(paye(i.id))}</td><td class="num">${fcfa(reste(i))}</td><td></td></tr></tfoot></table>${arr}`;
  payTot();
