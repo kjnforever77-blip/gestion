@@ -188,6 +188,7 @@ function migrate(d){
  d.inscriptions.forEach(i=>{if(!i.frais){i.frais=zeroFrais();i.frais.scolarite=(+i.fraisScolarite||0)+(+i.fraisInscription||0)}i.arriere=+i.arriere||0;i.remise=+i.remise||0});
  d.paiements.forEach(p=>{if(!p.parts)p.parts={scolarite:+p.montant||0}});
  d.evals=d.evals||{};
+ if(!Array.isArray(d.fondsArr))d.fondsArr=[];
  d.settings.rubriques.forEach(r=>{if(r.k==='ape'&&r.ext===undefined)r.ext=true});
  if(d.settings.pin&&!d.settings.pinAdmin){d.settings.pinAdmin=d.settings.pin}delete d.settings.pin;
  return d;
@@ -333,6 +334,13 @@ function nextMatricule(ec){
  ec=ec==='maternelle'?'maternelle':'primaire';
  let m;do{S().cptMat[ec]=(+S().cptMat[ec]||0)+1;m=`${S().prefixes[ec]||''}${String(S().cptMat[ec]).padStart(4,'0')}`}while(DB.eleves.some(e=>e.matricule===m));return m;
 }
+function nextRecuA(){const a=S().annee;S().cptRecuA=S().cptRecuA||{};S().cptRecuA[a]=(+S().cptRecuA[a]||0)+1;return `${anneeCourte(a)}-A${String(S().cptRecuA[a]).padStart(4,'0')}`}
+/* Arriérés des années passées : fonds à part, reçus séparés (série A), hors recettes de l'école */
+function isArrPay(p){const pt=p.parts||{};return +pt.arriere>0&&Object.entries(pt).every(([k,v])=>k==='arriere'||!+v)}
+function schoolPay(p){const pt=p.parts||{};if(!+pt.arriere)return p;const parts=Object.assign({},pt);const a=+parts.arriere;delete parts.arriere;const m=(+p.montant||0)-a;return m>0?Object.assign({},p,{parts,montant:m}):null}
+function arrEntrees(d1,d2){return DB.paiements.filter(p=>!p.annule&&+(p.parts||{}).arriere>0&&(!d1||p.date>=d1)&&(!d2||p.date<=d2)).sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.recu||'').localeCompare(b.recu||''))}
+function arrSorties(d1,d2){return (DB.fondsArr||[]).filter(x=>!x.annule&&(!d1||x.date>=d1)&&(!d2||x.date<=d2)).sort((a,b)=>(a.date||'').localeCompare(b.date||''))}
+function fondsSolde(d2){return arrEntrees('',d2).reduce((s,p)=>s+(+p.parts.arriere||0),0)-arrSorties('',d2).reduce((s,x)=>s+(+x.montant||0),0)}
 function nextRecu(ec){ec=ec==='maternelle'?'maternelle':'primaire';S().cptRecu[ec]=(+S().cptRecu[ec]||0)+1;return `${anneeCourte(S().annee)}-${ec==='maternelle'?'m':'p'}${String(S().cptRecu[ec]).padStart(4,'0')}`}
 function createInscription(eid,cid,annee,extra){
  annee=annee||S().annee;const c=cls(cid);
@@ -417,9 +425,9 @@ function vDash(){
  ${isAdmin()?'':`<div class="banner" style="background:#f4f6f8;border-color:#e2e6ea">🔒 Les montants financiers sont réservés à la direction. <button class="small" onclick="requirePin(render,'voir les finances')">Afficher (code direction)</button></div>`}
  <div class="stats"><div class="stat"><div class="v">${L.length}</div><div class="l">Élèves inscrits (${g} G · ${f} F)</div></div>${isAdmin()?`
  <div class="stat"><div class="v">${fcfa(per)}</div><div class="l">Recettes ${esc(a)} (frais de l'année)</div></div>
- <div class="stat"><div class="v">${fcfa(ap)}</div><div class="l">Arriérés recouvrés (années passées)</div></div>
- <div class="stat"><div class="v">${fcfa(per+ap)}</div><div class="l">Total encaissé par l'école</div></div>`:''}</div>
- ${isAdmin()?`<div class="card" style="padding:10px 14px">Frais ${esc(a)} : attendu <b>${fcfa(att)}</b> · perçu <b>${fcfa(per)}</b> · reste <b style="color:${rst>0?'var(--danger)':'inherit'}">${fcfa(rst)}</b><br>Arriérés des années passées : total <b>${fcfa(aa)}</b> · recouvré <b>${fcfa(ap)}</b> · reste <b style="color:${ar>0?'var(--danger)':'inherit'}">${fcfa(ar)}</b>${attente?` <span class="muted">(dont ${fcfa(attente)} d'élèves non inscrits cette année)</span>`:''}</div>`:''}
+ <div class="stat"><div class="v" style="color:${rst>0?'var(--danger)':'inherit'}">${fcfa(rst)}</div><div class="l">Reste à percevoir ${esc(a)}</div></div>
+ <div class="stat"><div class="v">${fcfa(fondsSolde())}</div><div class="l">Fonds des arriérés (à part) — solde</div></div>`:''}</div>
+ ${isAdmin()?`<div class="card" style="padding:10px 14px">Frais ${esc(a)} : attendu <b>${fcfa(att)}</b> · perçu <b>${fcfa(per)}</b> · reste <b style="color:${rst>0?'var(--danger)':'inherit'}">${fcfa(rst)}</b><br>Arriérés des années passées (fonds à part, hors recettes) : total <b>${fcfa(aa)}</b> · recouvré <b>${fcfa(ap)}</b> · reste <b style="color:${ar>0?'var(--danger)':'inherit'}">${fcfa(ar)}</b>${attente?` <span class="muted">(dont ${fcfa(attente)} d'élèves non inscrits cette année)</span>`:''}</div>`:''}
  ${isAdmin()?(()=>{const B=boursiersData();return B.length?`<div class="card" style="padding:10px 14px">Boursiers : <b>${B.length}</b> élève(s) · payé <b>${fcfa(B.reduce((s,x)=>s+x.paye,0))}</b> · reste <b>${fcfa(B.reduce((s,x)=>s+x.reste,0))}</b> <button class="small" onclick="printDoc(boursiersHTML())">Liste</button></div>`:''})():''}
  ${isAdmin()&&KE.length?`<div class="card" style="padding:10px 14px">APE — à part, ce n'est pas une recette de l'école : perçu <b>${fcfa(ep)}</b> sur ${fcfa(ea)} · reste <b>${fcfa(er)}</b></div>`:''}
  ${start}
@@ -609,7 +617,8 @@ function formCloture(){modal(`<h3>Clôture de caisse</h3><div class="row">${F('D
 function cloturePreview(){const box=document.getElementById('cl_pv');if(box)box.innerHTML=`<div class="pv" style="zoom:.7">${clotureHTML(fval('cl_d'),fval('cl_e'))}</div>`}
 function clotureHTML(d,ec){
  const inEc=p=>{const i=ins(p.inscriptionId);return i&&(!ec||insEcole(i)===ec)};
- const P=DB.paiements.filter(p=>p.date===d&&inEc(p)&&!p.annule).sort((a,b)=>(a.recu||'').localeCompare(b.recu||''));
+ const PA=DB.paiements.filter(p=>p.date===d&&inEc(p)&&!p.annule&&+(p.parts||{}).arriere>0);const TA=PA.reduce((s,p)=>s+(+p.parts.arriere||0),0);
+ const P=DB.paiements.filter(p=>p.date===d&&inEc(p)&&!p.annule).map(schoolPay).filter(Boolean).sort((a,b)=>(a.recu||'').localeCompare(b.recu||''));
  const A=DB.paiements.filter(p=>p.annule&&inEc(p)&&(p.date===d||(p.annule.t||'').slice(0,10)===d));
  const K=keysAll().filter(k=>P.some(p=>+(p.parts||{})[k]));const tk={},tm={};let T=0;
  P.forEach(p=>{K.forEach(k=>tk[k]=(tk[k]||0)+(+(p.parts||{})[k]||0));tm[p.mode||'?']=(tm[p.mode||'?']||0)+(+p.montant||0);T+=+p.montant||0});
@@ -618,7 +627,7 @@ function clotureHTML(d,ec){
  return `<div class="pg">${pageHeader(ec?S().ecoles[ec]:{nom:'Écoles Être et Avoir en Jésus-Christ (primaire et maternelle)'},S().annee)}<div class="title">Clôture de caisse du ${fmtDate(d)}${ec?' — '+(ec==='primaire'?'Primaire':'Maternelle'):''}</div>
  <table class="small"><thead><tr><th>Reçu</th><th>Élève</th><th>Classe</th><th>Mode</th>${K.map(k=>`<th class="r">${esc(rubLabel(k))}</th>`).join('')}<th class="r">Total</th></tr></thead><tbody>${rows||`<tr><td colspan="${5+K.length}" class="c">Aucun reçu ce jour</td></tr>`}</tbody>
  <tfoot><tr><th colspan="4">Total (${P.length} reçu(s))</th>${K.map(k=>`<th class="r">${fcfa(tk[k])}</th>`).join('')}<th class="r">${fcfa(T)}</th></tr></tfoot></table>
- <p style="margin:10px 0 0"><b>Recettes de l'école : ${fcfa(TS)}</b>${TE?` &nbsp;·&nbsp; APE (hors recettes école) : <b>${fcfa(TE)}</b>`:''} &nbsp;·&nbsp; Total encaissé : ${fcfa(T)}</p>
+ <p style="margin:10px 0 0"><b>Recettes de l'école : ${fcfa(TS)}</b>${TE?` &nbsp;·&nbsp; APE (hors recettes école) : <b>${fcfa(TE)}</b>`:''} &nbsp;·&nbsp; Total encaissé : ${fcfa(T)}</p>${TA?`<p style="margin:4px 0 0">Arriérés des années passées reçus ce jour (fonds à part, hors caisse de l'école) : <b>${fcfa(TA)}</b> — reçus ${PA.map(p=>esc(p.recu)).join(', ')}</p>`:''}
  <table style="margin-top:10px;width:60%"><tr><th colspan="2">Par mode de paiement</th></tr>${Object.entries(tm).map(([m,v])=>`<tr><td>${esc(m)}</td><td class="r">${fcfa(v)}</td></tr>`).join('')||'<tr><td colspan="2">—</td></tr>'}</table>
  ${A.length?`<table class="small" style="margin-top:10px"><tr><th colspan="4">Reçus annulés</th></tr>${A.map(p=>`<tr><td>${esc(p.recu)}</td><td>${esc(fullName(elv(ins(p.inscriptionId)?.eleveId)))}</td><td class="r">${fcfa(p.montant)}</td><td>${esc(p.annule.motif)}</td></tr>`).join('')}</table>`:''}
  <table style="margin-top:14px"><tr><td style="width:50%">Espèces attendues en caisse : <b>${fcfa(esp)}</b></td><td>Espèces comptées : ..............................</td></tr><tr><td>Écart : ..............................</td><td>Observations : ..............................</td></tr></table>
@@ -627,11 +636,11 @@ function clotureHTML(d,ec){
 function partsTxt(p){return Object.entries(p.parts||{}).filter(([k,v])=>+v).map(([k,v])=>`${rubLabel(k)} ${fcfa(v)}`).join(' · ')}
 function vPaie(){
  const cl=UI.f.pcl||'',ec=UI.f.pec||'';const yIds=new Set(allYearInscs().filter(i=>(!cl||i.classeId===cl)&&(!ec||insEcole(i)===ec)).map(i=>i.id));
- const P=DB.paiements.filter(p=>yIds.has(p.inscriptionId)).sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.recu||'').localeCompare(a.recu||''));
+ const na=UI.f.pna||'';const P=DB.paiements.filter(p=>yIds.has(p.inscriptionId)&&(!na||(na==='A')===isArrPay(p))).sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.recu||'').localeCompare(a.recu||''));
  let tot=0;const rows=P.slice(0,UI.f.pall?99999:300).map(p=>{const i=ins(p.inscriptionId),e=elv(i.eleveId);tot+=0;const an=p.annule;return `<tr data-s="${rowKey(e)} ${esc(norm(p.recu))}"${an?' style="color:#98a2b3"':''}><td>${fmtDate(p.date)}</td><td>${esc(p.recu)}</td><td><b>${esc(fullName(e))}</b><br><span class="muted">${esc(e.matricule)}</span></td><td>${esc(clsNom(i))}</td><td>${esc(partsTxt(p))}<br><span class="muted">${esc(p.remarque||'')}</span></td><td>${esc(p.mode)}</td><td class="num">${an?`<s>${fcfa(p.montant)}</s><br><span class="tag bad">ANNULÉ</span>`:`<b>${fcfa(p.montant)}</b>`}</td><td style="white-space:nowrap"><button class="small" onclick="printDoc(recuHTML(DB.paiements.find(x=>x.id==='${p.id}')))">Voir le reçu</button> ${an?`<span class="muted" title="${esc(an.motif)}">motif</span>`:`<button class="small danger" title="Annuler ce reçu" onclick="delPaiement('${p.id}')">Annuler</button>`}</td></tr>`}).join('');
  P.forEach(p=>{if(!p.annule)tot+=+p.montant||0});
  return `${backupBanner()}<h1>Paiements / frais ${esc(S().annee)}</h1>
- <div class="card row">${FS('École','p_ec',opts([['','Les deux écoles'],['primaire','Primaire'],['maternelle','Maternelle']],ec),'onchange="UI.f.pec=this.value;render()"')}${FS('Classe','p_cl','<option value="">Toutes les classes</option>'+classOpts(cl),'onchange="UI.f.pcl=this.value;render()"')}
+ <div class="card row">${FS('École','p_ec',opts([['','Les deux écoles'],['primaire','Primaire'],['maternelle','Maternelle']],ec),'onchange="UI.f.pec=this.value;render()"')}${FS('Classe','p_cl','<option value="">Toutes les classes</option>'+classOpts(cl),'onchange="UI.f.pcl=this.value;render()"')}${FS('Reçus','p_na',opts([['','Tous'],['Y',"Frais de l'année"],['A','Arriérés (série A)']],na),'onchange="UI.f.pna=this.value;render()"')}
  <div class="field" style="min-width:200px"><label>Rechercher (nom, numéro, reçu)</label><input oninput="filterRows('tb_p',this.value)" placeholder="ex. 0178 ou p0284"></div><button class="primary" onclick="formPaiement()">+ Nouveau paiement</button><button onclick="formCloture()">Clôture de caisse</button><button onclick="printDoc(paiementsHTML(UI.f.pcl||'',true,UI.f.pec||''))">Imprimer les impayés</button><button onclick="paiementsXLSX(UI.f.pcl||'',true,UI.f.pec||'')">Impayés en Excel</button><button onclick="printDoc(paiementsHTML(UI.f.pcl||'',false,UI.f.pec||''))">Imprimer l'état des paiements</button></div>
  <div class="card" style="padding:0;overflow:auto"><table class="data"><thead><tr><th>Date</th><th>Reçu N°</th><th>Élève</th><th>Classe</th><th>Détail</th><th>Mode</th><th class="num">Montant</th><th></th></tr></thead>
  <tbody id="tb_p">${rows||'<tr><td colspan="8" class="muted" style="padding:24px;text-align:center">Aucun paiement enregistré.</td></tr>'}</tbody>
@@ -656,9 +665,12 @@ function payInfo(){
  if(v&&v.startsWith('E:')){const ni=ensureArrOnly(v.slice(2));if(ni){document.getElementById('f_i').value=ni.id;v=ni.id;save()}}
  const i=ins(v);
  if(!i){b.innerHTML='<div class="muted">Choisissez un élève.</div>';payTot();return}
- const rows=keysAll().map(k=>{const d=dueC(i,k),p=paidC(i.id,k),r=Math.max(0,d-p);if(!d&&!p)return '';if(i.arrOnly&&k!=='arriere')return '';return `<tr><td>${esc(rubLabel(k))}</td><td class="num">${fcfa(d)}</td><td class="num">${fcfa(p)}</td><td class="num">${r?`<b style="color:var(--danger)">${fcfa(r)}</b>`:'—'}</td><td><input id="f_p_${k}" type="number" min="0" step="any" style="width:110px" oninput="payTot()" placeholder="${r||''}"></td></tr>`}).join('');
- const arr=i.arrOnly?'<div class="banner" style="margin:8px 0 0">Élève non inscrit cette année : seul l\'arriéré des années passées peut être payé.</div>':i.arriere&&paidC(i.id,'arriere')<i.arriere?'<div class="banner" style="margin:8px 0 0">⚠ Cet élève a un arriéré des années passées : il est conseillé de le payer d\'abord.</div>':'';
- b.innerHTML=`<table class="data"><thead><tr><th>Rubrique</th><th class="num">Dû</th><th class="num">Déjà payé</th><th class="num">Reste</th><th>Ce paiement (F)</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td>Total</td><td class="num">${fcfa(du(i))}</td><td class="num">${fcfa(paye(i.id))}</td><td class="num">${fcfa(reste(i))}</td><td></td></tr></tfoot></table>${arr}`;
+ const row=k=>{const d=dueC(i,k),p=paidC(i.id,k),r=Math.max(0,d-p);if(!d&&!p)return '';return `<tr><td>${esc(rubLabel(k))}</td><td class="num">${fcfa(d)}</td><td class="num">${fcfa(p)}</td><td class="num">${r?`<b style="color:var(--danger)">${fcfa(r)}</b>`:'—'}</td><td><input id="f_p_${k}" type="number" min="0" step="any" style="width:110px" oninput="payTot()" placeholder="${r||''}"></td></tr>`};
+ const YK=keysAll().filter(k=>k!=='arriere'),rows=i.arrOnly?'':YK.map(row).join(''),arow=row('arriere');
+ const yd=YK.reduce((s,k)=>s+dueC(i,k),0),yp=YK.reduce((s,k)=>s+paidC(i.id,k),0);
+ const TH='<thead><tr><th>Rubrique</th><th class="num">Dû</th><th class="num">Déjà payé</th><th class="num">Reste</th><th>Ce paiement (F)</th></tr></thead>';
+ b.innerHTML=(i.arrOnly?'<div class="banner" style="margin:0 0 8px">Élève non inscrit cette année : seul l\'arriéré des années passées peut être payé.</div>':`<div style="font-weight:600;margin-bottom:4px">Frais de l'année ${esc(i.annee)}</div><table class="data">${TH}<tbody>${rows}</tbody><tfoot><tr><td>Total de l'année</td><td class="num">${fcfa(yd)}</td><td class="num">${fcfa(yp)}</td><td class="num">${fcfa(Math.max(0,yd-yp))}</td><td></td></tr></tfoot></table>`)
+ +(arow?`<div style="font-weight:600;margin:12px 0 4px">Arriéré des années passées <span class="muted" style="font-weight:normal">— fonds à part, reçu séparé (série A), hors recettes de l'école</span></div><table class="data">${TH}<tbody>${arow}</tbody></table>`:'');
  payTot();
 }
 function payParts(){const parts={};keysAll().forEach(k=>{const v=+fval('f_p_'+k);if(v>0)parts[k]=v});return parts}
@@ -666,9 +678,12 @@ function payTot(){const t=document.getElementById('f_tot');if(t){const s=Object.
 function savePaiement(){
  const iid=fval('f_i');if(!iid){alert('Choisissez un élève.');return}
  const parts=payParts(),m=Object.values(parts).reduce((a,b)=>a+b,0);if(!(m>0)){alert('Saisissez au moins un montant.');return}
- const i=ins(iid);const p={id:uid(),inscriptionId:iid,date:fval('f_d')||today(),montant:m,parts,mode:fval('f_mo'),remarque:fval('f_r'),recu:nextRecu(insEcole(i))};
- DB.paiements.push(p);logJ('Paiement',`${p.recu} — ${fullName(elv(i.eleveId))} — ${fcfa(m)}`);save();closeModal();render();
- toast(`Paiement enregistré — reçu N° ${p.recu}`);printDoc(recuHTML(p));
+ const i=ins(iid);const base={inscriptionId:iid,date:fval('f_d')||today(),mode:fval('f_mo'),remarque:fval('f_r')};const out=[];
+ const a=+parts.arriere||0;delete parts.arriere;const y=Object.values(parts).reduce((s,v)=>s+v,0);
+ if(y>0)out.push(Object.assign({id:uid(),montant:y,parts,recu:nextRecu(insEcole(i))},base));
+ if(a>0)out.push(Object.assign({id:uid(),montant:a,parts:{arriere:a},recu:nextRecuA()},base,{remarque:base.remarque||'Arriéré des années passées'}));
+ out.forEach(p=>{DB.paiements.push(p);logJ(isArrPay(p)?'Paiement arriéré':'Paiement',`${p.recu} — ${fullName(elv(i.eleveId))} — ${fcfa(p.montant)}`)});save();closeModal();render();
+ toast(`Paiement enregistré — reçu${out.length>1?'s':''} N° ${out.map(p=>p.recu).join(' et ')}`);printDoc(out.map(recuHTML).join(''));
 }
 function delPaiement(pid){requirePin(()=>{const p=DB.paiements.find(x=>x.id===pid);if(!p||p.annule)return;const e=elv(ins(p.inscriptionId)?.eleveId);
  modal(`<h3>Annuler le reçu N° ${esc(p.recu)}</h3><p>${esc(fullName(e))} — ${fcfa(p.montant)} du ${fmtDate(p.date)}</p><p class="muted">Le reçu n'est pas effacé : il reste dans la liste et dans le journal, marqué « ANNULÉ », et son montant ne compte plus. Son numéro n'est pas réutilisé.</p>
@@ -767,7 +782,7 @@ function bulletinHTML(iid,T){
 
 /* ---------- Documents imprimables ---------- */
 let _pv='';
-function printDoc(html,title){if(!html){alert('Rien à imprimer.');return}_pv=html;const n=(html.match(/class="pg"/g)||[]).length;
+function printDoc(html,title){if(!html){alert('Rien à imprimer.');return}_pv=html;const n=(html.match(/class="pg[" ]/g)||[]).length;
  const d=document.createElement('div');d.className='modal-bg';d.id='pvbg';d.innerHTML=`<div class="modal" style="width:min(940px,100%);background:#eef0f3;padding:0">
  <div style="position:sticky;top:0;z-index:2;background:#fff;border-bottom:1px solid var(--line);padding:10px 16px;display:flex;gap:8px;align-items:center;border-radius:10px 10px 0 0"><b>Aperçu avant impression</b><span class="muted">${n} page(s) A4</span><span style="flex:1"></span><button onclick="closePv()">Fermer</button><button class="primary" onclick="printNow()">🖨 Imprimer</button></div>
  <div class="pv" style="padding:16px">${html}</div></div>`;document.body.appendChild(d)}
@@ -790,7 +805,7 @@ function nombreEnLettres(n){n=Math.round(+n||0);if(n===0)return 'zéro';
 function paidAsOf(p,k){return DB.paiements.filter(x=>x.inscriptionId===p.inscriptionId&&!x.annule&&((x.date||'')<(p.date||'')||((x.date||'')===(p.date||'')&&(x.recu||'')<=(p.recu||''))||x.id===p.id)).reduce((s,x)=>s+(+(x.parts||{})[k]||0),0)}
 function recuHTML(p){
  const i=ins(p.inscriptionId),e=elv(i.eleveId),c=cls(i.classeId)||{nom:'Arriéré seul (non inscrit)',ecole:insEcole(i)},sc=ecoleOf(c);
- const K=keysAll().filter(k=>+(p.parts||{})[k]||dueC(i,k));const dense=K.length>=4||!!p.annule;
+ const AR=isArrPay(p);const K=AR?['arriere']:keysAll().filter(k=>+(p.parts||{})[k]||(k!=='arriere'&&dueC(i,k)));const dense=K.length>=4||!!p.annule;
  let tP=0,tR=0,tPaid=0,tDue=0;
  const lines=K.map(k=>{const d=dueC(i,k),pa=p.annule?paidC(i.id,k):paidAsOf(p,k),r=Math.max(0,d-pa),now=+(p.parts||{})[k]||0;tP+=now;tR+=r;tPaid+=pa;tDue+=d;return `<tr><td>${esc(rubLabel(k))}</td><td class="r">${now?fcfa(now):'—'}</td><td class="r">${r?fcfa(r):'Soldé'}</td></tr>`}).join('');
  const lg=logoSrc();
@@ -801,11 +816,11 @@ function recuHTML(p){
  <div style="text-align:center;line-height:1.25"><b style="font-size:${dense?16:18}px">${esc(n1)}</b>${n2?`<br><b style="font-size:${dense?16:18}px">${esc(n2)}</b>`:''}${sc.devise?`<br><i>${esc(sc.devise)}</i>`:''}<br><span style="font-size:11px">${sub.join('<br>')}</span></div>
  <div style="text-align:right;white-space:nowrap">Année scolaire<br><b style="font-size:14px">${esc(i.annee)}</b></div></div>`;
  const one=lab=>`<div class="recu-box${dense?' dense':''}">${hdr}
- <div><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-size:20px;font-weight:bold;text-transform:uppercase">Reçu N° ${esc(p.recu)}</span><span style="border:${p.annule?2:1}px solid #000;padding:2px 8px;font-weight:bold">${p.annule?'ANNULÉ — ':''}${lab}</span></div>
- <table class="info"><tr><td style="width:62%">Élève : <b>${esc(fullName(e))}</b> (${esc(e.matricule)}) — Classe : <b>${esc(c.nom)}</b></td><td>Date : <b>${fmtDate(p.date)}</b></td></tr><tr><td>${p.annule?`<b>Annulé le ${fmtDate(p.annule.t.slice(0,10))} — motif : ${esc(p.annule.motif)}</b>`:`Objet : ${esc(p.remarque||(i.arrOnly?'Paiement d\'arriéré (années passées)':'Paiement des frais scolaires'))}`}</td><td>Mode : ${esc(p.mode||'')}</td></tr></table></div>
+ <div><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-size:20px;font-weight:bold;text-transform:uppercase">${AR?'Reçu d\'arriéré':'Reçu'} N° ${esc(p.recu)}</span><span style="border:${p.annule?2:1}px solid #000;padding:2px 8px;font-weight:bold">${p.annule?'ANNULÉ — ':''}${lab}</span></div>
+ <table class="info"><tr><td style="width:62%">Élève : <b>${esc(fullName(e))}</b> (${esc(e.matricule)}) — Classe : <b>${esc(c.nom)}</b></td><td>Date : <b>${fmtDate(p.date)}</b></td></tr><tr><td>${p.annule?`<b>Annulé le ${fmtDate(p.annule.t.slice(0,10))} — motif : ${esc(p.annule.motif)}</b>`:`Objet : ${esc(AR?'Paiement d\'arriéré des années passées'+(p.remarque&&p.remarque!=='Arriéré des années passées'?' — '+p.remarque:''):(p.remarque||'Paiement des frais scolaires'))}`}</td><td>Mode : ${esc(p.mode||'')}</td></tr></table></div>
  <table><thead><tr><th>Rubrique</th><th class="r" style="width:32%">Montant payé</th><th class="r" style="width:32%">Reste à payer</th></tr></thead><tbody>${lines}</tbody><tfoot><tr><th>TOTAL</th><th class="r" style="font-size:16px">${fcfa(tP)}</th><th class="r">${fcfa(tR)}</th></tr></tfoot></table>
  <div><div>Arrêté le présent reçu à la somme de : <b>${nombreEnLettres(tP)} (${fcfa(tP).replace(' F','')}) francs CFA</b>.</div>
- <div style="font-size:12px;margin-top:2px">Situation au ${fmtDate(p.date)} : payé ${i.arrOnly?'sur l\'arriéré':'pour l\'année'} ${fcfa(tPaid)} sur ${fcfa(tDue)} — reste ${fcfa(tR)}.</div></div>
+ <div style="font-size:12px;margin-top:2px">Situation au ${fmtDate(p.date)} : payé ${AR?'sur l\'arriéré':'pour l\'année'} ${fcfa(tPaid)} sur ${fcfa(tDue)} — reste ${fcfa(tR)}.</div></div>
  <div class="sign"><div>Le Parent</div><div>Reçu par : ${esc(S().caissier||'..................................')}<br><span style="font-size:11px">(signature et cachet de l'école)</span></div></div>${S().piedRecu?`<div class="c" style="font-size:10.5px"><i>${esc(S().piedRecu)}</i></div>`:''}</div>`;
  return `<div class="pg recu-page"><div class="recu-wrap"><div class="recu-half">${one('Copie PARENTS')}</div><div class="recu-cut">✂ ${'- '.repeat(70)}✂</div><div class="recu-half">${one('Copie ÉCOLE')}</div></div></div>`;
 }
@@ -885,7 +900,7 @@ const MOIS_FR=['janvier','février','mars','avril','mai','juin','juillet','août
 function moisLabel(ym){const [y,m]=ym.split('-');return MOIS_FR[+m-1].replace(/^./,c=>c.toUpperCase())+' '+y}
 function recapData(ec,annee){
  annee=annee||S().annee;const y0=+annee.slice(0,4);
- const P=DB.paiements.filter(p=>{const i=ins(p.inscriptionId);return i&&!p.annule&&i.annee===annee&&(!ec||insEcole(i)===ec)});
+ const P=DB.paiements.filter(p=>{const i=ins(p.inscriptionId);return i&&!p.annule&&i.annee===annee&&(!ec||insEcole(i)===ec)}).map(schoolPay).filter(Boolean);
  const KY=keysSchool().filter(k=>k!=='arriere'),KE=keysExt();
  const months=new Set();for(let k=0;k<12;k++){const m=(8+k)%12+1,y=m>=9?y0:y0+1;months.add(y+'-'+String(m).padStart(2,'0'))}
  P.forEach(p=>{if(p.date)months.add(p.date.slice(0,7))});
@@ -896,16 +911,14 @@ function recapData(ec,annee){
 }
 function recapPage(ec,annee){
  const D=recapData(ec,annee),f=v=>v?fcfa(v):'—';
- const head=`<th>Mois</th>${D.KY.map(k=>`<th class="r">${esc(rubLabel(k))}</th>`).join('')}<th class="r">Recettes de l'année</th><th class="r">Arriérés recouvrés</th><th class="r">Total école</th>${D.KE.length?`<th class="r">${D.KE.map(rubLabel).join(' + ')} (hors école)</th><th class="r">Total encaissé</th>`:''}`;
- const line=(lab,o,b)=>`<tr>${b?`<th>${lab}</th>`:`<td>${lab}</td>`}${D.KY.map(k=>`<td class="r">${f(o.k[k])}</td>`).join('')}<td class="r"><b>${f(o.an)}</b></td><td class="r">${f(o.arr)}</td><td class="r"><b>${f(o.ecole)}</b></td>${D.KE.length?`<td class="r">${f(o.ext)}</td><td class="r">${f(o.tot)}</td>`:''}</tr>`;
+ const head=`<th>Mois</th>${D.KY.map(k=>`<th class="r">${esc(rubLabel(k))}</th>`).join('')}<th class="r">Recettes de l'année</th>${D.KE.length?`<th class="r">${D.KE.map(rubLabel).join(' + ')} (hors école)</th><th class="r">Total encaissé</th>`:''}`;
+ const line=(lab,o,b)=>`<tr>${b?`<th>${lab}</th>`:`<td>${lab}</td>`}${D.KY.map(k=>`<td class="r">${f(o.k[k])}</td>`).join('')}<td class="r"><b>${f(o.an)}</b></td>${D.KE.length?`<td class="r">${f(o.ext)}</td><td class="r">${f(o.tot)}</td>`:''}</tr>`;
  const rows=D.months.map(m=>line(moisLabel(m),D.R[m])).join('');const T=D.T;
  const nom=ec?(ec==='primaire'?'Primaire':'Maternelle'):'Primaire et maternelle';
  return `<div class="pg">${pageHeader(ec?S().ecoles[ec]:{nom:'Écoles Être et Avoir en Jésus-Christ (primaire et maternelle)'},D.annee)}<div class="title">Récapitulatif mensuel des recettes — ${esc(nom)}</div><p>Année scolaire ${esc(D.annee)} · arrêté au ${fmtDate(today())} · ${T.n} reçu(s), reçus annulés exclus</p>
  <table class="small" style="font-size:10px"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody><tfoot>${line('TOTAL '+esc(D.annee),T,true)}</tfoot></table>
  <table class="small" style="width:auto;min-width:60%;margin-top:5mm"><tbody>
  <tr><td>Recettes de l'année ${esc(D.annee)} (${D.KY.map(rubLabel).join(', ')})</td><td class="r"><b>${fcfa(T.an)}</b></td></tr>
- <tr><td>Arriérés des années passées recouvrés</td><td class="r">${fcfa(T.arr)}</td></tr>
- <tr><td><b>Total encaissé pour l'école</b></td><td class="r"><b>${fcfa(T.ecole)}</b></td></tr>
  ${D.KE.length?`<tr><td>${D.KE.map(rubLabel).join(' + ')} — encaissé pour le compte des parents, hors recettes de l'école</td><td class="r">${fcfa(T.ext)}</td></tr><tr><td>Total encaissé (tout compris)</td><td class="r">${fcfa(T.tot)}</td></tr>`:''}
  </tbody></table>
  <p class="small" style="margin-top:3mm">Les montants sont classés selon la date du reçu. Le détail reçu par reçu figure dans le journal des recettes.</p>
@@ -914,14 +927,49 @@ function recapPage(ec,annee){
 function recapHTML(ec,annee){return ec?recapPage(ec,annee):['primaire','maternelle',''].map(x=>recapPage(x,annee)).join('')}
 function recapXLSX(ec,annee){
  const sheets=(ec?[ec]:['primaire','maternelle','']).map(x=>{const D=recapData(x,annee),nom=x?(x==='primaire'?'Primaire':'Maternelle'):'Ensemble';
-  const head=['Mois',...D.KY.map(rubLabel),"Recettes de l'année",'Arriérés recouvrés','Total école',...(D.KE.length?[D.KE.map(rubLabel).join(' + ')+' (hors école)','Total encaissé']:[]),'Nb reçus'];
+  const head=['Mois',...D.KY.map(rubLabel),"Recettes de l'année",...(D.KE.length?[D.KE.map(rubLabel).join(' + ')+' (hors école)','Total encaissé']:[]),'Nb reçus'];
   const rows=[[`Récapitulatif mensuel des recettes — ${nom} — ${D.annee} — arrêté au ${fmtDate(today())}`],[],head];
-  const vals=o=>[...D.KY.map(k=>o.k[k]),o.an,o.arr,o.ecole,...(D.KE.length?[o.ext,o.tot]:[]),o.n];
+  const vals=o=>[...D.KY.map(k=>o.k[k]),o.an,...(D.KE.length?[o.ext,o.tot]:[]),o.n];
   D.months.forEach(m=>rows.push([moisLabel(m),...vals(D.R[m])]));
   const n=rows.length;rows.push(['TOTAL '+D.annee,...vals(D.T).map((_,j)=>({f:`SUM(${colL(1+j)}4:${colL(1+j)}${n})`}))]);
   return {name:nom,rows,bold:[0,2,rows.length-1],widths:[16,...head.slice(1).map(h=>Math.max(12,Math.min(22,h.length+2)))],freeze:3}});
  downloadXLSX(`Recapitulatif_recettes_${annee||S().annee}${ec?'_'+ec:''}.xlsx`,sheets);
 }
+/* ---------- Fonds des arriérés (à part) ---------- */
+function fondsHTML(d1,d2){
+ const E=arrEntrees(d1,d2),O=arrSorties(d1,d2),te=E.reduce((s,p)=>s+(+p.parts.arriere||0),0),to=O.reduce((s,x)=>s+(+x.montant||0),0);
+ const prev=d1?fondsSolde(new Date(new Date(d1).getTime()-864e5).toISOString().slice(0,10)):0;
+ return `<div class="pg">${pageHeader({nom:'Écoles Être et Avoir en Jésus-Christ (primaire et maternelle)'},S().annee)}<div class="title">Fonds des arriérés des années passées</div>
+ <p>Période : du ${fmtDate(d1)||'début'} au ${fmtDate(d2)||fmtDate(today())}. Fonds géré à part : ces montants ne font pas partie des recettes de l'année ni de la caisse de l'école.</p>
+ <h3 style="margin:8px 0 4px">Entrées (reçus d'arriéré)</h3>
+ <table class="small"><thead><tr><th>Date</th><th>Reçu</th><th>Élève</th><th>N°</th><th class="r">Montant</th></tr></thead><tbody>${E.map(p=>{const i=ins(p.inscriptionId),e=elv(i?.eleveId);return `<tr><td>${fmtDate(p.date)}</td><td>${esc(p.recu)}</td><td>${esc(fullName(e))}</td><td>${esc(e?.matricule||'')}</td><td class="r">${fcfa(p.parts.arriere)}</td></tr>`}).join('')||'<tr><td colspan="5" class="c">Aucune entrée</td></tr>'}</tbody><tfoot><tr><th colspan="4">Total des entrées</th><th class="r">${fcfa(te)}</th></tr></tfoot></table>
+ <h3 style="margin:10px 0 4px">Sorties (utilisation du fonds)</h3>
+ <table class="small"><thead><tr><th>Date</th><th>Motif / utilisation</th><th>Remis à</th><th class="r">Montant</th></tr></thead><tbody>${O.map(x=>`<tr><td>${fmtDate(x.date)}</td><td>${esc(x.motif)}</td><td>${esc(x.remisA||'')}</td><td class="r">${fcfa(x.montant)}</td></tr>`).join('')||'<tr><td colspan="4" class="c">Aucune sortie</td></tr>'}</tbody><tfoot><tr><th colspan="3">Total des sorties</th><th class="r">${fcfa(to)}</th></tr></tfoot></table>
+ <table class="small" style="width:auto;min-width:55%;margin-top:5mm"><tbody>${d1?`<tr><td>Solde au début de la période</td><td class="r">${fcfa(prev)}</td></tr>`:''}<tr><td>+ Entrées</td><td class="r">${fcfa(te)}</td></tr><tr><td>− Sorties</td><td class="r">${fcfa(to)}</td></tr><tr><td><b>Solde à la fin de la période</b></td><td class="r"><b>${fcfa(prev+te-to)}</b></td></tr></tbody></table>
+ <div class="sign"><div>Le/La Caissier(ère)</div><div>Le Directeur / La Directrice</div></div></div>`;
+}
+function fondsXLSX(d1,d2){
+ const E=arrEntrees(d1,d2),O=arrSorties(d1,d2);
+ const r1=[[`Fonds des arriérés — entrées — du ${fmtDate(d1)||'début'} au ${fmtDate(d2)||fmtDate(today())}`],[],['Date','Reçu N°','Matricule','Élève','Mode','Montant']];
+ E.forEach(p=>{const e=elv(ins(p.inscriptionId)?.eleveId);r1.push([{d:p.date},p.recu,e?.matricule||'',fullName(e),p.mode||'',+p.parts.arriere||0])});
+ const n1=r1.length;r1.push([],['TOTAL','','','','',E.length?{f:`SUM(F4:F${n1})`}:0]);
+ const r2=[['Fonds des arriérés — sorties'],[],['Date','Motif / utilisation','Remis à','Montant']];
+ O.forEach(x=>r2.push([{d:x.date},x.motif,x.remisA||'',+x.montant||0]));
+ const n2=r2.length;r2.push([],['TOTAL','','',O.length?{f:`SUM(D4:D${n2})`}:0],[],['Solde du fonds au '+fmtDate(d2||today()),'','',fondsSolde(d2)]);
+ downloadXLSX(`Fonds_arrieres_${d1||'debut'}_${d2||today()}.xlsx`,[{name:'Entrées',rows:r1,bold:[0,2,r1.length-1],widths:[11,15,10,30,12,12],freeze:3},{name:'Sorties',rows:r2,bold:[0,2,r2.length-3,r2.length-1],widths:[11,40,22,12],freeze:3}]);
+ logJ('Export Excel','Fonds des arriérés');save();
+}
+function formFonds(){
+ const O=(DB.fondsArr||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+ modal(`<h3>Fonds des arriérés (à part)</h3><p>Solde actuel : <b style="font-size:18px">${fcfa(fondsSolde())}</b> <span class="muted">— entrées ${fcfa(arrEntrees().reduce((s,p)=>s+(+p.parts.arriere||0),0))} · sorties ${fcfa(arrSorties().reduce((s,x)=>s+(+x.montant||0),0))}</span></p>
+ <div class="card" style="margin:8px 0"><b>Enregistrer une sortie (utilisation du fonds)</b><div class="row" style="margin-top:6px">${F('Date','fs_d',today(),'date')}${F('Montant (F)','fs_m','','number')}<div class="field" style="min-width:240px"><label>Motif / utilisation *</label><input id="fs_mo" placeholder="ex. versé à la caisse de l'école, achat de ..."></div><div class="field"><label>Remis à</label><input id="fs_r"></div><button class="primary" onclick="addSortie()">Enregistrer</button></div></div>
+ <table class="data"><thead><tr><th>Date</th><th>Motif</th><th>Remis à</th><th class="num">Montant</th><th></th></tr></thead><tbody>${O.map(x=>`<tr${x.annule?' style="color:#98a2b3"':''}><td>${fmtDate(x.date)}</td><td>${esc(x.motif)}</td><td>${esc(x.remisA||'')}</td><td class="num">${x.annule?`<s>${fcfa(x.montant)}</s> <span class="tag bad">ANNULÉ</span>`:fcfa(x.montant)}</td><td>${x.annule?'':`<button class="small danger" onclick="annulSortie('${x.id}')">Annuler</button>`}</td></tr>`).join('')||'<tr><td colspan="5" class="muted">Aucune sortie enregistrée.</td></tr>'}</tbody></table>
+ <div class="actions"><button onclick="closeModal()">Fermer</button></div>`,true);
+}
+function addSortie(){const m=+fval('fs_m'),mo=fval('fs_mo');if(!(m>0)){alert('Indiquez le montant.');return}if(!mo){alert('Indiquez le motif.');return}
+ if(m>fondsSolde()&&!confirm(`Le montant dépasse le solde du fonds (${fcfa(fondsSolde())}). Enregistrer quand même ?`))return;
+ const x={id:uid(),date:fval('fs_d')||today(),montant:m,motif:mo,remisA:fval('fs_r'),by:devName()||''};DB.fondsArr.push(x);logJ('Fonds arriérés — sortie',`${fcfa(m)} — ${mo}`);save();formFonds();toast('Sortie enregistrée')}
+function annulSortie(id){const x=DB.fondsArr.find(y=>y.id===id);if(!x)return;const mo=prompt('Motif de l\'annulation de cette sortie :');if(!mo)return;x.annule={t:new Date().toISOString(),motif:mo,dev:devName()||''};logJ('Fonds arriérés — sortie annulée',`${fcfa(x.montant)} — ${mo}`);save();formFonds()}
 /* ---------- Export vers « Recettes » du tableau financier (Google Sheets) ---------- */
 function sYearOfDate(d){const y=+d.slice(0,4),m=+d.slice(5,7);return m>=9?`${y}-${y+1}`:`${y-1}-${y}`}
 function prevYear(a){const y=+a.slice(0,4);return `${y-1}-${y}`}
@@ -932,7 +980,6 @@ function sheetRecettesRows(d1,d2){
   const ec=insEcole(i)==='maternelle'?'Maternelle':'Primaire',pt=p.parts||{};
   const impY=sYearOfDate(p.date)!==i.annee?i.annee:'';
   KY.forEach(k=>add(p.date,ec,NAT[k]||rubLabel(k),+pt[k]||0,impY));
-  add(p.date,ec,'Scolarité',+pt.arriere||0,prevYear(i.annee));
  });
  return Object.entries(G).map(([k,v])=>{const [date,ec,nat,imp]=k.split('|');return [date,ec,nat,v,imp]}).sort((a,b)=>a[0].localeCompare(b[0])||a[1].localeCompare(b[1])||a[2].localeCompare(b[2])||a[4].localeCompare(b[4]));
 }
@@ -941,7 +988,7 @@ function exportSheetRecettes(d1,d2){
  const R=sheetRecettesRows(d1,d2);if(!R.length){alert('Aucune recette sur cette période.');return}
  const tsv=R.map(r=>r.join('\t')).join('\n'),tot=R.reduce((s,r)=>s+r[3],0),arr=R.filter(r=>r[4]&&r[4]<sYearOfDate(r[0])).reduce((s,r)=>s+r[3],0);
  modal(`<h3>Recettes pour le « Tableau financier » (Google Sheets)</h3>
- <p>Du ${fmtDate(d1)} au ${fmtDate(d2)} : <b>${R.length} ligne(s)</b>, total <b>${fcfa(tot)}</b>${arr?` (dont arriérés des années passées ${fcfa(arr)}, imputés à l'année précédente en colonne E)`:''}. APE et reçus annulés exclus.</p>
+ <p>Du ${fmtDate(d1)} au ${fmtDate(d2)} : <b>${R.length} ligne(s)</b>, total <b>${fcfa(tot)}</b>. APE, arriérés des années passées (fonds à part) et reçus annulés exclus.</p>
  <ol style="margin:6px 0 10px 18px;padding:0"><li>Cliquez sur <b>Copier</b>.</li><li>Dans l'onglet <b>Recettes</b>, cliquez dans la colonne <b>A</b> de la première ligne vide, puis collez (Ctrl+V / ⌘V).</li><li>Ne collez pas deux fois la même période.</li></ol>
  <textarea id="tsv_out" readonly style="width:100%;height:220px;font-family:monospace;font-size:12px">${esc(tsv)}</textarea>
  <div class="actions"><button onclick="closeModal()">Fermer</button><button class="primary" onclick="copyTSV()">Copier</button></div>`);
@@ -950,7 +997,7 @@ function exportSheetRecettes(d1,d2){
 function copyTSV(){const t=document.getElementById('tsv_out');if(!t)return;const done=()=>toast('Copié — collez dans l\'onglet Recettes');
  if(navigator.clipboard&&window.isSecureContext)navigator.clipboard.writeText(t.value).then(done,()=>{t.select();document.execCommand('copy');done()});else{t.select();document.execCommand('copy');done()}}
 function recettesHTML(ec,d1,d2){
- const P=DB.paiements.filter(p=>{const i=ins(p.inscriptionId);return i&&!p.annule&&(!ec||insEcole(i)===ec)&&(!d1||p.date>=d1)&&(!d2||p.date<=d2)}).sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.recu||'').localeCompare(b.recu||''));
+ const P=DB.paiements.filter(p=>{const i=ins(p.inscriptionId);return i&&!p.annule&&(!ec||insEcole(i)===ec)&&(!d1||p.date>=d1)&&(!d2||p.date<=d2)}).map(schoolPay).filter(Boolean).sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.recu||'').localeCompare(b.recu||''));
  const used=k=>P.some(p=>+(p.parts||{})[k]);const KS=keysSchool().filter(used),KE=keysExt().filter(used);const tot={};[...KS,...KE].forEach(k=>tot[k]=0);let TS=0,T=0;
  const cell=(p,k)=>`<td class="r">${+(p.parts||{})[k]?fcfa(p.parts[k]):''}</td>`;
  const rows=P.map(p=>{const i=ins(p.inscriptionId),e=elv(i.eleveId);[...KS,...KE].forEach(k=>tot[k]+=+(p.parts||{})[k]||0);const ts=partsK(p,KS);TS+=ts;T+=+p.montant||0;return `<tr><td>${fmtDate(p.date)}</td><td>${esc(p.recu)}</td><td>${esc(fullName(e))}</td><td>${esc(clsNom(i))}</td>${KS.map(k=>cell(p,k)).join('')}<td class="r"><b>${fcfa(ts)}</b></td>${KE.map(k=>cell(p,k)).join('')}${KE.length?`<td class="r">${fcfa(p.montant)}</td>`:''}</tr>`}).join('');
@@ -958,7 +1005,7 @@ function recettesHTML(ec,d1,d2){
  return `<div class="pg">${pageHeader(ec?S().ecoles[ec]:{nom:'Écoles Être et Avoir en Jésus-Christ (primaire et maternelle)'},S().annee)}<div class="title">Journal des recettes${ec?' — '+(ec==='primaire'?'Primaire':'Maternelle'):''}</div><p>Période : du ${fmtDate(d1)||'début'} au ${fmtDate(d2)||fmtDate(today())} · ${P.length} reçu(s)</p>
  <table class="small"><thead><tr><th>Date</th><th>Reçu</th><th>Élève</th><th>Classe</th>${KS.map(k=>`<th class="r">${esc(rubLabel(k))}</th>`).join('')}<th class="r">Total école</th>${KE.map(k=>`<th class="r">${esc(rubLabel(k))}</th>`).join('')}${KE.length?'<th class="r">Total encaissé</th>':''}</tr></thead><tbody>${rows||`<tr><td colspan="${nc}" class="c">Aucune recette</td></tr>`}</tbody>
  <tfoot><tr><th colspan="4">Total</th>${KS.map(k=>`<th class="r">${fcfa(tot[k])}</th>`).join('')}<th class="r">${fcfa(TS)}</th>${KE.map(k=>`<th class="r">${fcfa(tot[k])}</th>`).join('')}${KE.length?`<th class="r">${fcfa(T)}</th>`:''}</tr></tfoot></table>
- <p><b>Recettes de l'école : ${fcfa(TS)}</b>${tot.arriere?` (dont frais de l'année ${fcfa(TS-tot.arriere)} · arriérés des années passées ${fcfa(tot.arriere)})`:''}${KE.length?` &nbsp;·&nbsp; ${KE.map(k=>esc(rubLabel(k))+' (hors recettes école) : '+fcfa(tot[k])).join(' · ')} &nbsp;·&nbsp; Total encaissé : ${fcfa(T)}`:''}</p>${signBlock().replace("L'enseignant(e)","Le/La Caissier(ère)").replace('<div>Le Parent</div>','')}</div>`;
+ <p><b>Recettes de l'école : ${fcfa(TS)}</b>${KE.length?` &nbsp;·&nbsp; ${KE.map(k=>esc(rubLabel(k))+' (hors recettes école) : '+fcfa(tot[k])).join(' · ')} &nbsp;·&nbsp; Total encaissé : ${fcfa(T)}`:''}</p>${signBlock().replace("L'enseignant(e)","Le/La Caissier(ère)").replace('<div>Le Parent</div>','')}</div>`;
 }
 function effectifsHTML(){
  const part=ec=>{let G=0,Fi=0;const rows=sortedClasses().filter(c=>c.ecole===ec).map(c=>{const L=classInscs(c.id);let g=0,f=0;L.forEach(i=>elv(i.eleveId)?.sexe==='F'?f++:g++);G+=g;Fi+=f;return `<tr><td>${esc(c.nom)}</td><td>${esc(c.enseignant||'')}</td><td class="c">${g}</td><td class="c">${f}</td><td class="c"><b>${g+f}</b></td></tr>`}).join('');
@@ -980,7 +1027,8 @@ function vRapports(){
  <div class="card"><h2 style="margin-top:0">Boursiers</h2><div class="row"><button onclick="printDoc(boursiersHTML())">Liste des boursiers</button><button onclick="boursiersXLSX()">Boursiers en Excel</button><span class="muted">${yearInscs().filter(i=>elv(i.eleveId)?.boursier).length} boursier(s) inscrit(s) en ${esc(S().annee)}</span></div></div>
  <div class="card"><h2 style="margin-top:0">Documents pour un élève</h2><div class="row"><button onclick="formCertificat()">Certificat de scolarité</button><span class="muted">Aussi disponible depuis la fiche de l'élève.</span></div></div>
  <div class="card"><h2 style="margin-top:0">Toute l'école</h2><div class="row"><button onclick="printDoc(effectifsHTML())">Effectifs par classe</button><button onclick="printDoc(paiementsHTML('',true))">Liste de tous les impayés</button><button onclick="printDoc(registreHTML())">Registre matricule complet</button><button onclick="elevesXLSX()">Exporter les élèves (Excel)</button></div></div>
- <div class="card"><h2 style="margin-top:0">Recettes pour le « Tableau financier » (Google Sheets)</h2><div class="row">${F('Du','g_d1',UI.f.gd1||today().slice(0,8)+'01','date','onchange="UI.f.gd1=this.value"')}${F('Au','g_d2',UI.f.gd2||today(),'date','onchange="UI.f.gd2=this.value"')}<button onclick="const b=fval('g_d1'),c=fval('g_d2');requirePin(()=>exportSheetRecettes(b,c),'copier les recettes')">Préparer et copier${isAdmin()?'':' 🔒'}</button></div><p class="muted" style="margin-bottom:0">Une ligne par date, école et nature (Scolarité, Goûter, Livres), au format de l'onglet « Recettes » du fichier « 학교 재정현황표 ». APE exclue. Les arriérés des années passées sont imputés à l'année précédente (colonne E).</p></div>
+ <div class="card"><h2 style="margin-top:0">Fonds des arriérés des années passées (à part)</h2><div class="row">${F('Du','fa_d1',UI.f.fad1||'','date','onchange="UI.f.fad1=this.value"')}${F('Au','fa_d2',UI.f.fad2||today(),'date','onchange="UI.f.fad2=this.value"')}<button onclick="const b=fval('fa_d1'),c=fval('fa_d2');requirePin(()=>printDoc(fondsHTML(b,c)),'imprimer le fonds des arriérés')">Imprimer${isAdmin()?'':' 🔒'}</button><button onclick="const b=fval('fa_d1'),c=fval('fa_d2');requirePin(()=>fondsXLSX(b,c),'exporter le fonds des arriérés')">Exporter en Excel${isAdmin()?'':' 🔒'}</button><button onclick="requirePin(()=>formFonds(),'gérer le fonds des arriérés')">Solde et sorties${isAdmin()?'':' 🔒'}</button></div><p class="muted" style="margin-bottom:0">Les arriérés payés sont encaissés avec des reçus séparés (série A, ex. 2026-27-A0001) et gardés à part : ils ne figurent ni dans le journal des recettes, ni dans le récapitulatif, ni dans la clôture de caisse. Enregistrez ici chaque utilisation de ce fonds.</p></div>
+ <div class="card"><h2 style="margin-top:0">Recettes pour le « Tableau financier » (Google Sheets)</h2><div class="row">${F('Du','g_d1',UI.f.gd1||today().slice(0,8)+'01','date','onchange="UI.f.gd1=this.value"')}${F('Au','g_d2',UI.f.gd2||today(),'date','onchange="UI.f.gd2=this.value"')}<button onclick="const b=fval('g_d1'),c=fval('g_d2');requirePin(()=>exportSheetRecettes(b,c),'copier les recettes')">Préparer et copier${isAdmin()?'':' 🔒'}</button></div><p class="muted" style="margin-bottom:0">Une ligne par date, école et nature (Scolarité, Goûter, Livres), au format de l'onglet « Recettes » du fichier « 학교 재정현황표 ». APE et arriérés des années passées (fonds à part) exclus.</p></div>
  <div class="card"><h2 style="margin-top:0">Récapitulatif mensuel des recettes (pour le comptable)</h2><div class="row">${FS('École','rc_ec',opts([['','Les deux écoles'],['primaire','Primaire'],['maternelle','Maternelle']],UI.f.rcec||''),'onchange="UI.f.rcec=this.value"')}${FS('Année scolaire','rc_an',opts([...new Set([S().annee,...DB.inscriptions.map(i=>i.annee)])].sort().reverse(),S().annee))}<button onclick="const a=fval('rc_ec'),b=fval('rc_an');requirePin(()=>printDoc(recapHTML(a,b)),'imprimer le récapitulatif')">Imprimer${isAdmin()?'':' 🔒'}</button><button onclick="const a=fval('rc_ec'),b=fval('rc_an');requirePin(()=>recapXLSX(a,b),'exporter le récapitulatif')">Exporter en Excel${isAdmin()?'':' 🔒'}</button></div><p class="muted" style="margin-bottom:0">Un tableau par mois et le total de l'année : recettes de l'année (scolarité, goûter, livres), arriérés recouvrés à part, et l'APE hors recettes de l'école.</p></div>
  <div class="card"><h2 style="margin-top:0">Journal des recettes (caisse)</h2><div class="row">${FS('École','r_ec',opts([['','Les deux écoles'],['primaire','Primaire'],['maternelle','Maternelle']],UI.f.rec||''),'onchange="UI.f.rec=this.value"')}${F('Du','r_d1',UI.f.rd1||today().slice(0,8)+'01','date','onchange="UI.f.rd1=this.value"')}${F('Au','r_d2',UI.f.rd2||today(),'date','onchange="UI.f.rd2=this.value"')}<button onclick="const a=fval('r_ec'),b=fval('r_d1'),c=fval('r_d2');requirePin(()=>printDoc(recettesHTML(a,b,c)),'imprimer le journal des recettes')">Imprimer le journal des recettes${isAdmin()?'':' 🔒'}</button><button onclick="const a=fval('r_ec'),b=fval('r_d1'),c=fval('r_d2');requirePin(()=>recettesXLSX(a,b,c),'exporter le journal des recettes')">Exporter en Excel${isAdmin()?'':' 🔒'}</button></div><p class="muted" style="margin-bottom:0">Détail par rubrique (scolarité, APE, goûter, livres, arriérés) avec les totaux — remplace les feuilles « Recettes journalières » et « Export ».</p></div>
  <p class="muted">Tous les documents s'impriment en A4, noir et blanc. Dans la fenêtre d'impression, choisissez « Enregistrer au format PDF » pour obtenir un PDF.</p>`;
@@ -1237,8 +1285,8 @@ function downloadXLSX(fname,sheets){
  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fname;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},800);
 }
 function recettesXLSX(ec,d1,d2){
- const P=DB.paiements.filter(p=>{const i=ins(p.inscriptionId);return i&&!p.annule&&(!ec||insEcole(i)===ec)&&(!d1||p.date>=d1)&&(!d2||p.date<=d2)}).sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.recu||'').localeCompare(b.recu||''));
- const KS=keysSchool(),KE=keysExt();const head=['Date','Reçu N°','Matricule','Élève','Classe','École','Mode','Remarque',...KS.map(rubLabel),'Total école',...KE.map(rubLabel),'Total encaissé'];
+ const P=DB.paiements.filter(p=>{const i=ins(p.inscriptionId);return i&&!p.annule&&(!ec||insEcole(i)===ec)&&(!d1||p.date>=d1)&&(!d2||p.date<=d2)}).map(schoolPay).filter(Boolean).sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.recu||'').localeCompare(b.recu||''));
+ const KS=keysSchool().filter(k=>k!=='arriere'),KE=keysExt();const head=['Date','Reçu N°','Matricule','Élève','Classe','École','Mode','Remarque',...KS.map(rubLabel),'Total école',...KE.map(rubLabel),'Total encaissé'];
  const rows=[[`Journal des recettes — ${ec?(ec==='primaire'?'Primaire':'Maternelle'):'Primaire et maternelle'} — du ${fmtDate(d1)||'début'} au ${fmtDate(d2)||fmtDate(today())}`],[],head];
  P.forEach(p=>{const i=ins(p.inscriptionId),e=elv(i.eleveId),c=cls(i.classeId);rows.push([{d:p.date},p.recu,e?.matricule||'',fullName(e),c?.nom||'',c?.ecole==='maternelle'?'Maternelle':'Primaire',p.mode||'',p.remarque||'',...KS.map(k=>+(p.parts||{})[k]||0),partsK(p,KS),...KE.map(k=>+(p.parts||{})[k]||0),+p.montant||0])});
  const n=rows.length,first=4,ncol=KS.length+1+KE.length+1;rows.push([],['TOTAL','','','','','','','',...Array.from({length:ncol},(_,j)=>P.length?{f:`SUM(${colL(8+j)}${first}:${colL(8+j)}${n})`}:0)]);
