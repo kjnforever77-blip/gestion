@@ -204,7 +204,8 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-function save(){saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
+let TRY=false,TRY_REAL=null;
+function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
 /* ---------- Fichier de données partagé (OneDrive) ---------- */
 const FS_OK=typeof window.showOpenFilePicker==='function';
@@ -218,7 +219,7 @@ async function idbSet(k,v){const d=await idb();return new Promise((res,rej)=>{co
 async function idbGet(k){const d=await idb();return new Promise((res,rej)=>{const r=d.transaction('h').objectStore('h').get(k);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
 async function readFile(){const f=await FH.getFile();LASTMOD=f.lastModified;const t=await f.text();if(!t.trim())return null;return JSON.parse(t)}
 async function writeFile(force){
- if(!FH||(FSTATE!=='ok'&&!force))return;clearTimeout(SYNC.timer);
+ if(TRY)return;if(!FH||(FSTATE!=='ok'&&!force))return;clearTimeout(SYNC.timer);
  try{
   const cur=await readFile();const curRev=cur?.meta?.rev??0;
   if(!force&&cur&&SYNC.baseRev!=null&&curRev!==SYNC.baseRev){FSTATE='conflict';CONFLICT=cur.meta||{};renderSync();render();return}
@@ -229,6 +230,7 @@ async function writeFile(force){
  }catch(e){FSTATE='error';FERR=e.message||String(e);renderSync()}
 }
 async function openHandle(h,mode){ // mode: 'resume' | 'open' | 'create'
+ if(TRY){alert("Terminez d'abord le mode essai.");return}
  FH=h;
  try{
   if(mode==='create'){SYNC.baseRev=null;await writeFile(true);if(FSTATE==='ok')toast('Fichier de données créé');await idbSet('fh',h);render();return}
@@ -265,7 +267,7 @@ async function resolveConflict(keepMine){
   download(`EAenJC_mes_modifications_${today()}.json`,JSON.stringify(DB),'application/json');SYNC.dirty=false;await openHandle(FH,'open')}
 }
 async function pollFile(){
- if(!FH||FSTATE!=='ok'||SYNC.dirty)return;
+ if(TRY||!FH||FSTATE!=='ok'||SYNC.dirty)return;
  if(document.getElementById('mbg'))return;const ae=document.activeElement;if(ae&&['INPUT','SELECT','TEXTAREA'].includes(ae.tagName)&&document.getElementById('main').contains(ae))return;
  try{const f=await FH.getFile();if(f.lastModified===LASTMOD)return;const cur=await readFile();const r=cur?.meta?.rev??0;
   if(cur&&r!==SYNC.baseRev){DB=migrate(cur);SYNC.baseRev=r;SYNC.at=cur.meta?.at;saveSync();saveLocal();render();toast(`Mis à jour : modifications de ${cur.meta?.by||"l'autre ordinateur"}`)}}
@@ -402,7 +404,7 @@ function render(){
  document.getElementById('nav').innerHTML=`<div class="brand">EAenJC<small>Gestion scolaire · ${esc(S().annee)}</small></div>`+
   Object.entries(VIEWS).map(([k,[t]])=>`<a class="${UI.view===k?'active':''}" onclick="go('${k}')">${t}${ADMIN_VIEWS.includes(k)&&r!=='admin'?' 🔒':''}</a>`).join('')+
   `<div class="foot">${secured()?`<div style="margin-bottom:8px;color:#e2e8f0">Connecté : <b>${r==='admin'?'Direction':'Comptable'}</b></div><button onclick="lockNow()">🔒 Verrouiller</button>${r==='admin'&&S().pinStaff?`<button onclick="ROLE='staff';render()">Passer en mode comptable</button>`:''}`:''}<div id="syncst" style="margin:6px 0 8px;color:#e2e8f0">${esc(syncLabel())}</div>${devName()?`<div style="margin-bottom:8px">Ordinateur : ${esc(devName())}</div>`:''}<button onclick="downloadBackup()">Télécharger une sauvegarde</button>Dernière sauvegarde :<br>${lb?fmtDate(lb.slice(0,10)):'jamais'}</div>`;
- document.getElementById('main').innerHTML=VIEWS[UI.view][1]();
+ document.getElementById('main').innerHTML=(TRY?`<div class="banner" style="border:2px solid #b42318;background:#fff4f2"><b>MODE ESSAI</b> — vous pouvez tout essayer : rien n'est enregistré (ni dans ce navigateur, ni dans le fichier partagé). Les reçus imprimés portent la mention « ESSAI ». <button class="small primary" onclick="stopEssai()">Terminer l'essai</button></div>`:'')+VIEWS[UI.view][1]();
  if(AFTER[UI.view])AFTER[UI.view]();
 }
 function backupBanner(){
@@ -824,7 +826,7 @@ function recuHTML(p){
  <div style="text-align:center;line-height:1.25"><b style="font-size:${dense?16:18}px">${esc(n1)}</b>${n2?`<br><b style="font-size:${dense?16:18}px">${esc(n2)}</b>`:''}${sc.devise?`<br><i>${esc(sc.devise)}</i>`:''}<br><span style="font-size:11px">${sub.join('<br>')}</span></div>
  <div style="text-align:right;white-space:nowrap">Année scolaire<br><b style="font-size:14px">${esc(i.annee)}</b></div></div>`;
  const one=lab=>`<div class="recu-box${dense?' dense':''}">${hdr}
- <div><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-size:20px;font-weight:bold;text-transform:uppercase">${AR?'Reçu d\'arriéré':'Reçu'} N° ${esc(p.recu)}</span><span style="border:${p.annule?2:1}px solid #000;padding:2px 8px;font-weight:bold">${p.annule?'ANNULÉ — ':''}${lab}</span></div>
+ <div><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-size:20px;font-weight:bold;text-transform:uppercase">${AR?'Reçu d\'arriéré':'Reçu'} N° ${esc(p.recu)}</span><span style="border:${p.annule?2:1}px solid #000;padding:2px 8px;font-weight:bold">${TRY?'ESSAI — ':''}${p.annule?'ANNULÉ — ':''}${lab}</span></div>
  <table class="info"><tr><td style="width:62%">Élève : <b>${esc(fullName(e))}</b> (${esc(e.matricule)}) — Classe : <b>${esc(c.nom)}</b></td><td>Date : <b>${fmtDate(p.date)}</b></td></tr><tr><td>${p.annule?`<b>Annulé le ${fmtDate(p.annule.t.slice(0,10))} — motif : ${esc(p.annule.motif)}</b>`:`Objet : ${esc(AR?'Paiement d\'arriéré des années passées'+(p.remarque&&p.remarque!=='Arriéré des années passées'?' — '+p.remarque:''):(p.remarque||'Paiement des frais scolaires'))}`}</td><td>Mode : ${esc(p.mode||'')}</td></tr></table></div>
  <table><thead><tr><th>Rubrique</th><th class="r" style="width:32%">Montant payé</th><th class="r" style="width:32%">Reste à payer</th></tr></thead><tbody>${lines}</tbody><tfoot><tr><th>TOTAL</th><th class="r" style="font-size:16px">${fcfa(tP)}</th><th class="r">${fcfa(tR)}</th></tr></tfoot></table>
  <div><div>Arrêté le présent reçu à la somme de : <b>${nombreEnLettres(tP)} (${fcfa(tP).replace(' F','')}) francs CFA</b>.</div>
@@ -1099,12 +1101,15 @@ function doPassage(){
 }
 
 /* ---------- Paramètres & données ---------- */
+async function startEssai(){if(TRY)return;if(!confirm("Commencer un essai ?\n\nVous pourrez saisir des élèves, des paiements, des notes… pour vous entraîner. Rien ne sera enregistré : à la fin de l'essai (ou si vous fermez/rechargez la page), tout revient comme avant."))return;
+ clearTimeout(SYNC.timer);if(FH&&SYNC.dirty&&FSTATE==='ok')await writeFile();TRY_REAL=JSON.stringify(DB);TRY=true;UI.view='dash';render();toast('Mode essai activé')}
+function stopEssai(){if(!TRY)return;DB=JSON.parse(TRY_REAL);TRY_REAL=null;TRY=false;closeModal&&document.getElementById('mbg')&&closeModal();render();toast("Essai terminé — les vraies données sont revenues")}
 function vParam(){
  const s=S();
  const ec=k=>{const e=s.ecoles[k];const lab={nom:"Nom de l'école",devise:'Devise',arrete:"Arrêté d'ouverture",adresse:'Adresse',tel:'Téléphone',directeur:'Directeur / Directrice'};return `<div class="card" style="flex:1;min-width:300px;margin:0"><h2 style="margin-top:0">${k==='primaire'?'École primaire':'École maternelle'}</h2><div class="form-grid">${Object.keys(lab).map(f=>`<div class="field"><label>${lab[f]}</label><input value="${esc(e[f]||'')}" onchange="S().ecoles['${k}']['${f}']=this.value;save()"></div>`).join('')}</div></div>`};
  const years=[...new Set([s.annee,...DB.inscriptions.map(i=>i.annee)])].sort();
  const crow=sortedClasses().map(c=>{const n=DB.inscriptions.filter(i=>i.classeId===c.id).length;return `<tr><td>${c.ecole==='primaire'?'Primaire':'Maternelle'}</td><td>${c.niveau}</td><td><input value="${esc(c.nom)}" style="width:110px" onchange="setCls('${c.id}','nom',this.value)"></td><td><input value="${esc(c.enseignant||'')}" style="width:160px" onchange="setCls('${c.id}','enseignant',this.value)"></td>${RUB().map(r=>`<td><input type="number" min="0" value="${+(c.frais||{})[r.k]||0}" style="width:85px" onchange="setFrais('${c.id}','${r.k}',this.value)"></td>`).join('')}<td style="white-space:nowrap"><button class="small" onclick="editMatieres('${c.id}')">${c.ecole==='primaire'?'Matières':'Domaines'} (${c.matieres.length})</button> <button class="small danger" ${n?'disabled title="Classe utilisée"':''} onclick="delClass('${c.id}')">✕</button></td></tr>`}).join('');
- return `<h1>Paramètres & données</h1>
+ return `<h1>Paramètres & données</h1><div class="card"><h2 style="margin-top:0">Mode essai (pour s'entraîner)</h2><p style="margin-top:0">Pour apprendre à utiliser le programme sans toucher aux vraies données : inscrire un élève, saisir un paiement, imprimer un reçu… Rien n'est enregistré, et les reçus portent la mention « ESSAI ».</p>${TRY?`<button class="primary" onclick="stopEssai()">Terminer l'essai</button>`:`<button class="primary" onclick="startEssai()">Commencer un essai</button>`}</div>
  <div class="row" style="align-items:stretch;margin-bottom:14px">${ec('primaire')}${ec('maternelle')}</div>
  <div class="card"><h2 style="margin-top:0">Général</h2><div class="row">
   ${FS('Année scolaire en cours','p_an',opts(years,s.annee),'onchange="S().annee=this.value;save();render()"')}

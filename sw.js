@@ -1,5 +1,5 @@
 /* EAenJC — service worker : fonctionne sans internet, se met à jour quand internet revient */
-const VERSION = 'v23';
+const VERSION = 'v24';
 const CACHE = 'eaenjc-' + VERSION;
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './favicon.png'];
 self.addEventListener('install', e => {
