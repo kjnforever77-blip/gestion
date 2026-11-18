@@ -204,7 +204,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='34 (18/11/2026)';
+const APP_VERSION='35 (18/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -654,7 +654,7 @@ function formInscription(iid,eid,presetCid){
  </div>
  ${(()=>{const arr0=i?(i.arriere||0):((pick&&arrPending(pick)+(arrOnlyOf(pick)?paidC(arrOnlyOf(pick).id,'arriere'):0))||0),rem0=i?.remise||0,ad=isAdmin();
   return `<div id="f_fees_sum" data-iid="${i?.id||''}" data-cid0="${esc(i?.classeId||'')}" style="margin-top:14px;border:1px solid var(--line);border-radius:10px;padding:12px 14px"></div>
-  <div class="form-grid" style="margin-top:10px">${ad?F('Réduction sur la scolarité (F)','f_rem',rem0,'number','min="0" step="any" oninput="feesSum()"')+(i?F('Motif de la réduction (si modifiée)','f_remm','','text'):'')+F('Arriéré des années passées (F)','f_arr',arr0,'number','min="0" step="any"'):`<input type="hidden" id="f_rem" value="${rem0}"><input type="hidden" id="f_arr" value="${arr0}"><div class="field" style="grid-column:1/-1"><span class="muted" style="font-size:12px">Les frais sont ceux de la classe. La réduction et l'arriéré ne se modifient qu'avec le code de la direction.</span></div>`}</div>`})()}<div class="actions">${i?`<button class="danger" style="margin-right:auto" onclick="delInscription('${i.id}')">Annuler cette inscription</button>`:''}<button onclick="closeModal()">Annuler</button><button class="primary" onclick="saveInscription('${i?.id||''}')">Enregistrer</button></div>`);feesSum();
+  <div class="form-grid" style="margin-top:10px">${ad?F('Réduction sur la scolarité (F)','f_rem',rem0,'number','min="0" step="any" oninput="feesSum()"')+(i?F('Motif de la réduction (si modifiée)','f_remm','','text'):'')+`<input type="hidden" id="f_arr" value="${arr0}">`:`<input type="hidden" id="f_rem" value="${rem0}"><input type="hidden" id="f_arr" value="${arr0}"><div class="field" style="grid-column:1/-1"><span class="muted" style="font-size:12px">Les frais sont ceux de la classe. La réduction ne se modifie qu'avec le code de la direction. L'arriéré des années passées vient automatiquement.</span></div>`}</div>`})()}<div class="actions">${i?`<button class="danger" style="margin-right:auto" onclick="delInscription('${i.id}')">Annuler cette inscription</button>`:''}<button onclick="closeModal()">Annuler</button><button class="primary" onclick="saveInscription('${i?.id||''}')">Enregistrer</button></div>`);feesSum();
 }
 function autoType(){const e=fval('f_e');const t=document.getElementById('f_type');if(t&&e)t.value=DB.inscriptions.some(x=>x.eleveId===e)?'Ancien':'Nouveau'}
 function feesOf(){const box=document.getElementById('f_fees_sum');const cid=fval('f_cl'),c=cls(cid);if(!c)return null;const i=box&&box.dataset.iid?ins(box.dataset.iid):null;return (i&&cid===box.dataset.cid0)?Object.assign(zeroFrais(),i.frais||{}):Object.assign(zeroFrais(),c.frais||{})}
