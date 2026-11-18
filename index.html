@@ -204,7 +204,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='26 (18/11/2026)';
+const APP_VERSION='27 (18/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -535,7 +535,7 @@ function reinscList(){
 }
 function nonRevenu(eid){const e=elv(eid);if(!e||!confirm(`Marquer ${fullName(e)} comme « Non revenu » ? Il/elle disparaîtra de la liste à réinscrire (vous pourrez le changer dans sa fiche).`))return;const before=JSON.parse(JSON.stringify(e));e.statut='Non revenu';hRecord('eleve',e,before,e.id);logJ('Non revenu',fullName(e));save();render()}
 function reinscCard(){
- const L=reinscList();if(!L.length)return '';
+ const L=reinscList();if(!L.length)return `<div class="card" style="padding:10px 14px"><b>Anciens élèves à réinscrire (0)</b> <span class="muted">— aucun élève en attente. Après la fin d'année (passage), les élèves de l'année précédente apparaîtront ici. Un élève marqué « Non revenu » se retrouve avec la recherche ci-dessus.</span></div>`;
  const rows=L.map(x=>{const e=x.e,c=cls(x.cid),lc=x.last?cls(x.last.classeId):null,ar=arrPending(e.id);const toP=c&&c.ecole==='primaire'&&String(e.matricule||'').startsWith(S().prefixes.maternelle||'M');
   return `<tr data-s="${rowKey(e)}"><td><b>${esc(fullName(e))}</b></td><td>${esc(e.matricule)}</td><td>${lc?esc(lc.nom)+' <span class="muted">'+esc(x.last.annee)+'</span>'+(x.last.decision?'<br><span class="muted">'+esc(x.last.decision)+'</span>':''):'<span class="muted">à confirmer</span>'}</td><td><b>${esc(c?.nom||'?')}</b>${toP?'<br><span class="muted">nouveau n° P</span>':''}</td><td class="num">${ar?fcfa(ar):'—'}</td><td style="white-space:nowrap">${c?`<button class="primary small" onclick="formInscription(null,'${e.id}','${c.id}')">Inscrire en ${esc(c.nom)}</button>`:`<button class="small" onclick="formInscription(null,'${e.id}','')">Inscrire</button>`} <button class="small" onclick="nonRevenu('${e.id}')" title="L'élève n'est pas revenu cette année">Non revenu</button></td></tr>`}).join('');
  return `<div class="card" style="padding:0;overflow:auto"><div class="row" style="padding:10px 14px;align-items:center;justify-content:space-between"><b>Anciens élèves à réinscrire (${L.length})</b><input oninput="filterRows('tb_re',this.value)" placeholder="Rechercher (nom ou numéro)" style="max-width:280px"></div>
