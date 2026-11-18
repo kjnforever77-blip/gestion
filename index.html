@@ -189,6 +189,13 @@ function migrate(d){
  d.paiements.forEach(p=>{if(!p.parts)p.parts={scolarite:+p.montant||0}});
  d.evals=d.evals||{};
  if(!Array.isArray(d.fondsArr))d.fondsArr=[];
+ if(!d.settings.cptFix1){/* compteurs = derniers numéros réellement utilisés (l'Excel avait des lignes numérotées vides) */
+  const mx={p:0,m:0};(d.paiements||[]).forEach(p=>{const r=/-(p|m)(\d+)$/.exec(p.recu||'');if(r)mx[r[1]]=Math.max(mx[r[1]],+r[2])});
+  d.settings.cptRecu={primaire:mx.p,maternelle:mx.m};
+  const pf=d.settings.prefixes||{primaire:'P',maternelle:'M'},mm={primaire:0,maternelle:0};
+  (d.eleves||[]).forEach(e=>[e.matricule,e.matriculeMat].forEach(m=>{m=String(m||'');['primaire','maternelle'].forEach(ec=>{if(m.startsWith(pf[ec]))mm[ec]=Math.max(mm[ec],+m.slice(pf[ec].length)||0)})}));
+  d.settings.cptMat=mm;d.settings.cptFix1=true;
+ }
  d.settings.rubriques.forEach(r=>{if(r.k==='ape'&&r.ext===undefined)r.ext=true});
  if(d.settings.pin&&!d.settings.pinAdmin){d.settings.pinAdmin=d.settings.pin}delete d.settings.pin;
  return d;
