@@ -96,7 +96,8 @@ table.data tfoot td{font-weight:700;border-top:2px solid var(--line)}
 .pg table{border-collapse:collapse;width:100%}
 .pg th,.pg td{border:1px solid #000;padding:4px 6px;text-align:left}
 .pg th{font-weight:bold}
-.pg .c{text-align:center}.pg .r{text-align:right}
+.pg .c{text-align:center}
+.pg tr.sep2 th,.pg tr.sep2 td{border-top:4px double #000}.pg .r{text-align:right}
 .pg .hdr{display:flex;justify-content:space-between;gap:20px;border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:10px}
 .pg .title{text-align:center;font-size:17px;font-weight:bold;margin:8px 0 10px;text-transform:uppercase;letter-spacing:.5px}
 .pg table.info td{border:none;padding:2px 4px}
@@ -700,7 +701,7 @@ function bulletinHTML(iid,T){
   const line=(lab,f,bold)=>`<tr><${bold?'th':'td'}>${lab}</${bold?'th':'td'}>${TRIMS.map(t=>`<td class="c">${cell(t,f)}</td>`).join('')}<td></td></tr>`;
   const sm=c.matieres.reduce((s,m)=>s+(+m.max||0),0);
   body=`<table><thead><tr><th>Matières</th>${TRIMS.map(t=>`<th class="c" style="width:95px">${TLABEL[t]}</th>`).join('')}<th class="c" style="width:45px">Sur</th></tr></thead><tbody>${rows}
-  <tr><th>TOTAL</th>${TRIMS.map(t=>`<th class="c">${cell(t,X=>X.res[iid].cnt?fmtN(X.res[iid].tot):'')}</th>`).join('')}<th class="c">${sm}</th></tr>
+  <tr class="sep2"><th>TOTAL</th>${TRIMS.map(t=>`<th class="c">${cell(t,X=>X.res[iid].cnt?fmtN(X.res[iid].tot):'')}</th>`).join('')}<th class="c">${sm}</th></tr>
   ${line('Moyenne de l\'élève (/10)',X=>X.res[iid].moy!=null?`<b>${fmtN2(X.res[iid].moy)}</b>`:'',true)}
   ${line('Rang',X=>X.res[iid].rang?`${rangTxt(X.res[iid],e.sexe)} / ${n}`:'')}
   ${line('Moyenne de la classe',X=>X.stats?fmtN2(X.stats.moy):'')}
