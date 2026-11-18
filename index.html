@@ -893,7 +893,7 @@ function recapPage(ec,annee){
  <tr><td>Arriérés des années passées recouvrés</td><td class="r">${fcfa(T.arr)}</td></tr>
  <tr><td><b>Total encaissé pour l'école</b></td><td class="r"><b>${fcfa(T.ecole)}</b></td></tr>
  ${D.KE.length?`<tr><td>${D.KE.map(rubLabel).join(' + ')} — encaissé pour le compte des parents, hors recettes de l'école</td><td class="r">${fcfa(T.ext)}</td></tr><tr><td>Total encaissé (tout compris)</td><td class="r">${fcfa(T.tot)}</td></tr>`:''}
- <tr><td>dont payé par Bourse (pas d'entrée d'argent en caisse)</td><td class="r">${fcfa(T.bourse)}</td></tr>
+ <tr><td>dont payé par la bourse (association)</td><td class="r">${fcfa(T.bourse)}</td></tr>
  </tbody></table>
  <p class="small" style="margin-top:3mm">Les montants sont classés selon la date du reçu. Le détail reçu par reçu figure dans le journal des recettes.</p>
  <div class="sign"><div>Le/La Caissier(ère)</div><div>Le Directeur / La Directrice</div></div></div>`;
