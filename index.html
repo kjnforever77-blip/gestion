@@ -204,7 +204,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='33 (18/11/2026)';
+const APP_VERSION='34 (18/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -650,17 +650,24 @@ function formInscription(iid,eid,presetCid){
  ${FS('Classe *','f_cl','<option value="">— choisir —</option>'+classOpts(cid),'onchange="prefillFees()"')}
  ${FS('Type','f_type',opts(['Nouveau','Ancien'],typeDef))}
  ${FS('Redoublant(e)','f_red',opts([['0','Non'],['1','Oui']],(i?i.redoublant:(pick&&DB.inscriptions.filter(x=>x.eleveId===pick&&x.annee<S().annee&&!x.arrOnly).sort((x,y)=>y.annee.localeCompare(x.annee))[0]?.decision==='Redouble'))?'1':'0'))}
- ${RUB().map(r=>F(esc(r.l)+' (F)','f_fr_'+r.k,i?((i.frais||{})[r.k]||0):((c0?.frais||{})[r.k]||0),'number','min="0" step="any"')).join('')}
- ${F('Arriéré des années passées (F)','f_arr',i?(i.arriere||0):((pick&&arrPending(pick)+(arrOnlyOf(pick)?paidC(arrOnlyOf(pick).id,'arriere'):0))||0),'number','min="0" step="any"')}
- ${F('Réduction sur la scolarité (F)','f_rem',i?.remise||0,'number','min="0" step="any"')}
  ${F("Date d'inscription",'f_dt',i?.date||today(),'date')}
- </div><div class="actions">${i?`<button class="danger" style="margin-right:auto" onclick="delInscription('${i.id}')">Annuler cette inscription</button>`:''}<button onclick="closeModal()">Annuler</button><button class="primary" onclick="saveInscription('${i?.id||''}')">Enregistrer</button></div>`);
+ </div>
+ ${(()=>{const arr0=i?(i.arriere||0):((pick&&arrPending(pick)+(arrOnlyOf(pick)?paidC(arrOnlyOf(pick).id,'arriere'):0))||0),rem0=i?.remise||0,ad=isAdmin();
+  return `<div id="f_fees_sum" data-iid="${i?.id||''}" data-cid0="${esc(i?.classeId||'')}" style="margin-top:14px;border:1px solid var(--line);border-radius:10px;padding:12px 14px"></div>
+  <div class="form-grid" style="margin-top:10px">${ad?F('Réduction sur la scolarité (F)','f_rem',rem0,'number','min="0" step="any" oninput="feesSum()"')+(i?F('Motif de la réduction (si modifiée)','f_remm','','text'):'')+F('Arriéré des années passées (F)','f_arr',arr0,'number','min="0" step="any"'):`<input type="hidden" id="f_rem" value="${rem0}"><input type="hidden" id="f_arr" value="${arr0}"><div class="field" style="grid-column:1/-1"><span class="muted" style="font-size:12px">Les frais sont ceux de la classe. La réduction et l'arriéré ne se modifient qu'avec le code de la direction.</span></div>`}</div>`})()}<div class="actions">${i?`<button class="danger" style="margin-right:auto" onclick="delInscription('${i.id}')">Annuler cette inscription</button>`:''}<button onclick="closeModal()">Annuler</button><button class="primary" onclick="saveInscription('${i?.id||''}')">Enregistrer</button></div>`);feesSum();
 }
 function autoType(){const e=fval('f_e');const t=document.getElementById('f_type');if(t&&e)t.value=DB.inscriptions.some(x=>x.eleveId===e)?'Ancien':'Nouveau'}
-function prefillFees(){const c=cls(fval('f_cl'));if(!c)return;RUB().forEach(r=>{const el=document.getElementById('f_fr_'+r.k);if(el)el.value=(c.frais||{})[r.k]||0})}
+function feesOf(){const box=document.getElementById('f_fees_sum');const cid=fval('f_cl'),c=cls(cid);if(!c)return null;const i=box&&box.dataset.iid?ins(box.dataset.iid):null;return (i&&cid===box.dataset.cid0)?Object.assign(zeroFrais(),i.frais||{}):Object.assign(zeroFrais(),c.frais||{})}
+function feesSum(){const box=document.getElementById('f_fees_sum');if(!box)return;const c=cls(fval('f_cl')),fr=feesOf();if(!c||!fr){box.innerHTML='<span class="muted">Choisissez une classe pour voir les frais.</span>';return}
+ const rem=+fval('f_rem')||0,arr=+fval('f_arr')||0,tot=RUB().reduce((s,r)=>s+(+fr[r.k]||0),0);
+ box.innerHTML=`<div style="font-weight:600;margin-bottom:6px">Frais de la classe ${esc(c.nom)}</div><div>${RUB().filter(r=>+fr[r.k]).map(r=>`${esc(r.l)} ${fcfa(fr[r.k])}`).join(' · ')||'—'} → total <b>${fcfa(tot)}</b></div>${rem?`<div>Réduction : ${fcfa(rem)} → <b>à payer ${fcfa(Math.max(0,tot-rem))}</b></div>`:''}${arr?`<div class="muted">Arriéré des années passées (à part, reçus série A) : ${fcfa(arr)}</div>`:''}`}
+function prefillFees(){feesSum()}
 function saveInscription(id){
  const eid=fval('f_e'),cid=fval('f_cl');if(!eid){alert('Choisissez un élève.');return}if(!cid){alert('Choisissez une classe.');return}
- const frais={};RUB().forEach(r=>frais[r.k]=+fval('f_fr_'+r.k)||0);const data={classeId:cid,type:fval('f_type'),redoublant:fval('f_red')==='1',frais,remise:+fval('f_rem')||0,date:fval('f_dt')};const arr=+fval('f_arr')||0;
+ const frais=feesOf();const i00=id?ins(id):null;let rem=+fval('f_rem')||0,arr=+fval('f_arr')||0;
+ if(!isAdmin()&&i00){rem=+i00.remise||0;arr=+i00.arriere||0}
+ if(i00&&isAdmin()&&rem!==(+i00.remise||0)){const m=(fval('f_remm')||'').trim();if(!m){alert('Indiquez le motif de la modification de la réduction.');return}logJ('Réduction modifiée',`${fullName(elv(eid))} : ${fcfa(+i00.remise||0)} → ${fcfa(rem)} — ${m}`)}
+ const data={classeId:cid,type:fval('f_type'),redoublant:fval('f_red')==='1',frais,remise:rem,date:fval('f_dt')};
  let newI=null;if(id){const i0=ins(id),before=JSON.parse(JSON.stringify(i0));Object.assign(i0,data,{arriere:arr});hRecord('inscription',i0,before,i0.eleveId,i0.id)}else{if(inscOf(eid)){alert('Cet élève est déjà inscrit cette année.');return}const e=elv(eid);if(e){e.arriereEnAttente=0;e.statut='Actif'}newI=createInscription(eid,cid,null,Object.assign(data,{arriere:arr}));logJ('Inscription',`${fullName(e)} — ${cls(cid)?.nom} ${S().annee}`)}
  save();closeModal();render();if(newI)afterInscription(newI.id);else toast('Inscription enregistrée');
 }
