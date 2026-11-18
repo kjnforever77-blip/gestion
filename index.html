@@ -204,7 +204,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='35 (18/11/2026)';
+const APP_VERSION='36 (18/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -459,7 +459,6 @@ function vEleves(){
   ${FS('Classe ('+esc(S().annee)+')','e_cl','<option value="">Toutes</option><option value="_none"'+(f.cl==='_none'?' selected':'')+'>Non inscrits cette année</option>'+classOpts(f.cl),'onchange="UI.f.cl=this.value;fillEleves()"')}
   ${FS('Statut','e_st','<option value="">Tous</option>'+opts(STATUTS,f.st),'onchange="UI.f.st=this.value;fillEleves()"')}
   <label style="display:flex;gap:6px;align-items:center;padding-bottom:8px"><input type="checkbox" ${f.bours?'checked':''} onchange="UI.f.bours=this.checked;fillEleves()"> Boursiers seulement</label>
-  <button class="primary" onclick="formEleve()">+ Nouvel élève</button>
  </div>
  <div class="card" style="padding:0;overflow:auto"><table class="data"><thead><tr><th>Matricule</th><th>Nom et prénoms</th><th>Sexe</th><th>Né(e) le</th><th>Classe ${esc(S().annee)}</th><th>Parent / Téléphone</th><th>Statut</th></tr></thead><tbody id="tb"></tbody></table></div><div id="cnt" class="muted"></div>`;
 }
