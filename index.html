@@ -1361,7 +1361,7 @@ function closeModal(){const m=document.getElementById('mbg');if(m)m.remove()}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(document.getElementById('pvbg'))closePv();else closeModal()}});
 
 render();initFile();
-if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){navigator.serviceWorker.register('sw.js').catch(()=>{});let _rl=false;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(_rl)return;_rl=true;if(!SYNC.dirty&&!document.getElementById('mbg'))location.reload();else toast('Nouvelle version installée : elle sera utilisée au prochain démarrage.')})}
+if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){navigator.serviceWorker.register('sw.js').catch(()=>{});navigator.serviceWorker.addEventListener('message',ev=>{if(ev.data!=='eaenjc-update'||document.getElementById('updbar'))return;const d=document.createElement('div');d.id='updbar';d.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:99;background:#1f2937;color:#fff;padding:10px 14px;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.25);display:flex;gap:10px;align-items:center';d.innerHTML='Une nouvelle version du programme est disponible. <button class="small primary" onclick="location.reload()">Recharger</button>';document.body.appendChild(d)});let _rl=false;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(_rl)return;_rl=true;if(!SYNC.dirty&&!document.getElementById('mbg'))location.reload();else toast('Nouvelle version installée : elle sera utilisée au prochain démarrage.')})}
 </script>
 </body>
 </html>
