@@ -672,6 +672,7 @@ function payInfo(){
  if(v&&v.startsWith('E:')){const ni=ensureArrOnly(v.slice(2));if(ni){document.getElementById('f_i').value=ni.id;v=ni.id;save()}}
  const i=ins(v);
  if(!i){b.innerHTML='<div class="muted">Choisissez un élève.</div>';payTot();return}
+ {const r=document.getElementById('f_r');if(r&&(!r.value||r.dataset.auto==='1')&&!i.arrOnly){const n=DB.paiements.filter(p=>p.inscriptionId===i.id&&!p.annule&&!isArrPay(p)).length;if(TRANCHES[n]){r.value=TRANCHES[n];r.dataset.auto='1'}}}
  const row=k=>{const d=dueC(i,k),p=paidC(i.id,k),r=Math.max(0,d-p);if(!d&&!p)return '';return `<tr><td>${esc(rubLabel(k))}</td><td class="num">${fcfa(d)}</td><td class="num">${fcfa(p)}</td><td class="num">${r?`<b style="color:var(--danger)">${fcfa(r)}</b>`:'—'}</td><td><input id="f_p_${k}" type="number" min="0" step="any" style="width:110px" oninput="payTot()" placeholder="${r||''}"></td></tr>`};
  const YK=keysAll().filter(k=>k!=='arriere'),rows=i.arrOnly?'':YK.map(row).join(''),arow=row('arriere');
  const yd=YK.reduce((s,k)=>s+dueC(i,k),0),yp=YK.reduce((s,k)=>s+paidC(i.id,k),0);
