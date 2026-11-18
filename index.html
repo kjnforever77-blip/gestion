@@ -204,7 +204,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='31 (18/11/2026)';
+const APP_VERSION='32 (18/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -908,13 +908,19 @@ function certPreview(){const box=document.getElementById('cert_pv');if(!box)retu
 function printCert(){const e=fval('cert_e');if(!e){alert('Choisissez un élève.');return}const h=certificatHTML(e,fval('cert_n'));logJ('Certificat de scolarité',fullName(elv(e)));save();closeModal();_pv=h;printNow()}
 
 function ficheHTML(eid){
- const e=elv(eid),cur=inscOf(eid),c=cur?cls(cur.classeId):DB.classes[0];
+ const e=elv(eid),cur=inscOf(eid),c=cur?cls(cur.classeId):(DB.classes.find(x=>x.ecole===(String(e.matricule||'').startsWith(S().prefixes?.maternelle||'M')?'maternelle':'primaire'))||DB.classes[0]);
  const hist=DB.inscriptions.filter(i=>i.eleveId===eid&&!i.arrOnly).sort((a,b)=>a.annee.localeCompare(b.annee)).map(i=>{const cc=cls(i.classeId);const m=cc&&cc.ecole==='primaire'?fmtN2(annualResults(cc.id,i.annee).res[i.id]?.moy):'—';return `<tr><td>${esc(i.annee)}</td><td>${esc(cc?.nom||'')}</td><td>${esc(i.type)}${i.redoublant?' (redoublant)':''}</td><td class="c">${m}</td><td>${esc(i.decision||'')}</td></tr>`}).join('');
- const L=(a,b)=>`<tr><td style="width:35%">${a}</td><td><b>${esc(b||'')}</b></td></tr>`;
+ const v=x=>x?esc(x):'&nbsp;';
+ const H=t=>`<tr><th colspan="4" style="text-align:left;text-transform:uppercase;letter-spacing:.5px;font-size:11px;padding:4px 6px;border-bottom:1.5px solid #000">${t}</th></tr>`;
+ const P=(a,b,c2,d)=>`<tr><td style="width:19%;color:#333">${a}</td><td style="width:31%"><b>${v(b)}</b></td><td style="width:19%;color:#333">${c2||''}</td><td style="width:31%"><b>${c2?v(d):''}</b></td></tr>`;
+ const ID=[['Matricule',e.matricule],['Nom et prénoms',fullName(e)],['Sexe',e.sexe==='F'?'Féminin':'Masculin'],['Date de naissance',fmtDate(e.dateNaiss)],['Lieu de naissance',e.lieuNaiss],['Nationalité',e.nationalite],["N° d'acte de naissance",e.acte]];
+ const idRows=ID.map((r,k)=>`<tr>${k===0?`<td rowspan="${ID.length}" style="width:36mm;padding:2mm;text-align:center;vertical-align:middle">${photoImg(eid,30,40)}</td>`:''}<td style="width:30%;color:#333">${r[0]}</td><td><b>${v(r[1])}</b></td></tr>`).join('');
  return `<div class="pg">${pageHeader(ecoleOf(c),S().annee)}<div class="title">Fiche de renseignements de l'élève</div>
- <div style="display:flex;gap:6mm;align-items:flex-start"><div style="flex:none">${photoImg(eid,30,40)}</div><div style="flex:1"><table>${L('Matricule',e.matricule)}${L('Nom et prénoms',fullName(e))}${L('Sexe',e.sexe==='F'?'Féminin':'Masculin')}${L('Date et lieu de naissance',fmtDate(e.dateNaiss)+(e.lieuNaiss?' à '+e.lieuNaiss:''))}${L('Nationalité',e.nationalite)}${L("N° d'acte de naissance",e.acte)}${L('Nom du père',e.pere)}${L('Nom de la mère',e.mere)}${L('Tuteur / contact',e.tuteur)}${L('Téléphone',e.telephone)}${L('Adresse',e.adresse)}${L("Date d'entrée",fmtDate(e.dateEntree))}${L("École d'origine",e.ecoleOrigine)}${L('Classe actuelle',cur?cls(cur.classeId)?.nom:'')}${L('Statut',e.statut)}${L('Observations',e.observations)}</table></div></div>
- <h3 style="margin:16px 0 6px">Parcours scolaire</h3><table><thead><tr><th>Année</th><th>Classe</th><th>Type</th><th class="c">Moy. annuelle</th><th>Décision</th></tr></thead><tbody>${hist||'<tr><td colspan="5">—</td></tr>'}</tbody></table>
- <p style="text-align:right;margin-top:30px">Fait à ${esc(S().ville||'')}, le ${fmtDate(today())}</p></div>`;
+ <table style="margin-top:4mm"><tbody><tr><th colspan="3" style="text-align:left;text-transform:uppercase;letter-spacing:.5px;font-size:11px;padding:4px 6px;border-bottom:1.5px solid #000">Identité de l'élève</th></tr>${idRows}</tbody></table>
+ <table style="margin-top:4mm"><tbody>${H('Parents et contacts')}${P('Nom du père',e.pere,'Nom de la mère',e.mere)}${P('Tuteur / contact',e.tuteur,'Téléphone',e.telephone)}<tr><td style="color:#333">Adresse</td><td colspan="3"><b>${v(e.adresse)}</b></td></tr></tbody></table>
+ <table style="margin-top:4mm"><tbody>${H('Scolarité')}${P("Date d'entrée",fmtDate(e.dateEntree),"École d'origine",e.ecoleOrigine)}${P('Classe '+S().annee,cur?cls(cur.classeId)?.nom:'—','Statut',e.statut)}${e.matriculeMat?P('Ancien matricule (maternelle)',e.matriculeMat,'',''):''}<tr><td style="color:#333;vertical-align:top">Observations</td><td colspan="3" style="height:14mm;vertical-align:top"><b>${v(e.observations)}</b></td></tr></tbody></table>
+ <table style="margin-top:4mm"><thead><tr><th colspan="5" style="text-align:left;text-transform:uppercase;letter-spacing:.5px;font-size:11px;padding:4px 6px;border-bottom:1.5px solid #000">Parcours scolaire</th></tr><tr><th>Année</th><th>Classe</th><th>Type</th><th class="c">Moy. annuelle</th><th>Décision</th></tr></thead><tbody>${hist||'<tr><td colspan="5">—</td></tr>'}</tbody></table>
+ <div style="display:flex;justify-content:space-between;margin-top:10mm"><div></div><div style="text-align:center;min-width:70mm">Fait à ${esc(S().ville||'Bobo-Dioulasso')}, le ${fmtDate(today())}<br><br><b>Le Directeur / La Directrice</b><br><br><br><br></div></div></div>`;
 }
 function listeHTML(cid,ph){
  const c=cls(cid);if(!c)return '';const L=classInscs(cid);let g=0,f=0;
