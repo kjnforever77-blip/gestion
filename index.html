@@ -922,6 +922,33 @@ function recapXLSX(ec,annee){
   return {name:nom,rows,bold:[0,2,rows.length-1],widths:[16,...head.slice(1).map(h=>Math.max(12,Math.min(22,h.length+2)))],freeze:3}});
  downloadXLSX(`Recapitulatif_recettes_${annee||S().annee}${ec?'_'+ec:''}.xlsx`,sheets);
 }
+/* ---------- Export vers « Recettes » du tableau financier (Google Sheets) ---------- */
+function sYearOfDate(d){const y=+d.slice(0,4),m=+d.slice(5,7);return m>=9?`${y}-${y+1}`:`${y-1}-${y}`}
+function prevYear(a){const y=+a.slice(0,4);return `${y-1}-${y}`}
+function sheetRecettesRows(d1,d2){
+ const NAT={scolarite:'Scolarité',gouter:'Goûter',livres:'Livres'};const KY=keysSchool().filter(k=>k!=='arriere');const G={};
+ const add=(date,ec,nat,v,imp)=>{if(!v)return;const k=[date,ec,nat,imp].join('|');G[k]=(G[k]||0)+v};
+ DB.paiements.forEach(p=>{if(p.annule||!p.date||p.date<d1||p.date>d2)return;const i=ins(p.inscriptionId);if(!i)return;
+  const ec=insEcole(i)==='maternelle'?'Maternelle':'Primaire',pt=p.parts||{};
+  const impY=sYearOfDate(p.date)!==i.annee?i.annee:'';
+  KY.forEach(k=>add(p.date,ec,NAT[k]||rubLabel(k),+pt[k]||0,impY));
+  add(p.date,ec,'Scolarité',+pt.arriere||0,prevYear(i.annee));
+ });
+ return Object.entries(G).map(([k,v])=>{const [date,ec,nat,imp]=k.split('|');return [date,ec,nat,v,imp]}).sort((a,b)=>a[0].localeCompare(b[0])||a[1].localeCompare(b[1])||a[2].localeCompare(b[2])||a[4].localeCompare(b[4]));
+}
+function exportSheetRecettes(d1,d2){
+ if(!d1||!d2||d1>d2){alert('Choisissez une période valide.');return}
+ const R=sheetRecettesRows(d1,d2);if(!R.length){alert('Aucune recette sur cette période.');return}
+ const tsv=R.map(r=>r.join('\t')).join('\n'),tot=R.reduce((s,r)=>s+r[3],0),arr=R.filter(r=>r[4]&&r[4]<sYearOfDate(r[0])).reduce((s,r)=>s+r[3],0);
+ modal(`<h3>Recettes pour le « Tableau financier » (Google Sheets)</h3>
+ <p>Du ${fmtDate(d1)} au ${fmtDate(d2)} : <b>${R.length} ligne(s)</b>, total <b>${fcfa(tot)}</b>${arr?` (dont arriérés des années passées ${fcfa(arr)}, imputés à l'année précédente en colonne E)`:''}. APE et reçus annulés exclus.</p>
+ <ol style="margin:6px 0 10px 18px;padding:0"><li>Cliquez sur <b>Copier</b>.</li><li>Dans l'onglet <b>Recettes</b>, cliquez dans la colonne <b>A</b> de la première ligne vide, puis collez (Ctrl+V / ⌘V).</li><li>Ne collez pas deux fois la même période.</li></ol>
+ <textarea id="tsv_out" readonly style="width:100%;height:220px;font-family:monospace;font-size:12px">${esc(tsv)}</textarea>
+ <div class="actions"><button onclick="closeModal()">Fermer</button><button class="primary" onclick="copyTSV()">Copier</button></div>`);
+ logJ('Export Tableau financier',`${d1} → ${d2} : ${fcfa(tot)}`);
+}
+function copyTSV(){const t=document.getElementById('tsv_out');if(!t)return;const done=()=>toast('Copié — collez dans l\'onglet Recettes');
+ if(navigator.clipboard&&window.isSecureContext)navigator.clipboard.writeText(t.value).then(done,()=>{t.select();document.execCommand('copy');done()});else{t.select();document.execCommand('copy');done()}}
 function recettesHTML(ec,d1,d2){
  const P=DB.paiements.filter(p=>{const i=ins(p.inscriptionId);return i&&!p.annule&&(!ec||insEcole(i)===ec)&&(!d1||p.date>=d1)&&(!d2||p.date<=d2)}).sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.recu||'').localeCompare(b.recu||''));
  const used=k=>P.some(p=>+(p.parts||{})[k]);const KS=keysSchool().filter(used),KE=keysExt().filter(used);const tot={};[...KS,...KE].forEach(k=>tot[k]=0);let TS=0,T=0;
@@ -953,6 +980,7 @@ function vRapports(){
  <div class="card"><h2 style="margin-top:0">Boursiers</h2><div class="row"><button onclick="printDoc(boursiersHTML())">Liste des boursiers</button><button onclick="boursiersXLSX()">Boursiers en Excel</button><span class="muted">${yearInscs().filter(i=>elv(i.eleveId)?.boursier).length} boursier(s) inscrit(s) en ${esc(S().annee)}</span></div></div>
  <div class="card"><h2 style="margin-top:0">Documents pour un élève</h2><div class="row"><button onclick="formCertificat()">Certificat de scolarité</button><span class="muted">Aussi disponible depuis la fiche de l'élève.</span></div></div>
  <div class="card"><h2 style="margin-top:0">Toute l'école</h2><div class="row"><button onclick="printDoc(effectifsHTML())">Effectifs par classe</button><button onclick="printDoc(paiementsHTML('',true))">Liste de tous les impayés</button><button onclick="printDoc(registreHTML())">Registre matricule complet</button><button onclick="elevesXLSX()">Exporter les élèves (Excel)</button></div></div>
+ <div class="card"><h2 style="margin-top:0">Recettes pour le « Tableau financier » (Google Sheets)</h2><div class="row">${F('Du','g_d1',UI.f.gd1||today().slice(0,8)+'01','date','onchange="UI.f.gd1=this.value"')}${F('Au','g_d2',UI.f.gd2||today(),'date','onchange="UI.f.gd2=this.value"')}<button onclick="const b=fval('g_d1'),c=fval('g_d2');requirePin(()=>exportSheetRecettes(b,c),'copier les recettes')">Préparer et copier${isAdmin()?'':' 🔒'}</button></div><p class="muted" style="margin-bottom:0">Une ligne par date, école et nature (Scolarité, Goûter, Livres), au format de l'onglet « Recettes » du fichier « 학교 재정현황표 ». APE exclue. Les arriérés des années passées sont imputés à l'année précédente (colonne E).</p></div>
  <div class="card"><h2 style="margin-top:0">Récapitulatif mensuel des recettes (pour le comptable)</h2><div class="row">${FS('École','rc_ec',opts([['','Les deux écoles'],['primaire','Primaire'],['maternelle','Maternelle']],UI.f.rcec||''),'onchange="UI.f.rcec=this.value"')}${FS('Année scolaire','rc_an',opts([...new Set([S().annee,...DB.inscriptions.map(i=>i.annee)])].sort().reverse(),S().annee))}<button onclick="const a=fval('rc_ec'),b=fval('rc_an');requirePin(()=>printDoc(recapHTML(a,b)),'imprimer le récapitulatif')">Imprimer${isAdmin()?'':' 🔒'}</button><button onclick="const a=fval('rc_ec'),b=fval('rc_an');requirePin(()=>recapXLSX(a,b),'exporter le récapitulatif')">Exporter en Excel${isAdmin()?'':' 🔒'}</button></div><p class="muted" style="margin-bottom:0">Un tableau par mois et le total de l'année : recettes de l'année (scolarité, goûter, livres), arriérés recouvrés à part, et l'APE hors recettes de l'école.</p></div>
  <div class="card"><h2 style="margin-top:0">Journal des recettes (caisse)</h2><div class="row">${FS('École','r_ec',opts([['','Les deux écoles'],['primaire','Primaire'],['maternelle','Maternelle']],UI.f.rec||''),'onchange="UI.f.rec=this.value"')}${F('Du','r_d1',UI.f.rd1||today().slice(0,8)+'01','date','onchange="UI.f.rd1=this.value"')}${F('Au','r_d2',UI.f.rd2||today(),'date','onchange="UI.f.rd2=this.value"')}<button onclick="const a=fval('r_ec'),b=fval('r_d1'),c=fval('r_d2');requirePin(()=>printDoc(recettesHTML(a,b,c)),'imprimer le journal des recettes')">Imprimer le journal des recettes${isAdmin()?'':' 🔒'}</button><button onclick="const a=fval('r_ec'),b=fval('r_d1'),c=fval('r_d2');requirePin(()=>recettesXLSX(a,b,c),'exporter le journal des recettes')">Exporter en Excel${isAdmin()?'':' 🔒'}</button></div><p class="muted" style="margin-bottom:0">Détail par rubrique (scolarité, APE, goûter, livres, arriérés) avec les totaux — remplace les feuilles « Recettes journalières » et « Export ».</p></div>
  <p class="muted">Tous les documents s'impriment en A4, noir et blanc. Dans la fenêtre d'impression, choisissez « Enregistrer au format PDF » pour obtenir un PDF.</p>`;
