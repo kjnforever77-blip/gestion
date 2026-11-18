@@ -292,9 +292,22 @@ const elv=id=>DB.eleves.find(e=>e.id===id);
 const ins=id=>DB.inscriptions.find(i=>i.id===id);
 function fullName(e){return e?`${(e.nom||'').toUpperCase()} ${e.prenoms||''}`.trim():'?'}
 const byName=(a,b)=>fullName(a).localeCompare(fullName(b),'fr');
-function yearInscs(a){a=a||S().annee;return DB.inscriptions.filter(i=>i.annee===a)}
-function inscOf(eid,a){a=a||S().annee;return DB.inscriptions.find(i=>i.eleveId===eid&&i.annee===a)}
-function classInscs(cid,a){a=a||S().annee;return DB.inscriptions.filter(i=>i.classeId===cid&&i.annee===a).sort((x,y)=>byName(elv(x.eleveId),elv(y.eleveId)))}
+function yearInscs(a){a=a||S().annee;return DB.inscriptions.filter(i=>i.annee===a&&!i.arrOnly)}
+function inscOf(eid,a){a=a||S().annee;return DB.inscriptions.find(i=>i.eleveId===eid&&i.annee===a&&!i.arrOnly)}
+/* arriéré seul : élève non inscrit cette année qui paie seulement sa dette */
+function arrOnlyOf(eid,a){a=a||S().annee;return DB.inscriptions.find(i=>i.eleveId===eid&&i.annee===a&&i.arrOnly)}
+function arrInscs(a){a=a||S().annee;return DB.inscriptions.filter(i=>i.annee===a&&i.arrOnly)}
+function allYearInscs(a){a=a||S().annee;return DB.inscriptions.filter(i=>i.annee===a)}
+function insEcole(i){if(!i)return 'primaire';const c=cls(i.classeId);if(c)return c.ecole;if(i.ecole)return i.ecole;const m=elv(i.eleveId)?.matricule||'';return /^M/i.test(m)?'maternelle':'primaire'}
+function clsNom(i){return i&&i.arrOnly?'Arriéré seul':(cls(i?.classeId)?.nom||'')}
+function ensureArrOnly(eid){
+ let i=arrOnlyOf(eid);if(i){const e1=elv(eid);if(e1&&+e1.arriereEnAttente>0){i.arriere=(+i.arriere||0)+(+e1.arriereEnAttente);e1.arriereEnAttente=0}return i}const e=elv(eid);if(!e||inscOf(eid))return null;
+ const last=DB.inscriptions.filter(x=>x.eleveId===eid&&!x.arrOnly).sort((a,b)=>b.annee.localeCompare(a.annee))[0];
+ i={id:uid(),eleveId:eid,annee:S().annee,classeId:'',ecole:last?insEcole(last):insEcole({eleveId:eid}),arrOnly:true,type:'Arriéré seul',redoublant:false,frais:zeroFrais(),remise:0,arriere:+e.arriereEnAttente||0,date:today(),decision:''};
+ e.arriereEnAttente=0;DB.inscriptions.push(i);logJ('Arriéré seul',`${fullName(e)} — ${fcfa(i.arriere)}`);return i;
+}
+function arrPending(eid){const e=elv(eid);const o=arrOnlyOf(eid);return (+e?.arriereEnAttente||0)+(o?reste(o):0)}
+function classInscs(cid,a){a=a||S().annee;return DB.inscriptions.filter(i=>i.classeId===cid&&i.annee===a&&!i.arrOnly).sort((x,y)=>byName(elv(x.eleveId),elv(y.eleveId)))}
 const RUB=()=>S().rubriques;
 function keysAll(){return [...RUB().map(r=>r.k),'arriere']}
 function isExt(k){return !!RUB().find(r=>r.k===k&&r.ext)}
@@ -322,7 +335,10 @@ function nextMatricule(ec){
 function nextRecu(ec){ec=ec==='maternelle'?'maternelle':'primaire';S().cptRecu[ec]=(+S().cptRecu[ec]||0)+1;return `${anneeCourte(S().annee)}-${ec==='maternelle'?'m':'p'}${String(S().cptRecu[ec]).padStart(4,'0')}`}
 function createInscription(eid,cid,annee,extra){
  annee=annee||S().annee;const c=cls(cid);
- const prev=DB.inscriptions.some(i=>i.eleveId===eid&&i.annee!==annee);
+ const ao=DB.inscriptions.find(x=>x.eleveId===eid&&x.annee===annee&&x.arrOnly);
+ if(ao){const prev0=DB.inscriptions.some(x=>x.eleveId===eid&&x.annee!==annee&&!x.arrOnly);const e0=elv(eid);const keepArr=(extra&&extra.arriere!==undefined)?+extra.arriere||0:(+ao.arriere||0);
+  Object.assign(ao,{type:prev0?'Ancien':'Nouveau',redoublant:false,frais:Object.assign(zeroFrais(),c.frais||{}),remise:0,date:today(),decision:''},extra||{},{classeId:cid,arrOnly:false,arriere:keepArr+(+(e0&&e0.arriereEnAttente)||0)});delete ao.ecole;if(e0)e0.arriereEnAttente=0;return ao}
+ const prev=DB.inscriptions.some(i=>i.eleveId===eid&&i.annee!==annee&&!i.arrOnly);
  const i=Object.assign({id:uid(),eleveId:eid,annee,classeId:cid,type:prev?'Ancien':'Nouveau',redoublant:false,
   frais:Object.assign(zeroFrais(),c.frais||{}),remise:0,date:today(),decision:''},extra||{});
  const e=elv(eid);i.arriere=(+(extra&&extra.arriere)||0)+(+(e&&e.arriereEnAttente)||0);if(e)e.arriereEnAttente=0;
@@ -383,7 +399,9 @@ function backupBanner(){
 /* ---------- Tableau de bord ---------- */
 function vDash(){
  const a=S().annee,L=yearInscs(a);let g=0,f=0,att=0,per=0;
- const KS=keysSchool(),KE=keysExt();let rst=0,ea=0,ep=0,er=0;L.forEach(i=>{const e=elv(i.eleveId);e&&e.sexe==='F'?f++:g++;att+=duK(i,KS);per+=payeK(i,KS);rst+=resteK(i,KS);ea+=duK(i,KE);ep+=payeK(i,KE);er+=resteK(i,KE)});
+ const KS=keysSchool().filter(k=>k!=='arriere'),KE=keysExt(),KA=['arriere'];let rst=0,ea=0,ep=0,er=0,aa=0,ap=0,ar=0;L.forEach(i=>{const e=elv(i.eleveId);e&&e.sexe==='F'?f++:g++;att+=duK(i,KS);per+=payeK(i,KS);rst+=resteK(i,KS);ea+=duK(i,KE);ep+=payeK(i,KE);er+=resteK(i,KE)});
+ allYearInscs(a).forEach(i=>{aa+=duK(i,KA);ap+=payeK(i,KA);ar+=resteK(i,KA)});
+ const attente=DB.eleves.reduce((t,e)=>t+(+e.arriereEnAttente||0),0);aa+=attente;ar+=attente;
  let rows='';sortedClasses().forEach(c=>{const li=classInscs(c.id);let G=0,Fi=0,A=0,P=0,R=0;li.forEach(i=>{const e=elv(i.eleveId);e&&e.sexe==='F'?Fi++:G++;A+=duK(i,KS);P+=payeK(i,KS);R+=resteK(i,KS)});
   rows+=`<tr><td><b>${esc(c.nom)}</b> <span class="muted">${c.ecole==='maternelle'?'maternelle':''}</span></td><td>${esc(c.enseignant||'')}</td><td class="num">${G}</td><td class="num">${Fi}</td><td class="num"><b>${li.length}</b></td>${isAdmin()?`<td class="num">${fcfa(A)}</td><td class="num">${fcfa(P)}</td><td class="num">${R>0?`<span style="color:var(--danger)">${fcfa(R)}</span>`:fcfa(0)}</td>`:''}</tr>`});
  const start=DB.eleves.length?'':`<div class="card"><h2 style="margin-top:0">Pour commencer</h2><ol class="steps">
@@ -396,13 +414,14 @@ function vDash(){
  return `${backupBanner()}<h1>Tableau de bord — ${esc(a)}</h1>
  ${isAdmin()?'':`<div class="banner" style="background:#f4f6f8;border-color:#e2e6ea">🔒 Les montants financiers sont réservés à la direction. <button class="small" onclick="requirePin(render,'voir les finances')">Afficher (code direction)</button></div>`}
  <div class="stats"><div class="stat"><div class="v">${L.length}</div><div class="l">Élèves inscrits (${g} G · ${f} F)</div></div>${isAdmin()?`
- <div class="stat"><div class="v">${fcfa(att)}</div><div class="l">Frais attendus (école, hors APE)</div></div>
- <div class="stat"><div class="v">${fcfa(per)}</div><div class="l">Recettes de l'école perçues</div></div>
- <div class="stat"><div class="v" style="color:${rst>0?'var(--danger)':'inherit'}">${fcfa(rst)}</div><div class="l">Reste à percevoir (école)</div></div>`:''}</div>
+ <div class="stat"><div class="v">${fcfa(per)}</div><div class="l">Recettes ${esc(a)} (frais de l'année)</div></div>
+ <div class="stat"><div class="v">${fcfa(ap)}</div><div class="l">Arriérés recouvrés (années passées)</div></div>
+ <div class="stat"><div class="v">${fcfa(per+ap)}</div><div class="l">Total encaissé par l'école</div></div>`:''}</div>
+ ${isAdmin()?`<div class="card" style="padding:10px 14px">Frais ${esc(a)} : attendu <b>${fcfa(att)}</b> · perçu <b>${fcfa(per)}</b> · reste <b style="color:${rst>0?'var(--danger)':'inherit'}">${fcfa(rst)}</b><br>Arriérés des années passées : total <b>${fcfa(aa)}</b> · recouvré <b>${fcfa(ap)}</b> · reste <b style="color:${ar>0?'var(--danger)':'inherit'}">${fcfa(ar)}</b>${attente?` <span class="muted">(dont ${fcfa(attente)} d'élèves non inscrits cette année)</span>`:''}</div>`:''}
  ${isAdmin()?(()=>{const B=boursiersData();return B.length?`<div class="card" style="padding:10px 14px">Boursiers : <b>${B.length}</b> élève(s) · payé par la bourse <b>${fcfa(B.reduce((s,x)=>s+x.bourse,0))}</b> <button class="small" onclick="printDoc(boursiersHTML())">Liste</button></div>`:''})():''}
  ${isAdmin()&&KE.length?`<div class="card" style="padding:10px 14px">APE — à part, ce n'est pas une recette de l'école : perçu <b>${fcfa(ep)}</b> sur ${fcfa(ea)} · reste <b>${fcfa(er)}</b></div>`:''}
  ${start}
- <div class="card" style="padding:0;overflow:auto"><table class="data"><thead><tr><th>Classe</th><th>Enseignant(e)</th><th class="num">Garçons</th><th class="num">Filles</th><th class="num">Total</th>${isAdmin()?'<th class="num">Attendu</th><th class="num">Perçu</th><th class="num">Reste</th>':''}</tr></thead><tbody>${rows}</tbody></table></div>${isAdmin()?'<p class="muted">Montants de l\'école : scolarité, goûter, livres et arriérés, moins les réductions. L\'APE est comptée à part.</p>':''}`;
+ <div class="card" style="padding:0;overflow:auto"><table class="data"><thead><tr><th>Classe</th><th>Enseignant(e)</th><th class="num">Garçons</th><th class="num">Filles</th><th class="num">Total</th>${isAdmin()?'<th class="num">Attendu</th><th class="num">Perçu</th><th class="num">Reste</th>':''}</tr></thead><tbody>${rows}</tbody></table></div>${isAdmin()?'<p class="muted">Montants de l\'année : scolarité, goûter et livres, moins les réductions. Les arriérés des années passées et l\'APE sont comptés à part.</p>':''}`;
 }
 
 /* ---------- Élèves ---------- */
@@ -465,18 +484,18 @@ function openFiche(eid){
  const e=elv(eid);if(!e)return;
  const hist=DB.inscriptions.filter(i=>i.eleveId===eid).sort((a,b)=>a.annee.localeCompare(b.annee));
  const rows=hist.map(i=>{const c=cls(i.classeId);let m='—';if(c&&c.ecole==='primaire'){m=fmtN2(annualResults(c.id,i.annee).res[i.id]?.moy)}
-  return `<tr><td>${esc(i.annee)}</td><td>${esc(c?.nom||'?')}</td><td>${esc(i.type)}${i.redoublant?' · redoublant(e)':''}</td><td class="num">${m}</td><td>${esc(i.decision||'')}</td><td class="num">${fcfa(du(i))}</td><td class="num">${fcfa(paye(i.id))}</td></tr>`}).join('')||'<tr><td colspan="7" class="muted">Aucune inscription.</td></tr>';
+  return `<tr><td>${esc(i.annee)}</td><td>${esc(i.arrOnly?'Arriéré seul':(c?.nom||'?'))}</td><td>${esc(i.type)}${i.redoublant?' · redoublant(e)':''}</td><td class="num">${m}</td><td>${esc(i.decision||'')}</td><td class="num">${fcfa(du(i))}</td><td class="num">${fcfa(paye(i.id))}</td></tr>`}).join('')||'<tr><td colspan="7" class="muted">Aucune inscription.</td></tr>';
  const cur=inscOf(eid);
  modal(`<h3>${esc(fullName(e))} <span class="muted" style="font-weight:400">· ${esc(e.matricule)}</span> ${statTag(e.statut)}</h3>
  <div class="form-grid" style="gap:8px 14px">${kv('Sexe',e.sexe==='F'?'Féminin':'Masculin')}${kv('Né(e) le',fmtDate(e.dateNaiss)+(e.lieuNaiss?' à '+e.lieuNaiss:''))}${kv('Nationalité',e.nationalite)}${kv('Acte de naissance',e.acte)}
- ${kv('Père',e.pere)}${kv('Mère',e.mere)}${kv('Tuteur / contact',e.tuteur)}${kv('Téléphone',e.telephone)}${kv('Adresse',e.adresse)}${kv("Entrée à l'école",fmtDate(e.dateEntree))}${kv("École d'origine",e.ecoleOrigine)}${kv('Boursier',e.boursier?'Oui':'Non')}${e.arriereEnAttente?kv('Arriéré à reporter',fcfa(e.arriereEnAttente)):''}</div>
+ ${kv('Père',e.pere)}${kv('Mère',e.mere)}${kv('Tuteur / contact',e.tuteur)}${kv('Téléphone',e.telephone)}${kv('Adresse',e.adresse)}${kv("Entrée à l'école",fmtDate(e.dateEntree))}${kv("École d'origine",e.ecoleOrigine)}${kv('Boursier',e.boursier?'Oui':'Non')}${arrPending(eid)?kv('Arriéré des années passées',fcfa(arrPending(eid))):''}</div>
  ${e.observations?`<p><span class="muted" style="font-size:12px">Observations</span><br>${esc(e.observations)}</p>`:''}
  ${(()=>{const H=(DB.hist||[]).filter(h=>h.eid===eid).slice().reverse();return H.length?`<details style="margin-top:12px"><summary style="cursor:pointer;font-weight:600">Historique des modifications (${H.length})</summary><div style="overflow:auto;margin-top:6px"><table class="data"><thead><tr><th>Date</th><th>Par</th><th>Champ</th><th>Avant</th><th>Après</th><th></th></tr></thead><tbody>${hRows(H.slice(0,100),false)}</tbody></table></div></details>`:''})()}
  <h3 style="margin:16px 0 8px;font-size:15px">Parcours scolaire</h3>
  <div style="overflow:auto"><table class="data"><thead><tr><th>Année</th><th>Classe</th><th>Type</th><th class="num">Moy. annuelle</th><th>Décision</th><th class="num">Dû</th><th class="num">Payé</th></tr></thead><tbody>${rows}</tbody></table></div>
  <div class="actions" style="justify-content:flex-start">
  <button onclick="formEleve('${eid}')">Modifier</button>
- ${cur?`<button onclick="formInscription('${cur.id}')">Inscription ${esc(S().annee)}</button><button onclick="formPaiement('${cur.id}')">Nouveau paiement</button><button onclick="formCertificat('${eid}')">Certificat de scolarité</button>`:(e.statut==='Actif'?`<button class="primary" onclick="formInscription(null,'${eid}',suggestClass('${eid}'))">Inscrire en ${esc(S().annee)}</button>`:'')}
+ ${cur?`<button onclick="formInscription('${cur.id}')">Inscription ${esc(S().annee)}</button><button onclick="formPaiement('${cur.id}')">Nouveau paiement</button><button onclick="formCertificat('${eid}')">Certificat de scolarité</button>`:(e.statut==='Actif'?`<button class="primary" onclick="formInscription(null,'${eid}',suggestClass('${eid}'))">Inscrire en ${esc(S().annee)}</button>`:'')+(arrPending(eid)>0?`<button onclick="payArr('${eid}')">Payer l'arriéré seul</button>`:'')}
  <button onclick="printDoc(ficheHTML('${eid}'))">Imprimer la fiche</button>
  <button class="danger" onclick="delEleve('${eid}')">Supprimer</button>
  <span style="flex:1"></span><button onclick="closeModal()">Fermer</button></div>`,true);
@@ -509,7 +528,7 @@ function fillInscrire(){
   return `<tr><td><b>${esc(fullName(e))}</b><br><span class="muted">${esc(e.matricule)} · ${esc(e.sexe)}</span></td><td>${fmtDate(e.dateNaiss)}</td><td>${parc}</td><td>${statTag(e.statut)}</td><td style="white-space:nowrap">${cur?`<span class="tag ok">Déjà inscrit(e) en ${esc(cls(cur.classeId)?.nom||'')}</span> <button class="small" onclick="formPaiement('${cur.id}')">Paiement</button>`:`<button class="primary small" onclick="formInscription(null,'${e.id}',suggestClass('${e.id}'))">Inscrire</button>`} <button class="small" onclick="openFiche('${e.id}')">Fiche</button></td></tr>`}).join('')}</tbody></table>${L.length>15?`<div class="muted" style="margin-top:6px">${L.length} élèves trouvés — précisez la recherche.</div>`:''}`;
 }
 function suggestClass(eid){
- const a=S().annee,e=elv(eid);const prev=DB.inscriptions.filter(i=>i.eleveId===eid&&i.annee<a).sort((x,y)=>y.annee.localeCompare(x.annee))[0];
+ const a=S().annee,e=elv(eid);const prev=DB.inscriptions.filter(i=>i.eleveId===eid&&i.annee<a&&!i.arrOnly).sort((x,y)=>y.annee.localeCompare(x.annee))[0];
  let niv=null;if(prev){const c=cls(prev.classeId);if(c)niv=prev.decision==='Redouble'?c.niveau:(NEXT[c.niveau]||null)}else if(e?.niveauPrevu)niv=e.niveauPrevu;
  return niv?(findClassByNiveau(niv)?.id||''):'';
 }
@@ -542,13 +561,13 @@ function formInscription(iid,eid,presetCid){
  const eleveSel=pick?`<input type="hidden" id="f_e" value="${pick}"><div class="field"><label>Élève</label><b style="padding:6px 0">${esc(fullName(elv(pick)))}</b></div>`
   :pickerHTML('f_e','Élève * (nom ou numéro)',DB.eleves.filter(e=>!inscOf(e.id)&&!['Sorti (fin de cycle)','Exclu'].includes(e.statut)).sort(byName).map(e=>[e.id,fullName(e)+' — '+e.matricule,e.matricule]),'autoType');
  const cid=i?.classeId||presetCid||UI.f.icl||'';const c0=cls(cid);
- const typeDef=i?.type||(pick&&DB.inscriptions.some(x=>x.eleveId===pick&&x.annee!==a)?'Ancien':'Nouveau');
+ const typeDef=i?.type||(pick&&DB.inscriptions.some(x=>x.eleveId===pick&&x.annee!==a&&!x.arrOnly)?'Ancien':'Nouveau');
  modal(`<h3>${i?"Modifier l'inscription":'Inscription'} ${esc(a)}</h3><div class="form-grid">${eleveSel}
  ${FS('Classe *','f_cl','<option value="">— choisir —</option>'+classOpts(cid),'onchange="prefillFees()"')}
  ${FS('Type','f_type',opts(['Nouveau','Ancien'],typeDef))}
  ${FS('Redoublant(e)','f_red',opts([['0','Non'],['1','Oui']],i?.redoublant?'1':'0'))}
  ${RUB().map(r=>F(esc(r.l)+' (F)','f_fr_'+r.k,i?((i.frais||{})[r.k]||0):((c0?.frais||{})[r.k]||0),'number','min="0" step="any"')).join('')}
- ${F('Arriéré des années passées (F)','f_arr',i?(i.arriere||0):((pick&&elv(pick)?.arriereEnAttente)||0),'number','min="0" step="any"')}
+ ${F('Arriéré des années passées (F)','f_arr',i?(i.arriere||0):((pick&&arrPending(pick)+(arrOnlyOf(pick)?paidC(arrOnlyOf(pick).id,'arriere'):0))||0),'number','min="0" step="any"')}
  ${F('Réduction sur la scolarité (F)','f_rem',i?.remise||0,'number','min="0" step="any"')}
  ${F("Date d'inscription",'f_dt',i?.date||today(),'date')}
  </div><div class="actions">${i?`<button class="danger" style="margin-right:auto" onclick="delInscription('${i.id}')">Annuler cette inscription</button>`:''}<button onclick="closeModal()">Annuler</button><button class="primary" onclick="saveInscription('${i?.id||''}')">Enregistrer</button></div>`);
@@ -575,12 +594,12 @@ function formCloture(){modal(`<h3>Clôture de caisse</h3><div class="row">${F('D
  <div class="actions"><button onclick="closeModal()">Fermer</button><button class="primary" onclick="const h=clotureHTML(fval('cl_d'),fval('cl_e'));closeModal();_pv=h;printNow()">🖨 Imprimer</button></div>`,true);cloturePreview()}
 function cloturePreview(){const box=document.getElementById('cl_pv');if(box)box.innerHTML=`<div class="pv" style="zoom:.7">${clotureHTML(fval('cl_d'),fval('cl_e'))}</div>`}
 function clotureHTML(d,ec){
- const inEc=p=>{const i=ins(p.inscriptionId);return i&&(!ec||cls(i.classeId)?.ecole===ec)};
+ const inEc=p=>{const i=ins(p.inscriptionId);return i&&(!ec||insEcole(i)===ec)};
  const P=DB.paiements.filter(p=>p.date===d&&inEc(p)&&!p.annule).sort((a,b)=>(a.recu||'').localeCompare(b.recu||''));
  const A=DB.paiements.filter(p=>p.annule&&inEc(p)&&(p.date===d||(p.annule.t||'').slice(0,10)===d));
  const K=keysAll().filter(k=>P.some(p=>+(p.parts||{})[k]));const tk={},tm={};let T=0;
  P.forEach(p=>{K.forEach(k=>tk[k]=(tk[k]||0)+(+(p.parts||{})[k]||0));tm[p.mode||'?']=(tm[p.mode||'?']||0)+(+p.montant||0);T+=+p.montant||0});
- const rows=P.map(p=>{const i=ins(p.inscriptionId),e=elv(i.eleveId);return `<tr><td>${esc(p.recu)}</td><td>${esc(fullName(e))}</td><td>${esc(cls(i.classeId)?.nom||'')}</td><td>${esc(p.mode||'')}</td>${K.map(k=>`<td class="r">${+(p.parts||{})[k]?fcfa(p.parts[k]):''}</td>`).join('')}<td class="r"><b>${fcfa(p.montant)}</b></td></tr>`}).join('');
+ const rows=P.map(p=>{const i=ins(p.inscriptionId),e=elv(i.eleveId);return `<tr><td>${esc(p.recu)}</td><td>${esc(fullName(e))}</td><td>${esc(clsNom(i))}</td><td>${esc(p.mode||'')}</td>${K.map(k=>`<td class="r">${+(p.parts||{})[k]?fcfa(p.parts[k]):''}</td>`).join('')}<td class="r"><b>${fcfa(p.montant)}</b></td></tr>`}).join('');
  const esp=tm['Espèces']||0;const TS=P.reduce((s,p)=>s+partsK(p,keysSchool()),0),TE=T-TS;
  return `<div class="pg">${pageHeader(ec?S().ecoles[ec]:{nom:'Écoles Être et Avoir en Jésus-Christ (primaire et maternelle)'},S().annee)}<div class="title">Clôture de caisse du ${fmtDate(d)}${ec?' — '+(ec==='primaire'?'Primaire':'Maternelle'):''}</div>
  <table class="small"><thead><tr><th>Reçu</th><th>Élève</th><th>Classe</th><th>Mode</th>${K.map(k=>`<th class="r">${esc(rubLabel(k))}</th>`).join('')}<th class="r">Total</th></tr></thead><tbody>${rows||`<tr><td colspan="${5+K.length}" class="c">Aucun reçu ce jour</td></tr>`}</tbody>
@@ -593,9 +612,9 @@ function clotureHTML(d,ec){
 }
 function partsTxt(p){return Object.entries(p.parts||{}).filter(([k,v])=>+v).map(([k,v])=>`${rubLabel(k)} ${fcfa(v)}`).join(' · ')}
 function vPaie(){
- const cl=UI.f.pcl||'',ec=UI.f.pec||'';const yIds=new Set(yearInscs().filter(i=>(!cl||i.classeId===cl)&&(!ec||cls(i.classeId)?.ecole===ec)).map(i=>i.id));
+ const cl=UI.f.pcl||'',ec=UI.f.pec||'';const yIds=new Set(allYearInscs().filter(i=>(!cl||i.classeId===cl)&&(!ec||insEcole(i)===ec)).map(i=>i.id));
  const P=DB.paiements.filter(p=>yIds.has(p.inscriptionId)).sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.recu||'').localeCompare(a.recu||''));
- let tot=0;const rows=P.slice(0,UI.f.pall?99999:300).map(p=>{const i=ins(p.inscriptionId),e=elv(i.eleveId);tot+=0;const an=p.annule;return `<tr data-s="${rowKey(e)} ${esc(norm(p.recu))}"${an?' style="color:#98a2b3"':''}><td>${fmtDate(p.date)}</td><td>${esc(p.recu)}</td><td><b>${esc(fullName(e))}</b><br><span class="muted">${esc(e.matricule)}</span></td><td>${esc(cls(i.classeId)?.nom||'')}</td><td>${esc(partsTxt(p))}<br><span class="muted">${esc(p.remarque||'')}</span></td><td>${esc(p.mode)}</td><td class="num">${an?`<s>${fcfa(p.montant)}</s><br><span class="tag bad">ANNULÉ</span>`:`<b>${fcfa(p.montant)}</b>`}</td><td style="white-space:nowrap"><button class="small" onclick="printDoc(recuHTML(DB.paiements.find(x=>x.id==='${p.id}')))">Voir le reçu</button> ${an?`<span class="muted" title="${esc(an.motif)}">motif</span>`:`<button class="small danger" title="Annuler ce reçu" onclick="delPaiement('${p.id}')">Annuler</button>`}</td></tr>`}).join('');
+ let tot=0;const rows=P.slice(0,UI.f.pall?99999:300).map(p=>{const i=ins(p.inscriptionId),e=elv(i.eleveId);tot+=0;const an=p.annule;return `<tr data-s="${rowKey(e)} ${esc(norm(p.recu))}"${an?' style="color:#98a2b3"':''}><td>${fmtDate(p.date)}</td><td>${esc(p.recu)}</td><td><b>${esc(fullName(e))}</b><br><span class="muted">${esc(e.matricule)}</span></td><td>${esc(clsNom(i))}</td><td>${esc(partsTxt(p))}<br><span class="muted">${esc(p.remarque||'')}</span></td><td>${esc(p.mode)}</td><td class="num">${an?`<s>${fcfa(p.montant)}</s><br><span class="tag bad">ANNULÉ</span>`:`<b>${fcfa(p.montant)}</b>`}</td><td style="white-space:nowrap"><button class="small" onclick="printDoc(recuHTML(DB.paiements.find(x=>x.id==='${p.id}')))">Voir le reçu</button> ${an?`<span class="muted" title="${esc(an.motif)}">motif</span>`:`<button class="small danger" title="Annuler ce reçu" onclick="delPaiement('${p.id}')">Annuler</button>`}</td></tr>`}).join('');
  P.forEach(p=>{if(!p.annule)tot+=+p.montant||0});
  return `${backupBanner()}<h1>Paiements / frais ${esc(S().annee)}</h1>
  <div class="card row">${FS('École','p_ec',opts([['','Les deux écoles'],['primaire','Primaire'],['maternelle','Maternelle']],ec),'onchange="UI.f.pec=this.value;render()"')}${FS('Classe','p_cl','<option value="">Toutes les classes</option>'+classOpts(cl),'onchange="UI.f.pcl=this.value;render()"')}
@@ -605,8 +624,11 @@ function vPaie(){
  ${P.length?`<tfoot><tr><td colspan="6">${P.length} paiement(s)${P.length>300&&!UI.f.pall?` — 300 plus récents affichés <button class="small" onclick="UI.f.pall=1;render()">Tout afficher</button>`:''}</td><td class="num">${fcfa(tot)}</td><td></td></tr></tfoot>`:''}</table></div>`;
 }
 function formPaiement(iid){
- const list=yearInscs().map(i=>{const e=elv(i.eleveId);return [i.id,fullName(e)+' — '+(cls(i.classeId)?.nom||'')+' — '+(e?.matricule||'')]}).sort((a,b)=>a[1].localeCompare(b[1],'fr'));
- const sel=iid?`<input type="hidden" id="f_i" value="${iid}"><div class="field"><label>Élève</label><b style="padding:6px 0">${esc(fullName(elv(ins(iid).eleveId)))}</b></div>`:pickerHTML('f_i','Élève * (nom ou numéro)',yearInscs().map(i=>{const e=elv(i.eleveId);return [i.id,fullName(e)+' — '+(cls(i.classeId)?.nom||'')+' — '+(e?.matricule||''),e?.matricule||'']}).sort((a,b)=>a[1].localeCompare(b[1],'fr')),'payInfo');
+ const PL=yearInscs().map(i=>{const e=elv(i.eleveId);return [i.id,fullName(e)+' — '+(cls(i.classeId)?.nom||'')+' — '+(e?.matricule||''),e?.matricule||'']});
+ arrInscs().forEach(i=>{const e=elv(i.eleveId);if(e&&reste(i)>0)PL.push([i.id,fullName(e)+' — arriéré seul ('+fcfa(reste(i))+') — '+(e.matricule||''),e.matricule||''])});
+ DB.eleves.forEach(e=>{if((+e.arriereEnAttente||0)>0&&!inscOf(e.id)&&!arrOnlyOf(e.id))PL.push(['E:'+e.id,fullName(e)+' — non inscrit, arriéré seul ('+fcfa(e.arriereEnAttente)+') — '+(e.matricule||''),e.matricule||''])});
+ PL.sort((a,b)=>a[1].localeCompare(b[1],'fr'));
+ const sel=iid?`<input type="hidden" id="f_i" value="${iid}"><div class="field"><label>Élève</label><b style="padding:6px 0">${esc(fullName(elv(ins(iid).eleveId)))}${ins(iid).arrOnly?' <span class="muted">(arriéré seul)</span>':''}</b></div>`:pickerHTML('f_i','Élève * (nom ou numéro)',PL,'payInfo');
  modal(`<h3>Nouveau paiement</h3><div class="form-grid">${sel}${F('Date','f_d',today(),'date')}
  <div class="field"><label>Remarque (tranche)</label><input id="f_r" list="f_tr" value=""><datalist id="f_tr">${TRANCHES.map(t=>`<option value="${t}">`).join('')}</datalist></div>
  ${FS('Mode de paiement','f_mo',opts(['Espèces','Orange Money','Moov Money','Bourse','Chèque','Virement']))}</div>
@@ -614,11 +636,14 @@ function formPaiement(iid){
  <div class="actions"><span id="f_tot" style="margin-right:auto;font-size:16px"></span><button onclick="closeModal()">Annuler</button><button class="primary" onclick="savePaiement()">Enregistrer</button></div>`,true);
  payInfo();
 }
+function payArr(eid){const i=ensureArrOnly(eid);if(!i)return;save();closeModal();formPaiement(i.id)}
 function payInfo(){
- const b=document.getElementById('payinfo');if(!b)return;const i=ins(fval('f_i'));
+ const b=document.getElementById('payinfo');if(!b)return;let v=fval('f_i');
+ if(v&&v.startsWith('E:')){const ni=ensureArrOnly(v.slice(2));if(ni){document.getElementById('f_i').value=ni.id;v=ni.id;save()}}
+ const i=ins(v);
  if(!i){b.innerHTML='<div class="muted">Choisissez un élève.</div>';payTot();return}
- const rows=keysAll().map(k=>{const d=dueC(i,k),p=paidC(i.id,k),r=Math.max(0,d-p);if(k==='arriere'&&!d&&!p)return '';return `<tr><td>${esc(rubLabel(k))}</td><td class="num">${fcfa(d)}</td><td class="num">${fcfa(p)}</td><td class="num">${r?`<b style="color:var(--danger)">${fcfa(r)}</b>`:'—'}</td><td><input id="f_p_${k}" type="number" min="0" step="any" style="width:110px" oninput="payTot()" placeholder="${r||''}"></td></tr>`}).join('');
- const arr=i.arriere&&paidC(i.id,'arriere')<i.arriere?'<div class="banner" style="margin:8px 0 0">⚠ Cet élève a un arriéré des années passées : il est conseillé de le payer d\'abord.</div>':'';
+ const rows=keysAll().map(k=>{const d=dueC(i,k),p=paidC(i.id,k),r=Math.max(0,d-p);if(k==='arriere'&&!d&&!p)return '';if(i.arrOnly&&k!=='arriere')return '';return `<tr><td>${esc(rubLabel(k))}</td><td class="num">${fcfa(d)}</td><td class="num">${fcfa(p)}</td><td class="num">${r?`<b style="color:var(--danger)">${fcfa(r)}</b>`:'—'}</td><td><input id="f_p_${k}" type="number" min="0" step="any" style="width:110px" oninput="payTot()" placeholder="${r||''}"></td></tr>`}).join('');
+ const arr=i.arrOnly?'<div class="banner" style="margin:8px 0 0">Élève non inscrit cette année : seul l\'arriéré des années passées peut être payé.</div>':i.arriere&&paidC(i.id,'arriere')<i.arriere?'<div class="banner" style="margin:8px 0 0">⚠ Cet élève a un arriéré des années passées : il est conseillé de le payer d\'abord.</div>':'';
  b.innerHTML=`<table class="data"><thead><tr><th>Rubrique</th><th class="num">Dû</th><th class="num">Déjà payé</th><th class="num">Reste</th><th>Ce paiement (F)</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td>Total</td><td class="num">${fcfa(du(i))}</td><td class="num">${fcfa(paye(i.id))}</td><td class="num">${fcfa(reste(i))}</td><td></td></tr></tfoot></table>${arr}`;
  payTot();
 }
@@ -627,7 +652,7 @@ function payTot(){const t=document.getElementById('f_tot');if(t){const s=Object.
 function savePaiement(){
  const iid=fval('f_i');if(!iid){alert('Choisissez un élève.');return}
  const parts=payParts(),m=Object.values(parts).reduce((a,b)=>a+b,0);if(!(m>0)){alert('Saisissez au moins un montant.');return}
- const i=ins(iid);const p={id:uid(),inscriptionId:iid,date:fval('f_d')||today(),montant:m,parts,mode:fval('f_mo'),remarque:fval('f_r'),recu:nextRecu(cls(i.classeId)?.ecole)};
+ const i=ins(iid);const p={id:uid(),inscriptionId:iid,date:fval('f_d')||today(),montant:m,parts,mode:fval('f_mo'),remarque:fval('f_r'),recu:nextRecu(insEcole(i))};
  DB.paiements.push(p);logJ('Paiement',`${p.recu} — ${fullName(elv(i.eleveId))} — ${fcfa(m)}`);save();closeModal();render();
  toast(`Paiement enregistré — reçu N° ${p.recu}`);printDoc(recuHTML(p));
 }
@@ -750,7 +775,7 @@ function nombreEnLettres(n){n=Math.round(+n||0);if(n===0)return 'zéro';
 }
 function paidAsOf(p,k){return DB.paiements.filter(x=>x.inscriptionId===p.inscriptionId&&!x.annule&&((x.date||'')<(p.date||'')||((x.date||'')===(p.date||'')&&(x.recu||'')<=(p.recu||''))||x.id===p.id)).reduce((s,x)=>s+(+(x.parts||{})[k]||0),0)}
 function recuHTML(p){
- const i=ins(p.inscriptionId),e=elv(i.eleveId),c=cls(i.classeId),sc=ecoleOf(c);
+ const i=ins(p.inscriptionId),e=elv(i.eleveId),c=cls(i.classeId)||{nom:'Arriéré seul (non inscrit)',ecole:insEcole(i)},sc=ecoleOf(c);
  const K=keysAll().filter(k=>+(p.parts||{})[k]||dueC(i,k));const dense=K.length>=4||!!p.annule;
  let tP=0,tR=0,tPaid=0,tDue=0;
  const lines=K.map(k=>{const d=dueC(i,k),pa=p.annule?paidC(i.id,k):paidAsOf(p,k),r=Math.max(0,d-pa),now=+(p.parts||{})[k]||0;tP+=now;tR+=r;tPaid+=pa;tDue+=d;return `<tr><td>${esc(rubLabel(k))}</td><td class="r">${now?fcfa(now):'—'}</td><td class="r">${r?fcfa(r):'Soldé'}</td></tr>`}).join('');
@@ -763,10 +788,10 @@ function recuHTML(p){
  <div style="text-align:right;white-space:nowrap">Année scolaire<br><b style="font-size:14px">${esc(i.annee)}</b></div></div>`;
  const one=lab=>`<div class="recu-box${dense?' dense':''}">${hdr}
  <div><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><span style="font-size:20px;font-weight:bold;text-transform:uppercase">Reçu N° ${esc(p.recu)}</span><span style="border:${p.annule?2:1}px solid #000;padding:2px 8px;font-weight:bold">${p.annule?'ANNULÉ — ':''}${lab}</span></div>
- <table class="info"><tr><td style="width:62%">Élève : <b>${esc(fullName(e))}</b> (${esc(e.matricule)}) — Classe : <b>${esc(c.nom)}</b></td><td>Date : <b>${fmtDate(p.date)}</b></td></tr><tr><td>${p.annule?`<b>Annulé le ${fmtDate(p.annule.t.slice(0,10))} — motif : ${esc(p.annule.motif)}</b>`:`Objet : ${esc(p.remarque||'Paiement des frais scolaires')}`}</td><td>Mode : ${esc(p.mode||'')}</td></tr></table></div>
+ <table class="info"><tr><td style="width:62%">Élève : <b>${esc(fullName(e))}</b> (${esc(e.matricule)}) — Classe : <b>${esc(c.nom)}</b></td><td>Date : <b>${fmtDate(p.date)}</b></td></tr><tr><td>${p.annule?`<b>Annulé le ${fmtDate(p.annule.t.slice(0,10))} — motif : ${esc(p.annule.motif)}</b>`:`Objet : ${esc(p.remarque||(i.arrOnly?'Paiement d\'arriéré (années passées)':'Paiement des frais scolaires'))}`}</td><td>Mode : ${esc(p.mode||'')}</td></tr></table></div>
  <table><thead><tr><th>Rubrique</th><th class="r" style="width:32%">Montant payé</th><th class="r" style="width:32%">Reste à payer</th></tr></thead><tbody>${lines}</tbody><tfoot><tr><th>TOTAL</th><th class="r" style="font-size:16px">${fcfa(tP)}</th><th class="r">${fcfa(tR)}</th></tr></tfoot></table>
  <div><div>Arrêté le présent reçu à la somme de : <b>${nombreEnLettres(tP)} (${fcfa(tP).replace(' F','')}) francs CFA</b>.</div>
- <div style="font-size:12px;margin-top:2px">Situation au ${fmtDate(p.date)} : payé pour l'année ${fcfa(tPaid)} sur ${fcfa(tDue)} — reste ${fcfa(tR)}.</div></div>
+ <div style="font-size:12px;margin-top:2px">Situation au ${fmtDate(p.date)} : payé ${i.arrOnly?'sur l\'arriéré':'pour l\'année'} ${fcfa(tPaid)} sur ${fcfa(tDue)} — reste ${fcfa(tR)}.</div></div>
  <div class="sign"><div>Le Parent</div><div>Reçu par : ${esc(S().caissier||'..................................')}<br><span style="font-size:11px">(signature et cachet de l'école)</span></div></div>${S().piedRecu?`<div class="c" style="font-size:10.5px"><i>${esc(S().piedRecu)}</i></div>`:''}</div>`;
  return `<div class="pg recu-page"><div class="recu-wrap"><div class="recu-half">${one('Copie PARENTS')}</div><div class="recu-cut">✂ ${'- '.repeat(70)}✂</div><div class="recu-half">${one('Copie ÉCOLE')}</div></div></div>`;
 }
@@ -797,7 +822,7 @@ function printCert(){const e=fval('cert_e');if(!e){alert('Choisissez un élève.
 
 function ficheHTML(eid){
  const e=elv(eid),cur=inscOf(eid),c=cur?cls(cur.classeId):DB.classes[0];
- const hist=DB.inscriptions.filter(i=>i.eleveId===eid).sort((a,b)=>a.annee.localeCompare(b.annee)).map(i=>{const cc=cls(i.classeId);const m=cc&&cc.ecole==='primaire'?fmtN2(annualResults(cc.id,i.annee).res[i.id]?.moy):'—';return `<tr><td>${esc(i.annee)}</td><td>${esc(cc?.nom||'')}</td><td>${esc(i.type)}${i.redoublant?' (redoublant)':''}</td><td class="c">${m}</td><td>${esc(i.decision||'')}</td></tr>`}).join('');
+ const hist=DB.inscriptions.filter(i=>i.eleveId===eid&&!i.arrOnly).sort((a,b)=>a.annee.localeCompare(b.annee)).map(i=>{const cc=cls(i.classeId);const m=cc&&cc.ecole==='primaire'?fmtN2(annualResults(cc.id,i.annee).res[i.id]?.moy):'—';return `<tr><td>${esc(i.annee)}</td><td>${esc(cc?.nom||'')}</td><td>${esc(i.type)}${i.redoublant?' (redoublant)':''}</td><td class="c">${m}</td><td>${esc(i.decision||'')}</td></tr>`}).join('');
  const L=(a,b)=>`<tr><td style="width:35%">${a}</td><td><b>${esc(b||'')}</b></td></tr>`;
  return `<div class="pg">${pageHeader(ecoleOf(c),S().annee)}<div class="title">Fiche de renseignements de l'élève</div>
  <table>${L('Matricule',e.matricule)}${L('Nom et prénoms',fullName(e))}${L('Sexe',e.sexe==='F'?'Féminin':'Masculin')}${L('Date et lieu de naissance',fmtDate(e.dateNaiss)+(e.lieuNaiss?' à '+e.lieuNaiss:''))}${L('Nationalité',e.nationalite)}${L("N° d'acte de naissance",e.acte)}${L('Nom du père',e.pere)}${L('Nom de la mère',e.mere)}${L('Tuteur / contact',e.tuteur)}${L('Téléphone',e.telephone)}${L('Adresse',e.adresse)}${L("Date d'entrée",fmtDate(e.dateEntree))}${L("École d'origine",e.ecoleOrigine)}${L('Classe actuelle',cur?cls(cur.classeId)?.nom:'')}${L('Statut',e.statut)}${L('Observations',e.observations)}</table>
@@ -833,24 +858,24 @@ function classementHTML(cid,T){
  <table class="small"><thead><tr><th>N°</th><th>Nom et prénoms</th>${head}</tr></thead><tbody>${rows.map((r,k)=>`<tr><td class="c">${k+1}</td>${r}</tr>`).join('')}</tbody></table>${signBlock()}</div>`;
 }
 function paiementsHTML(cid,onlyImp,ec){
- let L=yearInscs().filter(i=>(!cid||i.classeId===cid)&&(!ec||cls(i.classeId)?.ecole===ec)).sort((x,y)=>NIV_ALL.indexOf(cls(x.classeId)?.niveau)-NIV_ALL.indexOf(cls(y.classeId)?.niveau)||byName(elv(x.eleveId),elv(y.eleveId)));
+ let L=(cid?yearInscs():allYearInscs()).filter(i=>(!cid||i.classeId===cid)&&(!ec||insEcole(i)===ec)).sort((x,y)=>NIV_ALL.indexOf(cls(x.classeId)?.niveau)-NIV_ALL.indexOf(cls(y.classeId)?.niveau)||byName(elv(x.eleveId),elv(y.eleveId)));
  if(onlyImp)L=L.filter(i=>reste(i)>0);
- let tD=0,tP=0,tR=0;const rows=L.map((i,k)=>{const e=elv(i.eleveId),d=du(i),p=paye(i.id),r=reste(i);tD+=d;tP+=p;tR+=r;return `<tr><td class="c">${k+1}</td><td>${esc(e.matricule)}</td><td>${esc(fullName(e))}</td><td>${esc(cls(i.classeId)?.nom||'')}</td><td>${esc(e.telephone||'')}</td><td class="r">${fcfa(d)}</td><td class="r">${fcfa(p)}</td><td class="r"><b>${fcfa(r)}</b></td></tr>`}).join('');
+ let tD=0,tP=0,tR=0;const rows=L.map((i,k)=>{const e=elv(i.eleveId),d=du(i),p=paye(i.id),r=reste(i);tD+=d;tP+=p;tR+=r;return `<tr><td class="c">${k+1}</td><td>${esc(e.matricule)}</td><td>${esc(fullName(e))}</td><td>${esc(clsNom(i))}</td><td>${esc(e.telephone||'')}</td><td class="r">${fcfa(d)}</td><td class="r">${fcfa(p)}</td><td class="r"><b>${fcfa(r)}</b></td></tr>`}).join('');
  const c=cls(cid);
  return `<div class="pg">${pageHeader(c?ecoleOf(c):S().ecoles[ec||'primaire'],S().annee)}<div class="title">${onlyImp?'Liste des impayés':'État des paiements'}${c?' — '+esc(c.nom):''}</div><p>Arrêté au ${fmtDate(today())}</p>
  <table class="small"><thead><tr><th>N°</th><th>Matricule</th><th>Nom et prénoms</th><th>Classe</th><th>Téléphone</th><th class="r">Dû</th><th class="r">Payé</th><th class="r">Reste</th></tr></thead><tbody>${rows||'<tr><td colspan="8" class="c">Aucun</td></tr>'}</tbody>
  <tfoot><tr><th colspan="5">Total (${L.length} élève(s))</th><th class="r">${fcfa(tD)}</th><th class="r">${fcfa(tP)}</th><th class="r">${fcfa(tR)}</th></tr></tfoot></table></div>`;
 }
 function recettesHTML(ec,d1,d2){
- const P=DB.paiements.filter(p=>{const i=ins(p.inscriptionId);return i&&!p.annule&&(!ec||cls(i.classeId)?.ecole===ec)&&(!d1||p.date>=d1)&&(!d2||p.date<=d2)}).sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.recu||'').localeCompare(b.recu||''));
+ const P=DB.paiements.filter(p=>{const i=ins(p.inscriptionId);return i&&!p.annule&&(!ec||insEcole(i)===ec)&&(!d1||p.date>=d1)&&(!d2||p.date<=d2)}).sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.recu||'').localeCompare(b.recu||''));
  const used=k=>P.some(p=>+(p.parts||{})[k]);const KS=keysSchool().filter(used),KE=keysExt().filter(used);const tot={};[...KS,...KE].forEach(k=>tot[k]=0);let TS=0,T=0;
  const cell=(p,k)=>`<td class="r">${+(p.parts||{})[k]?fcfa(p.parts[k]):''}</td>`;
- const rows=P.map(p=>{const i=ins(p.inscriptionId),e=elv(i.eleveId);[...KS,...KE].forEach(k=>tot[k]+=+(p.parts||{})[k]||0);const ts=partsK(p,KS);TS+=ts;T+=+p.montant||0;return `<tr><td>${fmtDate(p.date)}</td><td>${esc(p.recu)}</td><td>${esc(fullName(e))}</td><td>${esc(cls(i.classeId)?.nom||'')}</td>${KS.map(k=>cell(p,k)).join('')}<td class="r"><b>${fcfa(ts)}</b></td>${KE.map(k=>cell(p,k)).join('')}${KE.length?`<td class="r">${fcfa(p.montant)}</td>`:''}</tr>`}).join('');
+ const rows=P.map(p=>{const i=ins(p.inscriptionId),e=elv(i.eleveId);[...KS,...KE].forEach(k=>tot[k]+=+(p.parts||{})[k]||0);const ts=partsK(p,KS);TS+=ts;T+=+p.montant||0;return `<tr><td>${fmtDate(p.date)}</td><td>${esc(p.recu)}</td><td>${esc(fullName(e))}</td><td>${esc(clsNom(i))}</td>${KS.map(k=>cell(p,k)).join('')}<td class="r"><b>${fcfa(ts)}</b></td>${KE.map(k=>cell(p,k)).join('')}${KE.length?`<td class="r">${fcfa(p.montant)}</td>`:''}</tr>`}).join('');
  const nc=5+KS.length+(KE.length?KE.length+1:0);
  return `<div class="pg">${pageHeader(ec?S().ecoles[ec]:{nom:'Écoles Être et Avoir en Jésus-Christ (primaire et maternelle)'},S().annee)}<div class="title">Journal des recettes${ec?' — '+(ec==='primaire'?'Primaire':'Maternelle'):''}</div><p>Période : du ${fmtDate(d1)||'début'} au ${fmtDate(d2)||fmtDate(today())} · ${P.length} reçu(s)</p>
  <table class="small"><thead><tr><th>Date</th><th>Reçu</th><th>Élève</th><th>Classe</th>${KS.map(k=>`<th class="r">${esc(rubLabel(k))}</th>`).join('')}<th class="r">Total école</th>${KE.map(k=>`<th class="r">${esc(rubLabel(k))}</th>`).join('')}${KE.length?'<th class="r">Total encaissé</th>':''}</tr></thead><tbody>${rows||`<tr><td colspan="${nc}" class="c">Aucune recette</td></tr>`}</tbody>
  <tfoot><tr><th colspan="4">Total</th>${KS.map(k=>`<th class="r">${fcfa(tot[k])}</th>`).join('')}<th class="r">${fcfa(TS)}</th>${KE.map(k=>`<th class="r">${fcfa(tot[k])}</th>`).join('')}${KE.length?`<th class="r">${fcfa(T)}</th>`:''}</tr></tfoot></table>
- <p><b>Recettes de l'école : ${fcfa(TS)}</b>${KE.length?` &nbsp;·&nbsp; ${KE.map(k=>esc(rubLabel(k))+' (hors recettes école) : '+fcfa(tot[k])).join(' · ')} &nbsp;·&nbsp; Total encaissé : ${fcfa(T)}`:''}</p>${signBlock().replace("L'enseignant(e)","Le/La Caissier(ère)").replace('<div>Le Parent</div>','')}</div>`;
+ <p><b>Recettes de l'école : ${fcfa(TS)}</b>${tot.arriere?` (dont frais de l'année ${fcfa(TS-tot.arriere)} · arriérés des années passées ${fcfa(tot.arriere)})`:''}${KE.length?` &nbsp;·&nbsp; ${KE.map(k=>esc(rubLabel(k))+' (hors recettes école) : '+fcfa(tot[k])).join(' · ')} &nbsp;·&nbsp; Total encaissé : ${fcfa(T)}`:''}</p>${signBlock().replace("L'enseignant(e)","Le/La Caissier(ère)").replace('<div>Le Parent</div>','')}</div>`;
 }
 function effectifsHTML(){
  const part=ec=>{let G=0,Fi=0;const rows=sortedClasses().filter(c=>c.ecole===ec).map(c=>{const L=classInscs(c.id);let g=0,f=0;L.forEach(i=>elv(i.eleveId)?.sexe==='F'?f++:g++);G+=g;Fi+=f;return `<tr><td>${esc(c.nom)}</td><td>${esc(c.enseignant||'')}</td><td class="c">${g}</td><td class="c">${f}</td><td class="c"><b>${g+f}</b></td></tr>`}).join('');
@@ -900,6 +925,7 @@ function doPassage(){
  downloadBackup();
  let nb=0,sortis=0;const manque=new Set();
  let arrT=0;
+ arrInscs(a).forEach(i=>{const e=elv(i.eleveId),r=reste(i);if(e&&r>0){e.arriereEnAttente=(+e.arriereEnAttente||0)+r;arrT+=r}});
  L.forEach(i=>{const e=elv(i.eleveId),c=cls(i.classeId);if(!e||!c||inscOf(e.id,n))return;const d=i.decision;const r=reste(i);if(r>0){e.arriereEnAttente=(+e.arriereEnAttente||0)+r;arrT+=r}
   if(d==='Admis(e)'){const nx=NEXT[c.niveau];if(!nx){e.statut='Sorti (fin de cycle)';sortis++;return}const tc=findClassByNiveau(nx);if(!tc){manque.add(nx);return}createInscription(e.id,tc.id,n,{type:'Ancien'});nb++}
   else if(d==='Redouble'){createInscription(e.id,c.id,n,{type:'Ancien',redoublant:true});nb++}
@@ -1126,7 +1152,7 @@ function downloadXLSX(fname,sheets){
  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fname;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},800);
 }
 function recettesXLSX(ec,d1,d2){
- const P=DB.paiements.filter(p=>{const i=ins(p.inscriptionId);return i&&!p.annule&&(!ec||cls(i.classeId)?.ecole===ec)&&(!d1||p.date>=d1)&&(!d2||p.date<=d2)}).sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.recu||'').localeCompare(b.recu||''));
+ const P=DB.paiements.filter(p=>{const i=ins(p.inscriptionId);return i&&!p.annule&&(!ec||insEcole(i)===ec)&&(!d1||p.date>=d1)&&(!d2||p.date<=d2)}).sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.recu||'').localeCompare(b.recu||''));
  const KS=keysSchool(),KE=keysExt();const head=['Date','Reçu N°','Matricule','Élève','Classe','École','Mode','Remarque',...KS.map(rubLabel),'Total école',...KE.map(rubLabel),'Total encaissé'];
  const rows=[[`Journal des recettes — ${ec?(ec==='primaire'?'Primaire':'Maternelle'):'Primaire et maternelle'} — du ${fmtDate(d1)||'début'} au ${fmtDate(d2)||fmtDate(today())}`],[],head];
  P.forEach(p=>{const i=ins(p.inscriptionId),e=elv(i.eleveId),c=cls(i.classeId);rows.push([{d:p.date},p.recu,e?.matricule||'',fullName(e),c?.nom||'',c?.ecole==='maternelle'?'Maternelle':'Primaire',p.mode||'',p.remarque||'',...KS.map(k=>+(p.parts||{})[k]||0),partsK(p,KS),...KE.map(k=>+(p.parts||{})[k]||0),+p.montant||0])});
@@ -1139,10 +1165,10 @@ function recettesXLSX(ec,d1,d2){
  logJ('Export Excel','Journal des recettes '+(d1||'')+' → '+(d2||''));save();
 }
 function paiementsXLSX(cid,onlyImp,ec){
- let L=yearInscs().filter(i=>(!cid||i.classeId===cid)&&(!ec||cls(i.classeId)?.ecole===ec)).sort((x,y)=>NIV_ALL.indexOf(cls(x.classeId)?.niveau)-NIV_ALL.indexOf(cls(y.classeId)?.niveau)||byName(elv(x.eleveId),elv(y.eleveId)));
+ let L=(cid?yearInscs():allYearInscs()).filter(i=>(!cid||i.classeId===cid)&&(!ec||insEcole(i)===ec)).sort((x,y)=>NIV_ALL.indexOf(cls(x.classeId)?.niveau)-NIV_ALL.indexOf(cls(y.classeId)?.niveau)||byName(elv(x.eleveId),elv(y.eleveId)));
  if(onlyImp)L=L.filter(i=>reste(i)>0);const K=keysAll();
  const rows=[[`${onlyImp?'Impayés':'État des paiements'} ${S().annee} — arrêté au ${fmtDate(today())}`],[],['Matricule','Élève','Classe','Téléphone',...K.map(k=>'Reste '+rubLabel(k)),'Dû','Payé','Reste']];
- L.forEach(i=>{const e=elv(i.eleveId);rows.push([e?.matricule||'',fullName(e),cls(i.classeId)?.nom||'',e?.telephone||'',...K.map(k=>Math.max(0,dueC(i,k)-paidC(i.id,k))),du(i),paye(i.id),reste(i)])});
+ L.forEach(i=>{const e=elv(i.eleveId);rows.push([e?.matricule||'',fullName(e),clsNom(i),e?.telephone||'',...K.map(k=>Math.max(0,dueC(i,k)-paidC(i.id,k))),du(i),paye(i.id),reste(i)])});
  const n=rows.length;rows.push([],['TOTAL','','','',...[...K,'d','p','r'].map((k,j)=>L.length?{f:`SUM(${colL(4+j)}4:${colL(4+j)}${n})`}:0)]);
  downloadXLSX(`${onlyImp?'Impayes':'Etat_paiements'}_${S().annee}.xlsx`,[{name:onlyImp?'Impayés':'Paiements',rows,bold:[0,2,rows.length-1],widths:[10,32,8,16,...K.map(()=>13),11,11,11],freeze:3}]);
 }
