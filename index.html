@@ -204,6 +204,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
+const APP_VERSION='26 (18/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -403,7 +404,7 @@ function render(){
  if(ADMIN_VIEWS.includes(UI.view)&&r!=='admin')UI.view='dash';
  document.getElementById('nav').innerHTML=`<div class="brand">EAenJC<small>Gestion scolaire · ${esc(S().annee)}</small></div>`+
   Object.entries(VIEWS).map(([k,[t]])=>`<a class="${UI.view===k?'active':''}" onclick="go('${k}')">${t}${ADMIN_VIEWS.includes(k)&&r!=='admin'?' 🔒':''}</a>`).join('')+
-  `<div class="foot">${secured()?`<div style="margin-bottom:8px;color:#e2e8f0">Connecté : <b>${r==='admin'?'Direction':'Comptable'}</b></div><button onclick="lockNow()">🔒 Verrouiller</button>${r==='admin'&&S().pinStaff?`<button onclick="ROLE='staff';render()">Passer en mode comptable</button>`:''}`:''}<div id="syncst" style="margin:6px 0 8px;color:#e2e8f0">${esc(syncLabel())}</div>${devName()?`<div style="margin-bottom:8px">Ordinateur : ${esc(devName())}</div>`:''}<button onclick="downloadBackup()">Télécharger une sauvegarde</button>Dernière sauvegarde :<br>${lb?fmtDate(lb.slice(0,10)):'jamais'}</div>`;
+  `<div class="foot"><div style="font-size:11px;color:#94a3b8;margin-bottom:6px">Version du programme : ${APP_VERSION}</div>${secured()?`<div style="margin-bottom:8px;color:#e2e8f0">Connecté : <b>${r==='admin'?'Direction':'Comptable'}</b></div><button onclick="lockNow()">🔒 Verrouiller</button>${r==='admin'&&S().pinStaff?`<button onclick="ROLE='staff';render()">Passer en mode comptable</button>`:''}`:''}<div id="syncst" style="margin:6px 0 8px;color:#e2e8f0">${esc(syncLabel())}</div>${devName()?`<div style="margin-bottom:8px">Ordinateur : ${esc(devName())}</div>`:''}<button onclick="downloadBackup()">Télécharger une sauvegarde</button>Dernière sauvegarde :<br>${lb?fmtDate(lb.slice(0,10)):'jamais'}</div>`;
  document.getElementById('main').innerHTML=(TRY?`<div class="banner" style="border:2px solid #b42318;background:#fff4f2"><b>MODE ESSAI</b> — vous pouvez tout essayer : rien n'est enregistré (ni dans ce navigateur, ni dans le fichier partagé). Les reçus imprimés portent la mention « ESSAI ». <button class="small primary" onclick="stopEssai()">Terminer l'essai</button></div>`:'')+VIEWS[UI.view][1]();
  if(AFTER[UI.view])AFTER[UI.view]();
 }
