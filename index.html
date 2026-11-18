@@ -204,7 +204,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='30 (18/11/2026)';
+const APP_VERSION='31 (18/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -518,6 +518,11 @@ async function photoURL(e){
  for(const n of photoNames(e)){try{const f=await (await PDIR.getFileHandle(n)).getFile();const k=n+'|'+f.lastModified;if(PHOTO_URL[k])return PHOTO_URL[k];return PHOTO_URL[k]=URL.createObjectURL(f)}catch(x){}}
  return null;
 }
+const PHOTO_EID={};
+async function preloadPhotos(eids){if(!PDIR)return false;if(!PDIR_OK){try{PDIR_OK=(await PDIR.requestPermission({mode:'readwrite'}))==='granted'}catch(x){}}if(!PDIR_OK)return false;await Promise.all(eids.map(async id=>{PHOTO_EID[id]=await photoURL(elv(id))}));return true}
+function photoImg(eid,w,h){const u=PHOTO_EID[eid];return u?`<img src="${u}" alt="" style="width:${w}mm;height:${h}mm;object-fit:cover;display:block;margin:auto">`:`<div style="width:${w}mm;height:${h}mm;border:1px dashed #999;margin:auto"></div>`}
+async function printListePhotos(cid){if(!PDIR){alert("Connectez d'abord le dossier des photos (Paramètres & données → Photos des élèves).");return}const ok=await preloadPhotos(classInscs(cid).map(i=>i.eleveId));if(!ok){alert("L'accès au dossier des photos n'a pas été autorisé.");return}printDoc(listeHTML(cid,true))}
+async function printFiche(eid){await preloadPhotos([eid]);printDoc(ficheHTML(eid))}
 function photoBox(eid){
  setTimeout(()=>photoFill(eid),0);
  return `<div style="width:120px;flex:none;text-align:center"><div id="ph_${eid}" style="width:120px;height:160px;border:1px solid var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#f8fafc;color:#98a2b3;font-size:12px">${DIR_OK?(PDIR?(PDIR_OK?'Pas de photo':'Photos : accès à autoriser'):'Pas de photo'):'Photo indisponible'}</div>
@@ -558,7 +563,7 @@ function openFiche(eid){
  <div class="actions" style="justify-content:flex-start">
  <button onclick="formEleve('${eid}')">Modifier</button>
  ${cur?`<button onclick="formInscription('${cur.id}')">Inscription ${esc(S().annee)}</button><button onclick="formPaiement('${cur.id}')">Nouveau paiement</button><button onclick="formCertificat('${eid}')">Certificat de scolarité</button>`:(e.statut==='Actif'?`<button class="primary" onclick="formInscription(null,'${eid}',suggestClass('${eid}'))">Inscrire en ${esc(S().annee)}</button>`:'')+(arrPending(eid)>0?`<button onclick="payArr('${eid}')">Payer l'arriéré seul</button>`:'')}
- <button onclick="printDoc(ficheHTML('${eid}'))">Imprimer la fiche</button>
+ <button onclick="printFiche('${eid}')">Imprimer la fiche</button>
  <button class="danger" onclick="delEleve('${eid}')">Supprimer</button>
  <span style="flex:1"></span><button onclick="closeModal()">Fermer</button></div>`,true);
 }
@@ -907,15 +912,15 @@ function ficheHTML(eid){
  const hist=DB.inscriptions.filter(i=>i.eleveId===eid&&!i.arrOnly).sort((a,b)=>a.annee.localeCompare(b.annee)).map(i=>{const cc=cls(i.classeId);const m=cc&&cc.ecole==='primaire'?fmtN2(annualResults(cc.id,i.annee).res[i.id]?.moy):'—';return `<tr><td>${esc(i.annee)}</td><td>${esc(cc?.nom||'')}</td><td>${esc(i.type)}${i.redoublant?' (redoublant)':''}</td><td class="c">${m}</td><td>${esc(i.decision||'')}</td></tr>`}).join('');
  const L=(a,b)=>`<tr><td style="width:35%">${a}</td><td><b>${esc(b||'')}</b></td></tr>`;
  return `<div class="pg">${pageHeader(ecoleOf(c),S().annee)}<div class="title">Fiche de renseignements de l'élève</div>
- <table>${L('Matricule',e.matricule)}${L('Nom et prénoms',fullName(e))}${L('Sexe',e.sexe==='F'?'Féminin':'Masculin')}${L('Date et lieu de naissance',fmtDate(e.dateNaiss)+(e.lieuNaiss?' à '+e.lieuNaiss:''))}${L('Nationalité',e.nationalite)}${L("N° d'acte de naissance",e.acte)}${L('Nom du père',e.pere)}${L('Nom de la mère',e.mere)}${L('Tuteur / contact',e.tuteur)}${L('Téléphone',e.telephone)}${L('Adresse',e.adresse)}${L("Date d'entrée",fmtDate(e.dateEntree))}${L("École d'origine",e.ecoleOrigine)}${L('Classe actuelle',cur?cls(cur.classeId)?.nom:'')}${L('Statut',e.statut)}${L('Observations',e.observations)}</table>
+ <div style="display:flex;gap:6mm;align-items:flex-start"><div style="flex:none">${photoImg(eid,30,40)}</div><div style="flex:1"><table>${L('Matricule',e.matricule)}${L('Nom et prénoms',fullName(e))}${L('Sexe',e.sexe==='F'?'Féminin':'Masculin')}${L('Date et lieu de naissance',fmtDate(e.dateNaiss)+(e.lieuNaiss?' à '+e.lieuNaiss:''))}${L('Nationalité',e.nationalite)}${L("N° d'acte de naissance",e.acte)}${L('Nom du père',e.pere)}${L('Nom de la mère',e.mere)}${L('Tuteur / contact',e.tuteur)}${L('Téléphone',e.telephone)}${L('Adresse',e.adresse)}${L("Date d'entrée",fmtDate(e.dateEntree))}${L("École d'origine",e.ecoleOrigine)}${L('Classe actuelle',cur?cls(cur.classeId)?.nom:'')}${L('Statut',e.statut)}${L('Observations',e.observations)}</table></div></div>
  <h3 style="margin:16px 0 6px">Parcours scolaire</h3><table><thead><tr><th>Année</th><th>Classe</th><th>Type</th><th class="c">Moy. annuelle</th><th>Décision</th></tr></thead><tbody>${hist||'<tr><td colspan="5">—</td></tr>'}</tbody></table>
  <p style="text-align:right;margin-top:30px">Fait à ${esc(S().ville||'')}, le ${fmtDate(today())}</p></div>`;
 }
-function listeHTML(cid){
+function listeHTML(cid,ph){
  const c=cls(cid);if(!c)return '';const L=classInscs(cid);let g=0,f=0;
- const rows=L.map((i,k)=>{const e=elv(i.eleveId);e.sexe==='F'?f++:g++;return `<tr><td class="c">${k+1}</td><td>${esc(e.matricule)}</td><td>${esc(fullName(e))}</td><td class="c">${esc(e.sexe)}</td><td>${fmtDate(e.dateNaiss)}</td><td>${esc(e.lieuNaiss||'')}</td><td>${esc(e.tuteur||e.pere||e.mere||'')}</td><td>${esc(e.telephone||'')}</td></tr>`}).join('');
+ const rows=L.map((i,k)=>{const e=elv(i.eleveId);e.sexe==='F'?f++:g++;return `<tr><td class="c">${k+1}</td>${ph?`<td style="padding:1mm">${photoImg(e.id,15,20)}</td>`:''}<td>${esc(e.matricule)}</td><td>${esc(fullName(e))}</td><td class="c">${esc(e.sexe)}</td><td>${fmtDate(e.dateNaiss)}</td><td>${esc(e.lieuNaiss||'')}</td><td>${esc(e.tuteur||e.pere||e.mere||'')}</td><td>${esc(e.telephone||'')}</td></tr>`}).join('');
  return `<div class="pg">${pageHeader(ecoleOf(c),S().annee)}<div class="title">Liste des élèves — ${esc(c.nom)}</div><p>Enseignant(e) : <b>${esc(c.enseignant||'')}</b> &nbsp;·&nbsp; Effectif : <b>${L.length}</b> (Garçons : ${g} · Filles : ${f})</p>
- <table class="small"><thead><tr><th>N°</th><th>Matricule</th><th>Nom et prénoms</th><th>Sexe</th><th>Né(e) le</th><th>Lieu</th><th>Parent / tuteur</th><th>Téléphone</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+ <table class="small"><thead><tr><th>N°</th>${ph?'<th>Photo</th>':''}<th>Matricule</th><th>Nom et prénoms</th><th>Sexe</th><th>Né(e) le</th><th>Lieu</th><th>Parent / tuteur</th><th>Téléphone</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 function grilleHTML(cid,T){
  const c=cls(cid);if(!c)return '';const L=classInscs(cid);
@@ -1098,7 +1103,7 @@ function vRapports(){
  if(!cls(UI.f.rcl))UI.f.rcl=sortedClasses()[0]?.id;
  return `<h1>Listes & impressions</h1>
  <div class="card"><h2 style="margin-top:0">Par classe</h2><div class="row">${FS('Classe','r_cl',classOpts(UI.f.rcl),'onchange="UI.f.rcl=this.value"')}${FS('Période','r_t',opts([...TRIMS.map(t=>[t,TLABEL[t]]),['AN','Résultats annuels']],UI.f.rt||'T1'),'onchange="UI.f.rt=this.value"')}</div>
- <div class="row" style="margin-top:12px"><button onclick="printDoc(listeHTML(fval('r_cl')))">Liste de classe</button><button onclick="printDoc(grilleHTML(fval('r_cl'),fval('r_t')))">Grille de notes vierge (pour l'enseignant)</button><button onclick="printDoc(classementHTML(fval('r_cl'),fval('r_t')))">Tableau des résultats / classement</button><button onclick="const a=fval('r_cl');requirePin(()=>printDoc(paiementsHTML(a,false)),'imprimer l\'état des paiements')">État des paiements${isAdmin()?'':' 🔒'}</button><button onclick="const a=fval('r_cl');requirePin(()=>printDoc(paiementsHTML(a,true)),'imprimer les impayés')">Impayés${isAdmin()?'':' 🔒'}</button></div></div>
+ <div class="row" style="margin-top:12px"><button onclick="printDoc(listeHTML(fval('r_cl')))">Liste de classe</button><button onclick="printListePhotos(fval('r_cl'))">Liste de classe avec photos</button><button onclick="printDoc(grilleHTML(fval('r_cl'),fval('r_t')))">Grille de notes vierge (pour l'enseignant)</button><button onclick="printDoc(classementHTML(fval('r_cl'),fval('r_t')))">Tableau des résultats / classement</button><button onclick="const a=fval('r_cl');requirePin(()=>printDoc(paiementsHTML(a,false)),'imprimer l\'état des paiements')">État des paiements${isAdmin()?'':' 🔒'}</button><button onclick="const a=fval('r_cl');requirePin(()=>printDoc(paiementsHTML(a,true)),'imprimer les impayés')">Impayés${isAdmin()?'':' 🔒'}</button></div></div>
  <div class="card"><h2 style="margin-top:0">Boursiers</h2><div class="row"><button onclick="requirePin(()=>printDoc(boursiersHTML()),'imprimer la liste des boursiers')">Liste des boursiers${isAdmin()?'':' 🔒'}</button><button onclick="requirePin(()=>boursiersXLSX(),'exporter les boursiers')">Boursiers en Excel${isAdmin()?'':' 🔒'}</button><span class="muted">${yearInscs().filter(i=>elv(i.eleveId)?.boursier).length} boursier(s) inscrit(s) en ${esc(S().annee)}</span></div></div>
  <div class="card"><h2 style="margin-top:0">Documents pour un élève</h2><div class="row"><button onclick="formCertificat()">Certificat de scolarité</button><span class="muted">Aussi disponible depuis la fiche de l'élève.</span></div></div>
  <div class="card"><h2 style="margin-top:0">Toute l'école</h2><div class="row"><button onclick="printDoc(effectifsHTML())">Effectifs par classe</button><button onclick="requirePin(()=>printDoc(paiementsHTML('',true)),'imprimer tous les impayés')">Liste de tous les impayés${isAdmin()?'':' 🔒'}</button><button onclick="printDoc(registreHTML())">Registre matricule complet</button><button onclick="elevesXLSX()">Exporter les élèves (Excel)</button></div></div>
