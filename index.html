@@ -193,6 +193,11 @@ function migrate(d){
   (d.inscriptions||[]).forEach(i=>{if(i.annee==='2026-2027'&&!i.arrOnly&&(i.date||'')<'2026-06-01'){const ps=(d.paiements||[]).filter(p=>p.inscriptionId===i.id&&p.date).map(p=>p.date).sort();i.dateOrig=i.date;i.date=ps[0]||'2026-09-01'}});
   d.settings.dateFix1=true;
  }
+ if(!d.settings.entreeFix1){/* élèves nouveaux de l'année : date d'entrée à l'école = date d'inscription */
+  const E={};(d.eleves||[]).forEach(e=>E[e.id]=e);
+  (d.inscriptions||[]).forEach(i=>{const e=E[i.eleveId];if(e&&!e.dateEntree&&!i.arrOnly&&i.type==='Nouveau'&&i.date&&!(d.inscriptions||[]).some(x=>x.eleveId===i.eleveId&&x!==i&&!x.arrOnly&&x.annee<i.annee))e.dateEntree=i.date});
+  d.settings.entreeFix1=true;
+ }
  if(!d.settings.cptFix1){/* compteurs = derniers numéros réellement utilisés (l'Excel avait des lignes numérotées vides) */
   const mx={p:0,m:0};(d.paiements||[]).forEach(p=>{const r=/-(p|m)(\d+)$/.exec(p.recu||'');if(r)mx[r[1]]=Math.max(mx[r[1]],+r[2])});
   d.settings.cptRecu={primaire:mx.p,maternelle:mx.m};
@@ -208,7 +213,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='39 (18/11/2026)';
+const APP_VERSION='40 (18/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
