@@ -204,7 +204,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='36 (18/11/2026)';
+const APP_VERSION='37 (18/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -487,7 +487,7 @@ function formEleve(id,presetCl,q){
  ${F("Date d'entrée à l'école",'f_de',e.dateEntree,'date')}${F("École d'origine",'f_eo',e.ecoleOrigine)}
  ${FS('Statut','f_st',opts(STATUTS,e.statut))}
  <div class="field"><label>&nbsp;</label><label style="font-size:14px;color:inherit"><input type="checkbox" id="f_bour" ${e.boursier?'checked':''}> Boursier(ère)</label></div>
- ${F("Arriéré non encore reporté (F)",'f_arrA',e.arriereEnAttente||0,'number','min="0" step="any" title="Dette des années passées : elle sera ajoutée à la prochaine inscription."')}
+ ${arrPending(e.id)?`<div class="field"><label>Arriéré des années passées</label><b style="padding:6px 0">${fcfa(arrPending(e.id))}</b><span class="muted" style="font-size:12px">calculé automatiquement</span></div>`:''}
  </div><div class="field" style="margin-top:10px"><label>Observations</label><textarea id="f_obs">${esc(e.observations||'')}</textarea></div>
  ${inscPart}
  <div class="actions"><button onclick="closeModal()">Annuler</button><button class="primary" onclick="saveEleve('${id||''}')">Enregistrer</button></div>`);
@@ -497,7 +497,7 @@ function saveEleve(id){
  const isNew=!id;const e=isNew?{id:uid()}:elv(id);
  const mat=fval('f_mat');
  if(mat&&DB.eleves.some(x=>x.matricule===mat&&x.id!==e.id)){alert('Ce matricule est déjà utilisé.');return}
- const data={nom:nom.toUpperCase(),prenoms:pre,sexe:fval('f_sexe'),dateNaiss:fval('f_dn'),lieuNaiss:fval('f_ln'),nationalite:fval('f_nat'),acte:fval('f_acte'),pere:fval('f_pere'),mere:fval('f_mere'),tuteur:fval('f_tut'),telephone:fval('f_tel'),adresse:fval('f_adr'),dateEntree:fval('f_de'),ecoleOrigine:fval('f_eo'),statut:fval('f_st'),boursier:fval('f_bour'),observations:fval('f_obs'),arriereEnAttente:+fval('f_arrA')||0};
+ const data={nom:nom.toUpperCase(),prenoms:pre,sexe:fval('f_sexe'),dateNaiss:fval('f_dn'),lieuNaiss:fval('f_ln'),nationalite:fval('f_nat'),acte:fval('f_acte'),pere:fval('f_pere'),mere:fval('f_mere'),tuteur:fval('f_tut'),telephone:fval('f_tel'),adresse:fval('f_adr'),dateEntree:fval('f_de'),ecoleOrigine:fval('f_eo'),statut:fval('f_st'),boursier:fval('f_bour'),observations:fval('f_obs'),};
  if(isNew&&DB.eleves.some(x=>norm(x.nom)===norm(data.nom)&&norm(x.prenoms)===norm(pre)&&(x.dateNaiss||'')===data.dateNaiss)&&!confirm('Un élève avec le même nom (et la même date de naissance) existe déjà. Enregistrer quand même ?'))return;
  const before=isNew?null:{...e};Object.assign(e,data);e.matricule=mat||e.matricule||nextMatricule(cls(fval('f_cl'))?.ecole);if(before)hRecord('eleve',e,before,e.id);
  let newI=null;if(isNew){DB.eleves.push(e);const cl=fval('f_cl');if(cl){newI=createInscription(e.id,cl);logJ('Inscription',`${fullName(e)} — ${cls(cl)?.nom} ${S().annee} (nouvel élève)`)}}
