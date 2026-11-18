@@ -127,7 +127,7 @@ const NIV_MAT=['PS','MS','GS'];
 const NIV_PRI=['CP1','CP2','CE1','CE2','CM1','CM2'];
 const NIV_ALL=[...NIV_MAT,...NIV_PRI];
 const NEXT={PS:'MS',MS:'GS',GS:'CP1',CP1:'CP2',CP2:'CE1',CE1:'CE2',CE2:'CM1',CM1:'CM2',CM2:null};
-const STATUTS=['Actif','Transféré','Abandon','Sorti (fin de cycle)','Exclu','Ancien élève'];
+const STATUTS=['Actif','Non revenu','Transféré','Abandon','Sorti (fin de cycle)','Exclu','Ancien élève'];
 const DEF_RUB=[{k:'scolarite',l:'Scolarité'},{k:'ape',l:'APE',ext:true},{k:'gouter',l:'Goûter'},{k:'livres',l:'Livres'}];
 const TRANCHES=['1ère tranche','2ème tranche','3ème tranche','4ème tranche','Solde'];
 const DECISIONS=['Admis(e)','Redouble','Abandon','Transféré(e)','Exclu(e)'];
@@ -336,6 +336,7 @@ function nextMatricule(ec){
 function nextRecu(ec){ec=ec==='maternelle'?'maternelle':'primaire';S().cptRecu[ec]=(+S().cptRecu[ec]||0)+1;return `${anneeCourte(S().annee)}-${ec==='maternelle'?'m':'p'}${String(S().cptRecu[ec]).padStart(4,'0')}`}
 function createInscription(eid,cid,annee,extra){
  annee=annee||S().annee;const c=cls(cid);
+ {const e1=elv(eid);if(e1){delete e1.niveauPrevu;const pm=S().prefixes.maternelle||'M';if(c&&c.ecole==='primaire'&&String(e1.matricule||'').startsWith(pm)){e1.matriculeMat=e1.matricule;e1.matricule=nextMatricule('primaire');logJ('Nouveau matricule',`${fullName(e1)} : ${e1.matriculeMat} → ${e1.matricule} (entrée au primaire)`)}}}
  const ao=DB.inscriptions.find(x=>x.eleveId===eid&&x.annee===annee&&x.arrOnly);
  if(ao){const prev0=DB.inscriptions.some(x=>x.eleveId===eid&&x.annee!==annee&&!x.arrOnly);const e0=elv(eid);const keepArr=(extra&&extra.arriere!==undefined)?+extra.arriere||0:(+ao.arriere||0);
   Object.assign(ao,{type:prev0?'Ancien':'Nouveau',redoublant:false,frais:Object.assign(zeroFrais(),c.frais||{}),remise:0,date:today(),decision:''},extra||{},{classeId:cid,arrOnly:false,arriere:keepArr+(+(e0&&e0.arriereEnAttente)||0)});delete ao.ecole;if(e0)e0.arriereEnAttente=0;return ao}
@@ -410,7 +411,7 @@ function vDash(){
   <li><b>Inscrire un élève</b> : saisissez les élèves un par un, ou importez votre liste Excel (enregistrée en CSV) depuis Paramètres & données.</li>
   <li><b>Paiements</b> : enregistrez chaque versement ; un reçu s'imprime en deux exemplaires.</li>
   <li><b>Saisie des notes</b> puis <b>Bulletins</b> : imprimez les bulletins de toute une classe en un clic.</li>
-  <li>En fin d'année, <b>Fin d'année / passage</b> réinscrit automatiquement les élèves dans la classe supérieure.</li></ol>
+  <li>En fin d'année, <b>Fin d'année / passage</b> prépare la rentrée : chaque élève apparaît ensuite dans « Inscrire un élève » avec sa nouvelle classe, et il suffit d'un clic quand les parents viennent l'inscrire.</li></ol>
   <p class="muted" style="margin-bottom:0">Les données restent dans ce navigateur sur cet ordinateur. Téléchargez régulièrement une sauvegarde (bouton en bas du menu).</p></div>`;
  return `${backupBanner()}<h1>Tableau de bord — ${esc(a)}</h1>
  ${isAdmin()?'':`<div class="banner" style="background:#f4f6f8;border-color:#e2e6ea">🔒 Les montants financiers sont réservés à la direction. <button class="small" onclick="requirePin(render,'voir les finances')">Afficher (code direction)</button></div>`}
@@ -489,7 +490,7 @@ function openFiche(eid){
  const cur=inscOf(eid);
  modal(`<h3>${esc(fullName(e))} <span class="muted" style="font-weight:400">· ${esc(e.matricule)}</span> ${statTag(e.statut)}</h3>
  <div class="form-grid" style="gap:8px 14px">${kv('Sexe',e.sexe==='F'?'Féminin':'Masculin')}${kv('Né(e) le',fmtDate(e.dateNaiss)+(e.lieuNaiss?' à '+e.lieuNaiss:''))}${kv('Nationalité',e.nationalite)}${kv('Acte de naissance',e.acte)}
- ${kv('Père',e.pere)}${kv('Mère',e.mere)}${kv('Tuteur / contact',e.tuteur)}${kv('Téléphone',e.telephone)}${kv('Adresse',e.adresse)}${kv("Entrée à l'école",fmtDate(e.dateEntree))}${kv("École d'origine",e.ecoleOrigine)}${kv('Boursier',e.boursier?'Oui':'Non')}${arrPending(eid)?kv('Arriéré des années passées',fcfa(arrPending(eid))):''}</div>
+ ${kv('Père',e.pere)}${kv('Mère',e.mere)}${kv('Tuteur / contact',e.tuteur)}${kv('Téléphone',e.telephone)}${kv('Adresse',e.adresse)}${kv("Entrée à l'école",fmtDate(e.dateEntree))}${kv("École d'origine",e.ecoleOrigine)}${e.matriculeMat?kv('Ancien matricule (maternelle)',e.matriculeMat):''}${kv('Boursier',e.boursier?'Oui':'Non')}${arrPending(eid)?kv('Arriéré des années passées',fcfa(arrPending(eid))):''}</div>
  ${e.observations?`<p><span class="muted" style="font-size:12px">Observations</span><br>${esc(e.observations)}</p>`:''}
  ${(()=>{const H=(DB.hist||[]).filter(h=>h.eid===eid).slice().reverse();return H.length?`<details style="margin-top:12px"><summary style="cursor:pointer;font-weight:600">Historique des modifications (${H.length})</summary><div style="overflow:auto;margin-top:6px"><table class="data"><thead><tr><th>Date</th><th>Par</th><th>Champ</th><th>Avant</th><th>Après</th><th></th></tr></thead><tbody>${hRows(H.slice(0,100),false)}</tbody></table></div></details>`:''})()}
  <h3 style="margin:16px 0 8px;font-size:15px">Parcours scolaire</h3>
@@ -511,18 +512,30 @@ function delEleve2(eid){
 }
 
 /* ---------- Inscrire un élève ---------- */
+function reinscList(){
+ const a=S().annee;return DB.eleves.filter(e=>e.statut==='Actif'&&!inscOf(e.id)).map(e=>{const last=DB.inscriptions.filter(i=>i.eleveId===e.id&&i.annee<a&&!i.arrOnly).sort((x,y)=>y.annee.localeCompare(x.annee))[0];const cid=suggestClass(e.id);return {e,last,cid}}).filter(x=>x.cid||x.last).sort((x,y)=>NIV_ALL.indexOf(cls(x.cid)?.niveau)-NIV_ALL.indexOf(cls(y.cid)?.niveau)||byName(x.e,y.e));
+}
+function nonRevenu(eid){const e=elv(eid);if(!e||!confirm(`Marquer ${fullName(e)} comme « Non revenu » ? Il/elle disparaîtra de la liste à réinscrire (vous pourrez le changer dans sa fiche).`))return;const before=JSON.parse(JSON.stringify(e));e.statut='Non revenu';hRecord('eleve',e,before,e.id);logJ('Non revenu',fullName(e));save();render()}
+function reinscCard(){
+ const L=reinscList();if(!L.length)return '';
+ const rows=L.map(x=>{const e=x.e,c=cls(x.cid),lc=x.last?cls(x.last.classeId):null,ar=arrPending(e.id);const toP=c&&c.ecole==='primaire'&&String(e.matricule||'').startsWith(S().prefixes.maternelle||'M');
+  return `<tr data-s="${rowKey(e)}"><td><b>${esc(fullName(e))}</b></td><td>${esc(e.matricule)}</td><td>${lc?esc(lc.nom)+' <span class="muted">'+esc(x.last.annee)+'</span>'+(x.last.decision?'<br><span class="muted">'+esc(x.last.decision)+'</span>':''):'<span class="muted">à confirmer</span>'}</td><td><b>${esc(c?.nom||'?')}</b>${toP?'<br><span class="muted">nouveau n° P</span>':''}</td><td class="num">${ar?fcfa(ar):'—'}</td><td style="white-space:nowrap">${c?`<button class="primary small" onclick="formInscription(null,'${e.id}','${c.id}')">Inscrire en ${esc(c.nom)}</button>`:`<button class="small" onclick="formInscription(null,'${e.id}','')">Inscrire</button>`} <button class="small" onclick="nonRevenu('${e.id}')" title="L'élève n'est pas revenu cette année">Non revenu</button></td></tr>`}).join('');
+ return `<div class="card" style="padding:0;overflow:auto"><div class="row" style="padding:10px 14px;align-items:center;justify-content:space-between"><b>Anciens élèves à réinscrire (${L.length})</b><input oninput="filterRows('tb_re',this.value)" placeholder="Rechercher (nom ou numéro)" style="max-width:280px"></div>
+ <div style="max-height:420px;overflow:auto"><table class="data"><thead><tr><th>Élève</th><th>N°</th><th>Année passée</th><th>Classe ${esc(S().annee)}</th><th class="num">Arriéré</th><th></th></tr></thead><tbody id="tb_re">${rows}</tbody></table></div></div>`;
+}
 function vInscrire(){
  const rec=yearInscs().slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,8);
  return `${backupBanner()}<h1>Inscrire un élève — ${esc(S().annee)}</h1>
  <div class="card"><div class="field"><label style="font-size:14px;color:var(--ink)"><b>1.</b> Cherchez l'élève par son nom ou son numéro</label><input id="ins_q" style="font-size:17px;padding:10px;max-width:520px" placeholder="ex. Sanou Rosalie, 0179 ou P0179" value="${esc(UI.f.insq||'')}" oninput="UI.f.insq=this.value;fillInscrire()" autocomplete="off"></div>
  <div id="ins_res" style="margin-top:10px"></div>
  <div class="row" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px;align-items:center"><span><b>2.</b> L'élève n'a jamais fréquenté l'école ?</span><button class="primary" onclick="formEleve(null,'',fval('ins_q'))">+ Nouvel élève</button></div></div>
+ ${reinscCard()}
  <div class="card" style="padding:0;overflow:auto"><div style="padding:10px 14px;font-weight:600">Dernières inscriptions</div><table class="data"><tbody>${rec.map(i=>{const e=elv(i.eleveId);return `<tr><td>${fmtDate(i.date)}</td><td><b>${esc(fullName(e))}</b> <span class="muted">${esc(e?.matricule)}</span></td><td>${esc(cls(i.classeId)?.nom||'')}</td><td>${esc(i.type)}</td><td class="num">${reste(i)>0?'Reste '+fcfa(reste(i)):'<span class="tag ok">soldé</span>'}</td><td><button class="small" onclick="formPaiement('${i.id}')">Paiement</button></td></tr>`}).join('')||'<tr><td class="muted">Aucune inscription.</td></tr>'}</tbody></table></div>`;
 }
 function fillInscrire(){
  const box=document.getElementById('ins_res');if(!box)return;const raw=fval('ins_q'),q=norm(raw),digits=q.replace(/[^0-9]/g,'');
  if(q.length<2){box.innerHTML='<div class="muted">Tapez au moins 2 lettres ou chiffres.</div>';return}
- const L=DB.eleves.filter(e=>{const k=norm(fullName(e)+' '+e.matricule);return k.includes(q)||(digits&&/^[a-z]?\d+$/.test(q.replace(/\s/g,''))&&String(e.matricule||'').replace(/\D/g,'').endsWith(digits.padStart(4,'0')))}).sort(byName);
+ const L=DB.eleves.filter(e=>{const k=norm(fullName(e)+' '+e.matricule+' '+(e.matriculeMat||''));return k.includes(q)||(digits&&/^[a-z]?\d+$/.test(q.replace(/\s/g,''))&&[e.matricule,e.matriculeMat].some(m=>String(m||'').replace(/\D/g,'').endsWith(digits.padStart(4,'0'))))}).sort(byName);
  if(!L.length){box.innerHTML=`<div class="banner" style="background:#f4f6f8;border-color:#e2e6ea">Aucun élève trouvé pour « ${esc(raw)} ». Si c'est un nouvel élève, cliquez sur <b>+ Nouvel élève</b> ci-dessous.</div>`;return}
  box.innerHTML=`<table class="data"><thead><tr><th>Élève</th><th>Né(e) le</th><th>Parcours</th><th>Statut</th><th></th></tr></thead><tbody>${L.slice(0,15).map(e=>{const cur=inscOf(e.id);const last=DB.inscriptions.filter(i=>i.eleveId===e.id&&i.annee<S().annee).sort((a,b)=>b.annee.localeCompare(a.annee))[0];
   const parc=last?`${esc(cls(last.classeId)?.nom||'')} en ${esc(last.annee)}`:(e.niveauPrevu?`attendu en ${esc(e.niveauPrevu)}`:'—');
@@ -535,7 +548,7 @@ function suggestClass(eid){
 }
 function afterInscription(iid){
  const i=ins(iid);if(!i)return;const e=elv(i.eleveId);
- modal(`<h3>✓ Inscription enregistrée</h3><p><b>${esc(fullName(e))}</b> (${esc(e.matricule)}) est inscrit(e) en <b>${esc(cls(i.classeId)?.nom||'')}</b> pour ${esc(i.annee)}.</p><p>Montant à payer pour l'année : <b>${fcfa(du(i))}</b>${i.arriere?` (dont arriéré ${fcfa(i.arriere)})`:''}.</p>
+ modal(`<h3>✓ Inscription enregistrée</h3><p><b>${esc(fullName(e))}</b> (${esc(e.matricule)}) est inscrit(e) en <b>${esc(cls(i.classeId)?.nom||'')}</b> pour ${esc(i.annee)}.</p>${e.matriculeMat&&!DB.inscriptions.some(x=>x.eleveId===e.id&&x.id!==i.id&&cls(x.classeId)?.ecole==='primaire')?`<p>Nouveau numéro au primaire : <b>${esc(e.matricule)}</b> (ancien numéro maternelle : ${esc(e.matriculeMat)}).</p>`:''}<p>Montant à payer pour l'année : <b>${fcfa(du(i))}</b>${i.arriere?` (dont arriéré ${fcfa(i.arriere)})`:''}.</p>
  <div class="actions"><button onclick="closeModal()">Plus tard</button><button class="primary" onclick="formPaiement('${iid}')">Recevoir le premier paiement</button></div>`);
 }
 
@@ -566,7 +579,7 @@ function formInscription(iid,eid,presetCid){
  modal(`<h3>${i?"Modifier l'inscription":'Inscription'} ${esc(a)}</h3><div class="form-grid">${eleveSel}
  ${FS('Classe *','f_cl','<option value="">— choisir —</option>'+classOpts(cid),'onchange="prefillFees()"')}
  ${FS('Type','f_type',opts(['Nouveau','Ancien'],typeDef))}
- ${FS('Redoublant(e)','f_red',opts([['0','Non'],['1','Oui']],i?.redoublant?'1':'0'))}
+ ${FS('Redoublant(e)','f_red',opts([['0','Non'],['1','Oui']],(i?i.redoublant:(pick&&DB.inscriptions.filter(x=>x.eleveId===pick&&x.annee<S().annee&&!x.arrOnly).sort((x,y)=>y.annee.localeCompare(x.annee))[0]?.decision==='Redouble'))?'1':'0'))}
  ${RUB().map(r=>F(esc(r.l)+' (F)','f_fr_'+r.k,i?((i.frais||{})[r.k]||0):((c0?.frais||{})[r.k]||0),'number','min="0" step="any"')).join('')}
  ${F('Arriéré des années passées (F)','f_arr',i?(i.arriere||0):((pick&&arrPending(pick)+(arrOnlyOf(pick)?paidC(arrOnlyOf(pick).id,'arriere'):0))||0),'number','min="0" step="any"')}
  ${F('Réduction sur la scolarité (F)','f_rem',i?.remise||0,'number','min="0" step="any"')}
@@ -953,7 +966,7 @@ function vFin(){
   return `<div class="card" style="padding:0;overflow:auto"><div style="padding:10px 14px"><b>${esc(c.nom)}</b> <span class="muted">· ${L.length} élève(s) · les admis passent en ${esc(NEXT[c.niveau]||'— fin de cycle (sortie)')}</span></div><table class="data"><thead><tr><th>Élève</th><th class="num">T1</th><th class="num">T2</th><th class="num">T3</th><th class="num">Annuelle</th><th>Rang</th><th>Proposition</th><th>Décision</th></tr></thead><tbody>${rows}</tbody></table></div>`}).join('');
  return `<h1>Fin d'année ${esc(a)} → passage en ${esc(n)}</h1>
  <div class="card"><ol class="steps" style="margin-top:0"><li>Vérifiez les décisions. Proposition automatique : moyenne annuelle ≥ ${fmtN(S().seuil)}/10 → Admis(e), sinon Redouble (modifiable dans Paramètres).</li>
- <li>Cliquez sur « Passer à ${esc(n)} » : les admis sont inscrits dans la classe supérieure (GS → CP1), les redoublants dans la même classe, les CM2 admis passent au statut « Sorti (fin de cycle) ». Les frais reprennent les montants définis pour chaque classe, et ce qui reste impayé est reporté automatiquement en arriéré.</li>
+ <li>Cliquez sur « Passer à ${esc(n)} » : l'année suivante s'ouvre. Les élèves ne sont pas inscrits automatiquement : ils apparaissent dans « Inscrire un élève » (liste des anciens élèves à réinscrire) avec leur nouvelle classe — classe supérieure pour les admis (GS → CP1, avec un nouveau numéro P), même classe pour les redoublants. On les inscrit d'un clic quand les parents viennent. Les CM2 admis passent au statut « Sorti (fin de cycle) ». Ce qui reste impayé est reporté en arriéré.</li>
  <li>Une sauvegarde de l'année ${esc(a)} est téléchargée automatiquement avant le passage. Les données de ${esc(a)} restent consultables (Paramètres → année scolaire).</li></ol>
  <div class="row"><button onclick="applyPropositions()">Remplir les décisions vides avec les propositions</button><button class="primary" onclick="doPassage()">Passer à l'année ${esc(n)}</button></div></div>${blocks||'<div class="card">Aucune inscription cette année.</div>'}`;
 }
@@ -965,18 +978,18 @@ function doPassage(){
  const a=S().annee,n=nextYear(a),L=yearInscs(a);
  if(!L.length){alert('Aucune inscription cette année.');return}
  const sans=L.filter(i=>!i.decision).length;
- if(!confirm(`Passer de ${a} à ${n} ?${sans?`\n\nAttention : ${sans} élève(s) sans décision ne seront pas réinscrits (vous pourrez les inscrire à la main).`:''}\n\nUne sauvegarde sera d'abord téléchargée.`))return;
+ if(!confirm(`Passer de ${a} à ${n} ?${sans?`\n\nAttention : ${sans} élève(s) sans décision : ils seront proposés dans la classe supérieure.`:''}\n\nUne sauvegarde sera d'abord téléchargée.`))return;
  downloadBackup();
  let nb=0,sortis=0;const manque=new Set();
  let arrT=0;
  arrInscs(a).forEach(i=>{const e=elv(i.eleveId),r=reste(i);if(e&&r>0){e.arriereEnAttente=(+e.arriereEnAttente||0)+r;arrT+=r}});
  L.forEach(i=>{const e=elv(i.eleveId),c=cls(i.classeId);if(!e||!c||inscOf(e.id,n))return;const d=i.decision;const r=reste(i);if(r>0){e.arriereEnAttente=(+e.arriereEnAttente||0)+r;arrT+=r}
-  if(d==='Admis(e)'){const nx=NEXT[c.niveau];if(!nx){e.statut='Sorti (fin de cycle)';sortis++;return}const tc=findClassByNiveau(nx);if(!tc){manque.add(nx);return}createInscription(e.id,tc.id,n,{type:'Ancien'});nb++}
-  else if(d==='Redouble'){createInscription(e.id,c.id,n,{type:'Ancien',redoublant:true});nb++}
+  if(d==='Admis(e)'){const nx=NEXT[c.niveau];if(!nx){e.statut='Sorti (fin de cycle)';sortis++;return}if(!findClassByNiveau(nx))manque.add(nx);e.niveauPrevu=nx;nb++}
+  else if(d==='Redouble'){e.niveauPrevu=c.niveau;nb++}
   else if(d==='Abandon')e.statut='Abandon';else if(d==='Transféré(e)')e.statut='Transféré';else if(d==='Exclu(e)')e.statut='Exclu';
  });
- S().annee=n;save();UI.view='inscr';UI.f.icl='';render();
- alert(`Année ${n} ouverte.\n${nb} élève(s) réinscrit(s), ${sortis} sortie(s) en fin de cycle.\nArriérés reportés : ${fcfa(arrT)} (ajoutés aux nouvelles inscriptions).${manque.size?`\nClasses introuvables : ${[...manque].join(', ')} — élèves concernés non réinscrits.`:''}\n\nInscrivez maintenant les nouveaux élèves. S'il y a plusieurs sections d'un même niveau, vérifiez la répartition.`);
+ S().annee=n;save();UI.view='inscrire';render();
+ alert(`Année ${n} ouverte.\n${nb} élève(s) à réinscrire, ${sortis} sortie(s) en fin de cycle.\nArriérés reportés : ${fcfa(arrT)} (ajoutés à l'inscription quand l'élève revient).${manque.size?`\nClasses à créer : ${[...manque].join(', ')}.`:''}\n\nÀ la rentrée, ouvrez « Inscrire un élève » : la liste des anciens élèves à réinscrire s'y trouve. Inscrivez chaque élève quand ses parents viennent.`);
 }
 
 /* ---------- Paramètres & données ---------- */
@@ -1159,7 +1172,7 @@ function pickResolve(id){
  if(P.cb)window[P.cb]();
 }
 function filterRows(tb,q){q=norm(q);document.querySelectorAll('#'+tb+' [data-s]').forEach(tr=>{tr.style.display=!q||tr.dataset.s.includes(q)?'':'none'})}
-function rowKey(e){return esc(norm(fullName(e)+' '+(e?.matricule||'')+' '+String(e?.matricule||'').replace(/^[A-Za-z]+/,'')))}
+function rowKey(e){return esc(norm(fullName(e)+' '+(e?.matricule||'')+' '+String(e?.matricule||'').replace(/^[A-Za-z]+/,'')+' '+(e?.matriculeMat||'')))}
 
 /* ---------- export Excel (.xlsx, sans connexion) ---------- */
 const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
