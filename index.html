@@ -223,7 +223,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='61 (19/11/2026)';
+const APP_VERSION='62 (19/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -354,7 +354,7 @@ function payeK(i,K){return K.reduce((s,k)=>s+paidC(i.id,k),0)}
 function resteK(i,K){return K.reduce((s,k)=>s+Math.max(0,dueC(i,k)-paidC(i.id,k)),0)}
 function partsK(p,K){return K.reduce((s,k)=>s+(+(p.parts||{})[k]||0),0)}
 function rubLabel(k){return k==='arriere'?'Arriéré':(RUB().find(r=>r.k===k)?.l||k)}
-function dueC(i,k){let d=k==='arriere'?(+i.arriere||0):(+(i.frais||{})[k]||0);if(k==='scolarite')d-=(+i.remise||0);return Math.max(0,d)}
+function dueC(i,k){let d=k==='arriere'?(+i.arriere||0):(+(i.frais||{})[k]||0);if(k==='scolarite')d-=(+i.remise||0);d=Math.max(0,d);if(i.depart&&k!=='arriere')d=Math.min(d,Math.max(0,paidC(i.id,k)));return d}
 function paidC(iid,k){return DB.paiements.filter(p=>p.inscriptionId===iid&&!p.annule).reduce((s,p)=>s+(+(p.parts||{})[k]||0),0)}
 function du(i){return keysAll().reduce((s,k)=>s+dueC(i,k),0)}
 function paye(iid){return DB.paiements.filter(p=>p.inscriptionId===iid&&!p.annule).reduce((s,p)=>s+(+p.montant||0),0)}
@@ -850,8 +850,50 @@ function exportSheetDep(d1,d2){
  <ol style="margin:6px 0 10px 18px;padding:0"><li>Cliquez sur <b>Copier</b>.</li><li>Dans l'onglet <b>Dépenses courantes</b>, cliquez dans la colonne <b>A</b> de la première ligne vide, puis collez.</li><li>Ne collez pas deux fois la même période.</li></ol>
  <textarea id="tsv_out" readonly style="width:100%;height:200px;font-family:monospace;font-size:12px">${esc(tsv)}</textarea><div class="actions"><button onclick="closeModal()">Fermer</button><button class="primary" onclick="copyTSV()">Copier</button></div>`);
 }
+/* ---------- remboursements (direction) : bon série R, montant négatif à la date du remboursement ---------- */
+function rembsOf(pid){return DB.paiements.filter(x=>x.remb&&x.remb.orig===pid&&!x.annule)}
+function rembMax(p,k){return Math.max(0,(+(p.parts||{})[k]||0)+rembsOf(p.id).reduce((s,x)=>s+(+(x.parts||{})[k]||0),0))}
+function nextRemb(){const pre=`${anneeCourte(S().annee)}-R`;let mx=0;DB.paiements.forEach(p=>{const r=String(p.recu||'');if(r.startsWith(pre)){const v=parseInt(r.slice(pre.length),10);if(v>mx)mx=v}});return pre+String(mx+1).padStart(4,'0')}
+function canRemb(p){const i=ins(p.inscriptionId);return !p.annule&&!p.remb&&!isArrPay(p)&&i&&i.annee===DB.settings.annee&&!ARCH()&&keysSchool().filter(k=>k!=='arriere').some(k=>rembMax(p,k)>0)}
+function formRemb(pid){if(noArch())return;requirePin(()=>{
+ const p=DB.paiements.find(x=>x.id===pid);if(!p||!canRemb(p))return;const i=ins(p.inscriptionId),e=elv(i.eleveId);
+ const K=keysSchool().filter(k=>k!=='arriere'&&rembMax(p,k)>0);const ape=partsK(p,keysExt());
+ modal(`<h3>Remboursement — reçu N° ${esc(p.recu)}</h3><p>${esc(fullName(e))} (${esc(e.matricule)}) — ${esc(clsNom(i))} — reçu du ${fmtDate(p.date)} : ${fcfa(p.montant)}</p>
+ <p class="muted" style="margin-top:0">Le reçu d'origine reste valable (l'argent a bien été reçu ce jour-là). Le remboursement est enregistré à la date où l'argent est rendu, avec un bon numéroté (série R) à faire signer par le parent.${ape?` L'APE (${fcfa(ape)}) n'est pas remboursée par l'école : voir avec l'APE.`:''}</p>
+ <div class="form-grid">${K.map(k=>F(`${rubLabel(k)} à rembourser (max ${fcfa(rembMax(p,k))})`,'rb_'+k,rembMax(p,k),'number',`min="0" max="${rembMax(p,k)}" step="any" oninput="rembSum()"`)).join('')}
+ ${F('Date du remboursement','rb_d',today(),'date')}${F('Motif *','rb_m','','text','placeholder="ex. inscription annulée par les parents"')}</div>
+ <div id="rb_tot" style="margin:10px 0;font-size:16px"></div>
+ <label style="display:block;margin:6px 0"><input type="checkbox" id="rb_dep" checked> L'élève quitte l'école (statut « Abandon » ; il n'aura plus rien à payer cette année)</label>
+ <label style="display:block;margin:6px 0"><input type="checkbox" id="rb_rr" checked> Le parent a rendu le reçu d'origine</label>
+ <div class="actions"><button onclick="closeModal()">Retour</button><button class="primary" onclick="saveRemb('${p.id}')">Enregistrer et imprimer le bon</button></div>`);
+ window._rbK=K;rembSum();
+},'faire un remboursement')}
+function rembSum(){const t=(window._rbK||[]).reduce((s,k)=>s+(+fval('rb_'+k)||0),0);const el=document.getElementById('rb_tot');if(el)el.innerHTML=`Total remboursé : <b>${fcfa(t)}</b>`}
+function saveRemb(pid){if(noArch())return;const p=DB.paiements.find(x=>x.id===pid);if(!p||!canRemb(p))return;const i=ins(p.inscriptionId),e=elv(i.eleveId);
+ const parts={};let t=0;for(const k of window._rbK||[]){const v=+fval('rb_'+k)||0;if(v<0||v>rembMax(p,k)){alert(`${rubLabel(k)} : entre 0 et ${fcfa(rembMax(p,k))}.`);return}if(v){parts[k]=-v;t+=v}}
+ const d=fval('rb_d'),m=fval('rb_m'),dep=document.getElementById('rb_dep').checked,rr=document.getElementById('rb_rr').checked;
+ if(!(t>0)){alert('Indiquez le montant à rembourser.');return}if(!m){alert('Indiquez le motif.');return}if(!d||d<p.date){alert('Date invalide (elle ne peut pas précéder le reçu).');return}
+ if(!confirm(`Rembourser ${fcfa(t)} à ${fullName(e)} le ${fmtDate(d)} ?`))return;
+ const r={id:uid(),inscriptionId:i.id,date:d,montant:-t,parts,mode:'Espèces',remarque:'Remboursement — '+m,recu:nextRemb(),remb:{orig:p.id,motif:m,depart:dep,recuRendu:rr},by:devName()||''};
+ DB.paiements.push(r);
+ if(dep){i.depart={date:d,motif:m,remb:r.id};const before=JSON.parse(JSON.stringify(e));e.statut='Abandon';hRecord('eleve',e,before,e.id)}
+ logJ('Remboursement',`${r.recu} — ${fullName(e)} — ${fcfa(t)} (reçu ${p.recu}) — motif : ${m}${dep?' — départ de l\'élève':''}`);save();closeModal();render();printDoc(rembHTML(r));
+}
+function rembHTML(r){
+ const i=ins(r.inscriptionId),e=elv(i.eleveId),c=cls(i.classeId)||{nom:'',ecole:insEcole(i)},sc=ecoleOf(c),o=DB.paiements.find(x=>x.id===r.remb.orig);const t=-(+r.montant||0);
+ const lines=Object.entries(r.parts||{}).map(([k,v])=>`<tr><td>${esc(rubLabel(k))}</td><td class="r">${fcfa(-v)}</td></tr>`).join('');
+ const one=lab=>`<div class="recu-box">${pageHeader(sc,i.annee)}
+ <div style="display:flex;justify-content:space-between;align-items:baseline;margin:6px 0"><span style="font-size:19px;font-weight:bold;text-transform:uppercase">Bon de remboursement N° ${esc(r.recu)}</span><span style="border:${r.annule?2:1}px solid #000;padding:2px 8px;font-weight:bold">${TRY?'ESSAI — ':''}${r.annule?'ANNULÉ — ':''}${lab}</span></div>
+ <table class="info"><tr><td style="width:62%">Élève : <b>${esc(fullName(e))}</b> (${esc(e.matricule)}) — Classe : <b>${esc(c.nom)}</b></td><td>Date : <b>${fmtDate(r.date)}</b></td></tr>
+ <tr><td colspan="2">Reçu d'origine : <b>N° ${esc(o?.recu||'?')}</b> du ${fmtDate(o?.date)} (${fcfa(o?.montant||0)}) — ${r.remb.recuRendu?'rendu par le parent':'<b>non rendu</b>'}</td></tr>
+ <tr><td colspan="2">Motif : ${esc(r.remb.motif)}${r.remb.depart?' — l\'élève quitte l\'école':''}</td></tr></table>
+ <table><thead><tr><th>Rubrique</th><th class="r" style="width:40%">Montant remboursé</th></tr></thead><tbody>${lines}</tbody><tfoot><tr><th>TOTAL REMBOURSÉ</th><th class="r" style="font-size:16px">${fcfa(t)}</th></tr></tfoot></table>
+ <div>Le parent reconnaît avoir reçu la somme de : <b>${nombreEnLettres(t)} (${fcfa(t).replace(' F','')}) francs CFA</b>.${partsK(o||{},keysExt())?' L\'APE n\'est pas remboursée par l\'école.':''}</div>
+ <div class="sign"><div>Le Parent<br><span style="font-size:11px">(nom et signature : « reçu la somme »)</span></div><div>La Direction<br><span style="font-size:11px">(signature et cachet de l'école)</span></div></div></div>`;
+ return `<div class="pg recu-page"><div class="recu-wrap"><div class="recu-half">${one('Copie PARENTS')}</div><div class="recu-cut">✂ ${'- '.repeat(70)}✂</div><div class="recu-half">${one('Copie ÉCOLE')}</div></div></div>`;
+}
 function payRow(p,withEleve){const i=ins(p.inscriptionId),e=elv(i?.eleveId);const an=p.annule;
- return `<tr${an?' style="color:#98a2b3"':''}><td>${fmtDate(p.date)}</td><td>${esc(p.recu)}</td>${withEleve?`<td><a href="#" onclick="UI.f.pq='${esc(e?.matricule||'')}';render();return false"><b>${esc(fullName(e))}</b></a><br><span class="muted">${esc(e?.matricule||'')}</span></td><td>${esc(clsNom(i))}</td>`:`<td>${esc(i?.annee||'')} · ${esc(clsNom(i))}</td>`}<td>${esc(partsTxt(p))}<br><span class="muted">${esc(p.remarque||'')}</span></td><td>${esc(p.mode)}</td><td class="num">${an?`<s>${fcfa(p.montant)}</s><br><span class="tag bad">ANNULÉ</span>`:`<b>${fcfa(p.montant)}</b>`}</td><td style="white-space:nowrap"><button class="small" onclick="printDoc(recuHTML(DB.paiements.find(x=>x.id==='${p.id}')))">Voir le reçu</button> ${an?`<span class="muted" title="${esc(an.motif)}">motif</span>`:(ins(p.inscriptionId)?.annee===DB.settings.annee||isArrPay(p))&&!ARCH()?`<button class="small danger" title="Annuler ce reçu" onclick="delPaiement('${p.id}')">Annuler</button>`:'<span class="muted" title="Reçu d\'une année archivée">archives</span>'}</td></tr>`}
+ return `<tr${an?' style="color:#98a2b3"':''}><td>${fmtDate(p.date)}</td><td>${esc(p.recu)}</td>${withEleve?`<td><a href="#" onclick="UI.f.pq='${esc(e?.matricule||'')}';render();return false"><b>${esc(fullName(e))}</b></a><br><span class="muted">${esc(e?.matricule||'')}</span></td><td>${esc(clsNom(i))}</td>`:`<td>${esc(i?.annee||'')} · ${esc(clsNom(i))}</td>`}<td>${esc(partsTxt(p))}<br><span class="muted">${esc(p.remarque||'')}</span></td><td>${esc(p.mode)}</td><td class="num">${an?`<s>${fcfa(p.montant)}</s><br><span class="tag bad">ANNULÉ</span>`:`<b>${fcfa(p.montant)}</b>`}</td><td style="white-space:nowrap"><button class="small" onclick="printDoc(recuHTML(DB.paiements.find(x=>x.id==='${p.id}')))">${p.remb?'Voir le bon':'Voir le reçu'}</button> ${!an&&rembsOf(p.id).length?`<span class="tag">remboursé : ${rembsOf(p.id).map(x=>esc(x.recu)).join(', ')}</span> `:''}${canRemb(p)&&isAdmin()?`<button class="small" onclick="formRemb('${p.id}')">Rembourser</button> `:''}${an?`<span class="muted" title="${esc(an.motif)}">motif</span>`:(ins(p.inscriptionId)?.annee===DB.settings.annee||isArrPay(p))&&!ARCH()?`<button class="small danger" title="Annuler ce reçu" onclick="delPaiement('${p.id}')">Annuler</button>`:'<span class="muted" title="Reçu d\'une année archivée">archives</span>'}</td></tr>`}
 function payCard(e){
  const i=inscOf(e.id),ao=arrOnlyOf(e.id);const YK=keysAll().filter(k=>k!=='arriere');
  const ids=new Set(DB.inscriptions.filter(x=>x.eleveId===e.id).map(x=>x.id));
@@ -936,7 +978,7 @@ function savePaiement(){if(noArch())return;
 function delPaiement(pid){if(noArch())return;{const p0=DB.paiements.find(x=>x.id===pid),i0=p0&&ins(p0.inscriptionId);if(i0&&i0.annee!==DB.settings.annee&&!isArrPay(p0)){alert(`Ce reçu appartient à l'année ${i0.annee} (archives) : il ne peut plus être annulé.`);return}}requirePin(()=>{const p=DB.paiements.find(x=>x.id===pid);if(!p||p.annule)return;const e=elv(ins(p.inscriptionId)?.eleveId);
  modal(`<h3>Annuler le reçu N° ${esc(p.recu)}</h3><p>${esc(fullName(e))} — ${fcfa(p.montant)} du ${fmtDate(p.date)}</p><p class="muted">Le reçu n'est pas effacé : il reste dans la liste et dans le journal, marqué « ANNULÉ », et son montant ne compte plus. Son numéro n'est pas réutilisé.</p>
  <div class="field"><label>Motif de l'annulation *</label><input id="an_m" placeholder="ex. erreur de montant, mauvais élève"></div><div class="actions"><button onclick="closeModal()">Retour</button><button class="danger" onclick="confirmAnnul('${pid}')">Annuler ce reçu</button></div>`)},'annuler un reçu')}
-function confirmAnnul(pid){const m=fval('an_m');if(!m){alert('Indiquez le motif.');return}const p=DB.paiements.find(x=>x.id===pid);const e=elv(ins(p.inscriptionId)?.eleveId);
+function confirmAnnul(pid){const m=fval('an_m');if(!m){alert('Indiquez le motif.');return}const p=DB.paiements.find(x=>x.id===pid);const e=elv(ins(p.inscriptionId)?.eleveId);if(rembsOf(p.id).length){alert('Ce reçu a été remboursé : annulez d\'abord le bon de remboursement.');return}if(p.remb){const i=ins(p.inscriptionId);if(i&&i.depart&&i.depart.remb===p.id){delete i.depart;alert('Remboursement annulé. Pensez à corriger le statut de l\'élève dans sa fiche si nécessaire.')}}
  p.annule={t:new Date().toISOString(),motif:m,dev:devName()||'?'};logJ('Reçu annulé',`${p.recu} — ${fullName(e)} — ${fcfa(p.montant)} — motif : ${m}`);save();closeModal();render();toast('Reçu annulé')}
 
 /* ---------- Saisie des notes ---------- */
@@ -1073,6 +1115,7 @@ function nombreEnLettres(n){n=Math.round(+n||0);if(n===0)return 'zéro';
 }
 function paidAsOf(p,k){return DB.paiements.filter(x=>x.inscriptionId===p.inscriptionId&&!x.annule&&((x.date||'')<(p.date||'')||((x.date||'')===(p.date||'')&&(x.recu||'')<=(p.recu||''))||x.id===p.id)).reduce((s,x)=>s+(+(x.parts||{})[k]||0),0)}
 function recuHTML(p){
+ if(p&&p.remb)return rembHTML(p);
  const i=ins(p.inscriptionId),e=elv(i.eleveId),c=cls(i.classeId)||{nom:'Arriéré seul (non inscrit)',ecole:insEcole(i)},sc=ecoleOf(c);
  const AR=isArrPay(p);const K=AR?['arriere']:keysAll().filter(k=>+(p.parts||{})[k]||(k!=='arriere'&&dueC(i,k)));const dense=K.length>=4||!!p.annule;
  let tP=0,tR=0,tPaid=0,tDue=0;
@@ -1177,7 +1220,7 @@ function recapData(ec,d1,d2){
  d1=d1||today().slice(0,4)+'-01-01';d2=d2||today();
  const P=DB.paiements.filter(p=>{const i=ins(p.inscriptionId);return i&&!p.annule&&p.date&&p.date>=d1&&p.date<=d2&&(!ec||insEcole(i)===ec)}).map(schoolPay).filter(Boolean);
  const K0=keysSchool().filter(k=>k!=='arriere'),KE=[];
- const P0=P;P.splice(0,P.length,...P0.filter(p=>partsK(p,K0)>0));
+ const P0=P;P.splice(0,P.length,...P0.filter(p=>partsK(p,K0)!==0));
  const KY=[];
  const months=[];let y=+d1.slice(0,4),m=+d1.slice(5,7);const ye=+d2.slice(0,4),me=+d2.slice(5,7);
  while(y<ye||(y===ye&&m<=me)){months.push(y+'-'+String(m).padStart(2,'0'));m++;if(m>12){m=1;y++}}
@@ -1295,7 +1338,7 @@ function copyTSV(){const t=document.getElementById('tsv_out');if(!t)return;const
  if(navigator.clipboard&&window.isSecureContext)navigator.clipboard.writeText(t.value).then(done,()=>{t.select();document.execCommand('copy');done()});else{t.select();document.execCommand('copy');done()}}
 function recettesHTML(ec,d1,d2){
  const P=DB.paiements.filter(p=>{const i=ins(p.inscriptionId);return i&&!p.annule&&(!ec||insEcole(i)===ec)&&(!d1||p.date>=d1)&&(!d2||p.date<=d2)}).map(schoolPay).filter(Boolean).sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.recu||'').localeCompare(b.recu||''));
- const used=k=>P.some(p=>+(p.parts||{})[k]);const KS=keysSchool().filter(k=>k!=='arriere').filter(used),KE=[];P.splice(0,P.length,...P.filter(p=>partsK(p,KS)>0));const tot={};[...KS,...KE].forEach(k=>tot[k]=0);let TS=0,T=0;
+ const used=k=>P.some(p=>+(p.parts||{})[k]);const KS=keysSchool().filter(k=>k!=='arriere').filter(used),KE=[];P.splice(0,P.length,...P.filter(p=>partsK(p,KS)!==0));const tot={};[...KS,...KE].forEach(k=>tot[k]=0);let TS=0,T=0;
  const cell=(p,k)=>`<td class="r">${+(p.parts||{})[k]?fcfa(p.parts[k]):''}</td>`;
  const rows=P.map(p=>{const i=ins(p.inscriptionId),e=elv(i.eleveId);[...KS,...KE].forEach(k=>tot[k]+=+(p.parts||{})[k]||0);const ts=partsK(p,KS);TS+=ts;T+=+p.montant||0;return `<tr><td>${fmtDate(p.date)}</td><td>${esc(p.recu)}</td><td>${esc(fullName(e))}</td><td>${esc(clsNom(i))}</td><td class="r"><b>${fcfa(ts)}</b></td>${KE.map(k=>cell(p,k)).join('')}${KE.length?`<td class="r">${fcfa(p.montant)}</td>`:''}</tr>`}).join('');
  const nc=5+(KE.length?KE.length+1:0);
@@ -1605,7 +1648,7 @@ function downloadXLSX(fname,sheets){
 }
 function recettesXLSX(ec,d1,d2){
  const P=DB.paiements.filter(p=>{const i=ins(p.inscriptionId);return i&&!p.annule&&(!ec||insEcole(i)===ec)&&(!d1||p.date>=d1)&&(!d2||p.date<=d2)}).map(schoolPay).filter(Boolean).sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.recu||'').localeCompare(b.recu||''));
- const KS=keysSchool().filter(k=>k!=='arriere'),KE=[];P.splice(0,P.length,...P.filter(p=>partsK(p,KS)>0));const head=['Date','Reçu N°','Matricule','Élève','Classe','École','Mode','Remarque','Montant'];
+ const KS=keysSchool().filter(k=>k!=='arriere'),KE=[];P.splice(0,P.length,...P.filter(p=>partsK(p,KS)!==0));const head=['Date','Reçu N°','Matricule','Élève','Classe','École','Mode','Remarque','Montant'];
  const rows=[[`Journal des recettes — ${ec?(ec==='primaire'?'Primaire':'Maternelle'):'Primaire et maternelle'} — du ${fmtDate(d1)||'début'} au ${fmtDate(d2)||fmtDate(today())}`],[],head];
  P.forEach(p=>{const i=ins(p.inscriptionId),e=elv(i.eleveId),c=cls(i.classeId);rows.push([{d:p.date},p.recu,e?.matricule||'',fullName(e),c?.nom||'',c?.ecole==='maternelle'?'Maternelle':'Primaire',p.mode||'',p.remarque||'',partsK(p,KS)])});
  const n=rows.length,first=4,ncol=1;rows.push([],['TOTAL','','','','','','','',...Array.from({length:ncol},(_,j)=>P.length?{f:`SUM(${colL(8+j)}${first}:${colL(8+j)}${n})`}:0)]);
