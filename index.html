@@ -223,7 +223,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='58 (19/11/2026)';
+const APP_VERSION='59 (19/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -317,7 +317,12 @@ async function initFile(){
 }
 try{localStorage.setItem(KEY+'_t','1');localStorage.removeItem(KEY+'_t')}catch(e){STORAGE_OK=false}
 
-const S=()=>DB.settings;
+/* année affichée : l'année en cours (DB.settings.annee) ou une année passée en consultation (archives, lecture seule) */
+let VIEW_YEAR=null;
+const S=()=>VIEW_YEAR?new Proxy(DB.settings,{get:(t,k)=>k==='annee'?VIEW_YEAR:t[k],set:(t,k,v)=>{if(k==='annee')VIEW_YEAR=null;t[k]=v;return true}}):DB.settings;
+function ARCH(){return !!VIEW_YEAR&&VIEW_YEAR!==DB.settings.annee}
+function noArch(){if(!ARCH())return false;alert(`Année ${VIEW_YEAR} : archives, consultation seulement.\nRevenez à l'année en cours (${DB.settings.annee}) pour saisir ou modifier.`);return true}
+function setViewYear(v){VIEW_YEAR=(!v||v===DB.settings.annee)?null:v;UI.f={};render()}
 const cls=id=>DB.classes.find(c=>c.id===id);
 const elv=id=>DB.eleves.find(e=>e.id===id);
 const ins=id=>DB.inscriptions.find(i=>i.id===id);
@@ -436,8 +441,9 @@ function render(){
  if(ADMIN_VIEWS.includes(UI.view)&&r!=='admin')UI.view='dash';
  document.getElementById('nav').innerHTML=brandHTML()+NAV_GROUPS.map(([g,ks])=>(g?`<div class="grp">${esc(g)}${g==='Direction'?navIc('lock',12):''}</div>`:'')+ks.map(k=>`<a class="${UI.view===k?'active':''}" onclick="go('${k}')">${navIc(NAV_ICON[k])}<span>${VIEWS[k][0]}${ADMIN_VIEWS.includes(k)&&r!=='admin'?' 🔒':''}</span></a>`).join('')).join('')+
   `<div class="foot"><div style="font-size:11px;color:var(--side-muted);margin-bottom:6px">Version du programme : ${APP_VERSION}</div>${secured()?`<div style="margin-bottom:8px;color:#e2e8f0">Connecté : <b>${r==='admin'?'Direction':'Comptable'}</b></div><button onclick="lockNow()">🔒 Verrouiller</button>${r==='admin'&&S().pinStaff?`<button onclick="ROLE='staff';render()">Passer en mode comptable</button>`:''}`:''}<div id="syncst" style="margin:6px 0 8px;color:#e2e8f0">${esc(syncLabel())}</div>${devName()?`<div style="margin-bottom:8px">Ordinateur : ${esc(devName())}</div>`:''}<button onclick="downloadBackup()">Télécharger une sauvegarde</button>Dernière sauvegarde :<br>${lb?fmtDate(lb.slice(0,10)):'jamais'}</div>`;
- document.getElementById('main').innerHTML=(TRY?`<div class="banner" style="border:2px solid #b42318;background:#fff4f2"><b>MODE ESSAI</b> — vous pouvez tout essayer : rien n'est enregistré (ni dans ce navigateur, ni dans le fichier partagé). Les reçus imprimés portent la mention « ESSAI ». <button class="small primary" onclick="stopEssai()">Terminer l'essai</button></div>`:'')+VIEWS[UI.view][1]();
+ document.getElementById('main').innerHTML=(ARCH()?`<div class="banner" style="border:2px solid #555;background:#f3f3f3">📁 <b>Archives ${esc(VIEW_YEAR)}</b> — consultation seulement : rien ne peut être saisi ni modifié pour cette année. <button class="small primary" onclick="setViewYear(null)">Revenir à ${esc(DB.settings.annee)}</button></div>`:'')+(TRY?`<div class="banner" style="border:2px solid #b42318;background:#fff4f2"><b>MODE ESSAI</b> — vous pouvez tout essayer : rien n'est enregistré (ni dans ce navigateur, ni dans le fichier partagé). Les reçus imprimés portent la mention « ESSAI ». <button class="small primary" onclick="stopEssai()">Terminer l'essai</button></div>`:'')+VIEWS[UI.view][1]();
  if(AFTER[UI.view])AFTER[UI.view]();
+ if(ARCH())document.querySelectorAll('.grid-notes input,.grid-notes select,#main select[onchange*="decision"]').forEach(x=>x.disabled=true);
 }
 function backupBanner(){
  let html=syncBanner();
@@ -661,7 +667,7 @@ function delEleve2(eid){
 function reinscList(){
  const a=S().annee;return DB.eleves.filter(e=>e.statut==='Actif'&&!inscOf(e.id)).map(e=>{const last=DB.inscriptions.filter(i=>i.eleveId===e.id&&i.annee<a&&!i.arrOnly).sort((x,y)=>y.annee.localeCompare(x.annee))[0];const cid=suggestClass(e.id);return {e,last,cid}}).filter(x=>x.cid||x.last).sort((x,y)=>NIV_ALL.indexOf(cls(x.cid)?.niveau)-NIV_ALL.indexOf(cls(y.cid)?.niveau)||byName(x.e,y.e));
 }
-function nonRevenu(eid){const e=elv(eid);if(!e||!confirm(`Marquer ${fullName(e)} comme « Non revenu » ? Il/elle disparaîtra de la liste à réinscrire (vous pourrez le changer dans sa fiche).`))return;const before=JSON.parse(JSON.stringify(e));e.statut='Non revenu';hRecord('eleve',e,before,e.id);logJ('Non revenu',fullName(e));save();render()}
+function nonRevenu(eid){if(noArch())return;const e=elv(eid);if(!e||!confirm(`Marquer ${fullName(e)} comme « Non revenu » ? Il/elle disparaîtra de la liste à réinscrire (vous pourrez le changer dans sa fiche).`))return;const before=JSON.parse(JSON.stringify(e));e.statut='Non revenu';hRecord('eleve',e,before,e.id);logJ('Non revenu',fullName(e));save();render()}
 function reinscCard(){
  const L=reinscList();if(!L.length)return `<div class="card" style="padding:10px 14px"><b>Anciens élèves à réinscrire (0)</b> <span class="muted">— aucun élève en attente. Après la fin d'année (passage), les élèves de l'année précédente apparaîtront ici. Un élève marqué « Non revenu » se retrouve avec la recherche ci-dessus.</span></div>`;
  const rows=L.map(x=>{const e=x.e,c=cls(x.cid),lc=x.last?cls(x.last.classeId):null,ar=arrPending(e.id);const toP=c&&c.ecole==='primaire'&&String(e.matricule||'').startsWith(S().prefixes.maternelle||'M');
@@ -669,7 +675,7 @@ function reinscCard(){
  return `<div class="card" style="padding:0;overflow:auto"><div class="row" style="padding:10px 14px;align-items:center;justify-content:space-between"><b>Anciens élèves à réinscrire (${L.length})</b><input oninput="filterRows('tb_re',this.value)" placeholder="Rechercher (nom ou numéro)" style="max-width:280px"></div>
  <div style="max-height:420px;overflow:auto"><table class="data"><thead><tr><th>Élève</th><th>N°</th><th>Année passée</th><th>Classe ${esc(S().annee)}</th><th class="num">Arriéré</th><th></th></tr></thead><tbody id="tb_re">${rows}</tbody></table></div></div>`;
 }
-function vInscrire(){
+function vInscrire(){if(ARCH())return `<h1>Inscrire un élève</h1><div class="card">Année ${esc(VIEW_YEAR)} : archives. Les inscriptions se font dans l'année en cours. <button class="primary" onclick="setViewYear(null)">Revenir à ${esc(DB.settings.annee)}</button></div>`;
  return `${backupBanner()}<h1>Inscrire un élève — ${esc(S().annee)}</h1>
  <div class="card"><div class="field"><label style="font-size:14px;color:var(--ink)"><b>1.</b> Cherchez l'élève par son nom ou son numéro</label><input id="ins_q" style="font-size:17px;padding:10px;max-width:520px" placeholder="ex. Sanou Rosalie, 0179 ou P0179" value="${esc(UI.f.insq||'')}" oninput="UI.f.insq=this.value;fillInscrire()" autocomplete="off"></div>
  <div id="ins_res" style="margin-top:10px"></div>
@@ -722,7 +728,7 @@ function vInscr(){
  <tbody id="tb_i">${rows||`<tr><td colspan="${nc}" class="muted" style="padding:24px;text-align:center">Aucune inscription.</td></tr>`}</tbody>
  ${L.length?`<tfoot><tr><td colspan="9">${L.length} élève(s) — ${g} garçon(s), ${f} fille(s)</td>${money?`<td class="num">${fcfa(tD)}</td><td class="num">${fcfa(tP)}</td><td class="num">${fcfa(tR)}</td>`:''}<td></td></tr></tfoot>`:''}</table></div>`;
 }
-function formInscription(iid,eid,presetCid){
+function formInscription(iid,eid,presetCid){if(noArch())return;
  const a=S().annee;let i=iid?ins(iid):null;if(!i&&eid)i=inscOf(eid)||null;
  const pick=eid||i?.eleveId;
  const eleveSel=pick?`<input type="hidden" id="f_e" value="${pick}"><div class="field"><label>Élève</label><b style="padding:6px 0">${esc(fullName(elv(pick)))}</b></div>`
@@ -745,7 +751,7 @@ function feesSum(){const box=document.getElementById('f_fees_sum');if(!box)retur
  const rem=+fval('f_rem')||0,arr=+fval('f_arr')||0,tot=RUB().reduce((s,r)=>s+(+fr[r.k]||0),0);
  box.innerHTML=`<div style="font-weight:600;margin-bottom:6px">Frais de la classe ${esc(c.nom)}</div><div>${RUB().filter(r=>+fr[r.k]).map(r=>`${esc(r.l)} ${fcfa(fr[r.k])}`).join(' · ')||'—'} → total <b>${fcfa(tot)}</b></div>${rem?`<div>Réduction : ${fcfa(rem)} → <b>à payer ${fcfa(Math.max(0,tot-rem))}</b></div>`:''}${arr?`<div class="muted">Arriéré des années passées (à part, reçus série A) : ${fcfa(arr)}</div>`:''}`}
 function prefillFees(){feesSum()}
-function saveInscription(id){
+function saveInscription(id){if(noArch())return;if(id&&ins(id)&&ins(id).annee!==DB.settings.annee){alert('Inscription d\'une année archivée : modification impossible.');return}
  const eid=fval('f_e'),cid=fval('f_cl');if(!eid){alert('Choisissez un élève.');return}if(!cid){alert('Choisissez une classe.');return}
  const frais=feesOf();const i00=id?ins(id):null;let rem=+fval('f_rem')||0,arr=+fval('f_arr')||0;
  if(!isAdmin()&&i00){rem=+i00.remise||0;arr=+i00.arriere||0}
@@ -845,7 +851,7 @@ function exportSheetDep(d1,d2){
  <textarea id="tsv_out" readonly style="width:100%;height:200px;font-family:monospace;font-size:12px">${esc(tsv)}</textarea><div class="actions"><button onclick="closeModal()">Fermer</button><button class="primary" onclick="copyTSV()">Copier</button></div>`);
 }
 function payRow(p,withEleve){const i=ins(p.inscriptionId),e=elv(i?.eleveId);const an=p.annule;
- return `<tr${an?' style="color:#98a2b3"':''}><td>${fmtDate(p.date)}</td><td>${esc(p.recu)}</td>${withEleve?`<td><a href="#" onclick="UI.f.pq='${esc(e?.matricule||'')}';render();return false"><b>${esc(fullName(e))}</b></a><br><span class="muted">${esc(e?.matricule||'')}</span></td><td>${esc(clsNom(i))}</td>`:`<td>${esc(i?.annee||'')} · ${esc(clsNom(i))}</td>`}<td>${esc(partsTxt(p))}<br><span class="muted">${esc(p.remarque||'')}</span></td><td>${esc(p.mode)}</td><td class="num">${an?`<s>${fcfa(p.montant)}</s><br><span class="tag bad">ANNULÉ</span>`:`<b>${fcfa(p.montant)}</b>`}</td><td style="white-space:nowrap"><button class="small" onclick="printDoc(recuHTML(DB.paiements.find(x=>x.id==='${p.id}')))">Voir le reçu</button> ${an?`<span class="muted" title="${esc(an.motif)}">motif</span>`:`<button class="small danger" title="Annuler ce reçu" onclick="delPaiement('${p.id}')">Annuler</button>`}</td></tr>`}
+ return `<tr${an?' style="color:#98a2b3"':''}><td>${fmtDate(p.date)}</td><td>${esc(p.recu)}</td>${withEleve?`<td><a href="#" onclick="UI.f.pq='${esc(e?.matricule||'')}';render();return false"><b>${esc(fullName(e))}</b></a><br><span class="muted">${esc(e?.matricule||'')}</span></td><td>${esc(clsNom(i))}</td>`:`<td>${esc(i?.annee||'')} · ${esc(clsNom(i))}</td>`}<td>${esc(partsTxt(p))}<br><span class="muted">${esc(p.remarque||'')}</span></td><td>${esc(p.mode)}</td><td class="num">${an?`<s>${fcfa(p.montant)}</s><br><span class="tag bad">ANNULÉ</span>`:`<b>${fcfa(p.montant)}</b>`}</td><td style="white-space:nowrap"><button class="small" onclick="printDoc(recuHTML(DB.paiements.find(x=>x.id==='${p.id}')))">Voir le reçu</button> ${an?`<span class="muted" title="${esc(an.motif)}">motif</span>`:(ins(p.inscriptionId)?.annee===DB.settings.annee||isArrPay(p))&&!ARCH()?`<button class="small danger" title="Annuler ce reçu" onclick="delPaiement('${p.id}')">Annuler</button>`:'<span class="muted" title="Reçu d\'une année archivée">archives</span>'}</td></tr>`}
 function payCard(e){
  const i=inscOf(e.id),ao=arrOnlyOf(e.id);const YK=keysAll().filter(k=>k!=='arriere');
  const ids=new Set(DB.inscriptions.filter(x=>x.eleveId===e.id).map(x=>x.id));
@@ -886,7 +892,7 @@ function vPaie(){
  <div class="row" style="margin-top:12px">${FS('École','p_ec',opts([['','Les deux écoles'],['primaire','Primaire'],['maternelle','Maternelle']],ec),'onchange="UI.f.pec=this.value;delete UI.f.pcl;UI.f.popen=1;render()"')}${FS('Classe','p_cl','<option value="">Toutes les classes</option>'+classOpts(cl,ec),'onchange="UI.f.pcl=this.value;UI.f.popen=1;render()"')}${FS('Reçus','p_na',opts([['','Tous'],['Y',"Frais de l'année"],['A','Arriérés (série A)']],na),'onchange="UI.f.pna=this.value"')}${F('Du','p_d1',UI.f.pd1||today().slice(0,8)+'01','date')}${F('Au','p_d2',UI.f.pd2||today(),'date')}<button onclick="const a=fval('p_d1'),b=fval('p_d2');if(!a||!b||a>b){alert('Choisissez une période valide.');return}UI.f.pd1=a;UI.f.pd2=b;render()">Afficher les paiements</button></div></details>`:`<div class="card"><button onclick="requirePin(()=>{UI.f.popen=1;render()},'consulter les paiements par période')">Consulter par période (école, classe) 🔒</button> <span class="muted">Réservé à la direction. La clôture de caisse du jour reste accessible.</span></div>`}
  ${per}`;
 }
-function formPaiement(iid){
+function formPaiement(iid){if(noArch())return;
  const PL=yearInscs().map(i=>{const e=elv(i.eleveId);return [i.id,fullName(e)+' — '+(cls(i.classeId)?.nom||'')+' — '+(e?.matricule||''),e?.matricule||'']});
  arrInscs().forEach(i=>{const e=elv(i.eleveId);if(e&&reste(i)>0)PL.push([i.id,fullName(e)+' — arriéré seul ('+fcfa(reste(i))+') — '+(e.matricule||''),e.matricule||''])});
  DB.eleves.forEach(e=>{if((+e.arriereEnAttente||0)>0&&!inscOf(e.id)&&!arrOnlyOf(e.id))PL.push(['E:'+e.id,fullName(e)+' — non inscrit, arriéré seul ('+fcfa(e.arriereEnAttente)+') — '+(e.matricule||''),e.matricule||''])});
@@ -916,7 +922,7 @@ function payInfo(){
 }
 function payParts(){const parts={};keysAll().forEach(k=>{const v=+fval('f_p_'+k);if(v>0)parts[k]=v});return parts}
 function payTot(){const t=document.getElementById('f_tot');if(t){const s=Object.values(payParts()).reduce((a,b)=>a+b,0);t.innerHTML=`Montant total : <b>${fcfa(s)}</b>`}}
-function savePaiement(){
+function savePaiement(){if(noArch())return;
  const iid=fval('f_i');if(!iid){alert('Choisissez un élève.');return}
  const parts=payParts(),m=Object.values(parts).reduce((a,b)=>a+b,0);if(!(m>0)){alert('Saisissez au moins un montant.');return}
  const i=ins(iid);const base={inscriptionId:iid,date:fval('f_d')||today(),mode:fval('f_mo'),remarque:fval('f_r')};const out=[];
@@ -926,7 +932,7 @@ function savePaiement(){
  out.forEach(p=>{DB.paiements.push(p);logJ(isArrPay(p)?'Paiement arriéré':'Paiement',`${p.recu} — ${fullName(elv(i.eleveId))} — ${fcfa(p.montant)}`)});save();closeModal();render();
  toast(`Paiement enregistré — reçu${out.length>1?'s':''} N° ${out.map(p=>p.recu).join(' et ')}`);printDoc(out.map(recuHTML).join(''));
 }
-function delPaiement(pid){requirePin(()=>{const p=DB.paiements.find(x=>x.id===pid);if(!p||p.annule)return;const e=elv(ins(p.inscriptionId)?.eleveId);
+function delPaiement(pid){if(noArch())return;{const p0=DB.paiements.find(x=>x.id===pid),i0=p0&&ins(p0.inscriptionId);if(i0&&i0.annee!==DB.settings.annee&&!isArrPay(p0)){alert(`Ce reçu appartient à l'année ${i0.annee} (archives) : il ne peut plus être annulé.`);return}}requirePin(()=>{const p=DB.paiements.find(x=>x.id===pid);if(!p||p.annule)return;const e=elv(ins(p.inscriptionId)?.eleveId);
  modal(`<h3>Annuler le reçu N° ${esc(p.recu)}</h3><p>${esc(fullName(e))} — ${fcfa(p.montant)} du ${fmtDate(p.date)}</p><p class="muted">Le reçu n'est pas effacé : il reste dans la liste et dans le journal, marqué « ANNULÉ », et son montant ne compte plus. Son numéro n'est pas réutilisé.</p>
  <div class="field"><label>Motif de l'annulation *</label><input id="an_m" placeholder="ex. erreur de montant, mauvais élève"></div><div class="actions"><button onclick="closeModal()">Retour</button><button class="danger" onclick="confirmAnnul('${pid}')">Annuler ce reçu</button></div>`)},'annuler un reçu')}
 function confirmAnnul(pid){const m=fval('an_m');if(!m){alert('Indiquez le motif.');return}const p=DB.paiements.find(x=>x.id===pid);const e=elv(ins(p.inscriptionId)?.eleveId);
@@ -955,7 +961,7 @@ function vNotes(){
  }
  return `<h1>Saisie des notes — ${esc(c.nom)} · ${TLABEL[T]}</h1><p style="margin:-8px 0 12px;font-size:15px">Enseignant(e) : <b>${esc(c.enseignant||'— non renseigné (Paramètres → Classes)')}</b></p>${sel}<div id="nstats" class="muted" style="margin:-4px 0 8px"></div><div id="nmiss" style="margin:0 0 8px;color:#8a5a00"></div><div class="card" style="padding:0;overflow:auto"><table class="grid-notes"><thead>${head}</thead><tbody>${rows}</tbody></table></div>`;
 }
-function setNote(el,iid,T,mid,max){
+function setNote(el,iid,T,mid,max){if(noArch()){render();return}
  const e=ev(iid,T);el.classList.remove('err');
  if(max===null){if(el.value)e.n[mid]=el.value;else delete e.n[mid]}
  else{const raw=el.value.trim().replace(',','.');
@@ -963,7 +969,7 @@ function setNote(el,iid,T,mid,max){
   else{const v=parseFloat(raw);if(!/^\d+(\.\d+)?$/.test(raw)||v>max){el.classList.add('err');toast(`Note invalide : entre 0 et ${max}`);return}e.n[mid]=v}}
  save();recalcGrid();
 }
-function setEvF(iid,T,f,v){ev(iid,T)[f]=v.trim();save()}
+function setEvF(iid,T,f,v){if(noArch()){render();return}ev(iid,T)[f]=v.trim();save()}
 function navKey(evt,el){
  const k=evt.key;if(el.tagName==='SELECT'&&k!=='Enter')return;
  if(k==='Enter'||k==='ArrowDown'||k==='ArrowUp'){evt.preventDefault();const r=+el.dataset.r+(k==='ArrowUp'?-1:1);const n=document.querySelector(`[data-r="${r}"][data-c="${el.dataset.c}"]`);if(n){n.focus();if(n.select)n.select()}else el.blur()}
@@ -1344,7 +1350,7 @@ function vRapports(){
 }
 
 /* ---------- Fin d'année ---------- */
-function vFin(){
+function vFin(){if(ARCH())return `<h1>Fin d'année</h1><div class="card">Année ${esc(VIEW_YEAR)} : archives (année déjà clôturée). <button class="primary" onclick="setViewYear(null)">Revenir à ${esc(DB.settings.annee)}</button></div>`;
  const a=S().annee,n=nextYear(a);
  const blocks=sortedClasses().map(c=>{const L=classInscs(c.id);if(!L.length)return '';const A=c.ecole==='primaire'?annualResults(c.id,a).res:{};
   const rows=L.map(i=>{const e=elv(i.eleveId),r=A[i.id];return `<tr><td><b>${esc(fullName(e))}</b></td>${c.ecole==='primaire'?`${r.tri.map(x=>`<td class="num">${fmtN2(x)}</td>`).join('')}<td class="num"><b>${fmtN2(r.moy)}</b></td><td>${rangTxt(r,e.sexe)}</td>`:'<td colspan="5" class="muted">maternelle — pas de moyenne</td>'}<td class="muted">${esc(proposition(i,r))}</td><td><select onchange="ins('${i.id}').decision=this.value;save()">${opts([['','—'],...DECISIONS],i.decision)}</select></td></tr>`}).join('');
@@ -1355,11 +1361,11 @@ function vFin(){
  <li>Une sauvegarde de l'année ${esc(a)} est téléchargée automatiquement avant le passage. Les données de ${esc(a)} restent consultables (Paramètres → année scolaire).</li></ol>
  <div class="row"><button onclick="applyPropositions()">Remplir les décisions vides avec les propositions</button><button class="primary" onclick="doPassage()">Passer à l'année ${esc(n)}</button></div></div>${blocks||'<div class="card">Aucune inscription cette année.</div>'}`;
 }
-function applyPropositions(){
+function applyPropositions(){if(noArch())return;
  let k=0;sortedClasses().forEach(c=>{const A=c.ecole==='primaire'?annualResults(c.id).res:{};classInscs(c.id).forEach(i=>{if(!i.decision){const p=proposition(i,A[i.id]);if(p){i.decision=p;k++}}})});
  save();render();toast(`${k} décision(s) remplie(s)`);
 }
-function doPassage(){
+function doPassage(){if(noArch())return;
  const a=S().annee,n=nextYear(a),L=yearInscs(a);
  if(!L.length){alert('Aucune inscription cette année.');return}
  const sans=L.filter(i=>!i.decision).length;
@@ -1384,12 +1390,12 @@ function stopEssai(){if(!TRY)return;DB=JSON.parse(TRY_REAL);TRY_REAL=null;TRY=fa
 function vParam(){
  const s=S();
  const ec=k=>{const e=s.ecoles[k];const lab={nom:"Nom de l'école",devise:'Devise',arrete:"Arrêté d'ouverture",adresse:'Adresse',tel:'Téléphone',directeur:'Directeur / Directrice'};return `<div class="card" style="flex:1;min-width:300px;margin:0"><h2 style="margin-top:0">${k==='primaire'?'École primaire':'École maternelle'}</h2><div class="form-grid">${Object.keys(lab).map(f=>`<div class="field"><label>${lab[f]}</label><input value="${esc(e[f]||'')}" onchange="S().ecoles['${k}']['${f}']=this.value;save()"></div>`).join('')}</div></div>`};
- const years=[...new Set([s.annee,...DB.inscriptions.map(i=>i.annee)])].sort();
+ const years=[...new Set([DB.settings.annee,...DB.inscriptions.map(i=>i.annee)])].sort().map(y=>[y,y===DB.settings.annee?y+' (en cours)':y+' (archives)']);
  const crow=sortedClasses().map(c=>{const n=DB.inscriptions.filter(i=>i.classeId===c.id).length;return `<tr><td>${c.ecole==='primaire'?'Primaire':'Maternelle'}</td><td>${c.niveau}</td><td><input value="${esc(c.nom)}" style="width:110px" onchange="setCls('${c.id}','nom',this.value)"></td><td><input value="${esc(c.enseignant||'')}" style="width:160px" onchange="setCls('${c.id}','enseignant',this.value)"></td>${RUB().map(r=>`<td><input type="number" min="0" value="${+(c.frais||{})[r.k]||0}" style="width:85px" onchange="setFrais('${c.id}','${r.k}',this.value)"></td>`).join('')}<td style="white-space:nowrap"><button class="small" onclick="editMatieres('${c.id}')">${c.ecole==='primaire'?'Matières':'Domaines'} (${c.matieres.length})</button> <button class="small danger" ${n?'disabled title="Classe utilisée"':''} onclick="delClass('${c.id}')">✕</button></td></tr>`}).join('');
  return `<h1>Paramètres & données</h1>${bkCard()}<div class="card"><h2 style="margin-top:0">Photos des élèves</h2><p style="margin-top:0">Les photos sont gardées dans un dossier « photos » sur OneDrive (à côté du fichier de données), une photo par élève, nommée par son numéro (ex. P0185.jpg). Le programme réduit chaque photo (environ 25 Ko). À faire une fois sur chaque ordinateur. On ajoute une photo depuis la fiche de l'élève.</p>${DIR_OK?(PDIR?`<p>Dossier : <b>${esc(PDIR.name)}</b> — ${PDIR_OK?'connecté':'accès à autoriser'}</p><button onclick="photoDirConnect()">${PDIR_OK?'Choisir un autre dossier':'Autoriser / choisir le dossier'}</button> <button onclick="photoDirForget()">Déconnecter</button>`:`<button class="primary" onclick="photoDirConnect()">Connecter le dossier des photos</button>`):'<p class="muted">Non disponible dans ce navigateur (utilisez Chrome ou Edge sur l\'ordinateur).</p>'}</div><div class="card"><h2 style="margin-top:0">Mode essai (pour s'entraîner)</h2><p style="margin-top:0">Pour apprendre à utiliser le programme sans toucher aux vraies données : inscrire un élève, saisir un paiement, imprimer un reçu… Rien n'est enregistré, et les reçus portent la mention « ESSAI ».</p>${TRY?`<button class="primary" onclick="stopEssai()">Terminer l'essai</button>`:`<button class="primary" onclick="startEssai()">Commencer un essai</button>`}</div>
  <div class="row" style="align-items:stretch;margin-bottom:14px">${ec('primaire')}${ec('maternelle')}</div>
  <div class="card"><h2 style="margin-top:0">Général</h2><div class="row">
-  ${FS('Année scolaire en cours','p_an',opts(years,s.annee),'onchange="S().annee=this.value;save();render()"')}
+  ${FS('Année affichée','p_an',opts(years,s.annee),'onchange="setViewYear(this.value)"')}
   <div class="field"><label>Ouvrir une autre année (ex. 2026-2027)</label><div class="row" style="gap:6px"><input id="p_newan" placeholder="AAAA-AAAA" style="width:120px"><button onclick="setAnnee()">Ouvrir</button></div></div>
   ${F('Moyenne de passage (/10)','p_seuil',s.seuil,'number','min="0" max="10" step="0.5" onchange="S().seuil=+this.value||5;save()"')}
   ${F('Préfixe matricule primaire','p_pp',s.prefixes.primaire,'text','style="width:70px" onchange="S().prefixes.primaire=this.value.trim();save()"')}
@@ -1425,7 +1431,7 @@ function addClass(){const niv=fval('p_niv'),nom=fval('p_cnom')||niv;const ecole=
  DB.classes.push({id:uid(),ecole,niveau:niv,nom,enseignant:'',frais:Object.assign(zeroFrais(),src?.frais||{}),matieres:src?src.matieres.map(m=>({...m,id:uid()})):defaultMatieres(niv)});save();render();toast('Classe ajoutée')}
 function delClass(id){if(DB.inscriptions.some(i=>i.classeId===id)){alert('Cette classe a des inscriptions.');return}if(!confirm('Supprimer cette classe ?'))return;DB.classes=DB.classes.filter(c=>c.id!==id);save();render()}
 function applyFees(){if(!confirm(`Remplacer les frais de toutes les inscriptions ${S().annee} par les montants des classes ?\n(Les réductions et arriérés sont conservés.)`))return;yearInscs().forEach(i=>{const c=cls(i.classeId);if(c)i.frais=Object.assign(zeroFrais(),c.frais||{})});save();render();toast('Frais appliqués')}
-function setAnnee(){const v=fval('p_newan');if(!/^\d{4}-\d{4}$/.test(v)||+v.slice(5)!==+v.slice(0,4)+1){alert('Format attendu : 2026-2027');return}S().annee=v;save();render();toast('Année '+v+' ouverte')}
+function setAnnee(){const v=fval('p_newan');if(!/^\d{4}-\d{4}$/.test(v)||+v.slice(5)!==+v.slice(0,4)+1){alert('Format attendu : 2026-2027');return}if(v<=DB.settings.annee){alert(`Seule une année postérieure à ${DB.settings.annee} peut être ouverte. Pour consulter une année passée, choisissez-la dans « Année affichée ».`);return}if(!confirm(`Ouvrir l'année ${v} sans passer par « Fin d'année » ? (Normalement on utilise Fin d'année / passage.)`))return;S().annee=v;save();render();toast('Année '+v+' ouverte')}
 let _mat=null,_matCid=null;
 function editMatieres(cid){_matCid=cid;_mat=JSON.parse(JSON.stringify(cls(cid).matieres));renderMat()}
 function renderMat(){
