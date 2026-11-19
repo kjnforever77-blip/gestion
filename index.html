@@ -223,7 +223,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='63 (19/11/2026)';
+const APP_VERSION='64 (19/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -522,9 +522,9 @@ function vImp(){
  <div class="row" style="margin-bottom:10px">${b(!ec,"UI.f.imec='';UI.f.imcl=''",'Toutes les écoles')}${b(ec==='maternelle',"UI.f.imec='maternelle';UI.f.imcl=''",'Maternelle')}${b(ec==='primaire',"UI.f.imec='primaire';UI.f.imcl=''",'Primaire')}
  ${FS('Classe','im_cl','<option value="">Toutes les classes</option>'+classOpts(cl,ec),'onchange="UI.f.imcl=this.value;render()"')}</div>
  <p class="muted" style="margin:0 0 8px">${t==='A'?"Arriérés des années passées : ils se paient à part (reçus série A) et ne sont pas des recettes de l'année.":"Ce qui reste à payer sur les frais de l'année (APE comprise). Les arriérés des années passées sont dans l'autre onglet."} Cliquez sur un nom pour ouvrir sa fiche de paiement.</p>
- <div class="card" style="padding:0;overflow:auto"><table class="data"><thead><tr><th>N°</th><th>Matricule</th><th>Nom et prénoms</th><th>Classe</th><th>Téléphone</th><th class="num">Reste à payer</th></tr></thead>
- <tbody>${L.map((x,k)=>`<tr><td>${k+1}</td><td>${esc(x.e.matricule)}</td><td><a href="#" onclick="UI.f.pq='${esc((fullName(x.e)+' '+x.e.matricule).replace(/'/g,' '))}';go('paie');return false"><b>${esc(fullName(x.e))}</b></a>${x.e.boursier?' <span class="tag">boursier</span>':''}</td><td>${esc(x.cls)}</td><td>${esc(x.e.telephone||'')}</td><td class="num"><b style="color:var(--danger)">${fcfa(x.r)}</b>${x.ape?`<br><span class="muted">dont APE ${fcfa(x.ape)}</span>`:''}</td></tr>`).join('')||'<tr><td colspan="6" class="muted" style="padding:20px;text-align:center">Aucun impayé.</td></tr>'}</tbody>
- ${L.length?`<tfoot><tr><td colspan="5">${L.length} élève(s)</td><td class="num">${fcfa(tot)}</td></tr></tfoot>`:''}</table></div>`;
+ <div class="card" style="padding:0;overflow:auto"><table class="data"><thead><tr><th>N°</th><th>Matricule</th><th>Nom et prénoms</th><th>Classe</th><th>Téléphone</th><th class="num">Reste à payer</th><th></th></tr></thead>
+ <tbody>${L.map((x,k)=>`<tr><td>${k+1}</td><td>${esc(x.e.matricule)}</td><td><a href="#" onclick="UI.f.pq='${esc((fullName(x.e)+' '+x.e.matricule).replace(/'/g,' '))}';go('paie');return false"><b>${esc(fullName(x.e))}</b></a>${x.e.boursier?' <span class="tag">boursier</span>':''}</td><td>${esc(x.cls)}</td><td>${esc(x.e.telephone||'')}</td><td class="num"><b style="color:var(--danger)">${fcfa(x.r)}</b>${x.ape?`<br><span class="muted">dont APE ${fcfa(x.ape)}</span>`:''}</td><td style="white-space:nowrap">${ARCH()?'':t==='A'?(x.i&&resteK(x.i,['arriere'])>0?`<button class="small primary" onclick="formPaiement('${x.i.id}','A')">Payer l'arriéré</button>`:`<button class="small primary" onclick="payArr('${x.e.id}')">Payer l'arriéré</button>`):`<button class="small primary" onclick="formPaiement('${x.i.id}','Y')">Payer</button>`}</td></tr>`).join('')||'<tr><td colspan="7" class="muted" style="padding:20px;text-align:center">Aucun impayé.</td></tr>'}</tbody>
+ ${L.length?`<tfoot><tr><td colspan="5">${L.length} élève(s)</td><td class="num">${fcfa(tot)}</td><td></td></tr></tfoot>`:''}</table></div>`;
 }
 
 /* ---------- Tableau de bord ---------- */
@@ -972,20 +972,21 @@ function vPaie(){
  <div class="row" style="margin-top:10px">${FS('Classe','p_cl','<option value="">Toutes les classes</option>'+classOpts(cl,ec),'onchange="UI.f.pcl=this.value;UI.f.popen=1;render()"')}${FS('Reçus','p_na',opts([['','Tous'],['Y',"Frais de l'année"],['A','Arriérés (série A)']],na),'onchange="UI.f.pna=this.value"')}${F('Du','p_d1',UI.f.pd1||today().slice(0,8)+'01','date')}${F('Au','p_d2',UI.f.pd2||today(),'date')}<button onclick="const a=fval('p_d1'),b=fval('p_d2');if(!a||!b||a>b){alert('Choisissez une période valide.');return}UI.f.pd1=a;UI.f.pd2=b;render()">Afficher les paiements</button></div></details>`:`<div class="card"><button onclick="requirePin(()=>{UI.f.popen=1;render()},'consulter les paiements par période')">Consulter par période (école, classe) 🔒</button> <span class="muted">Réservé à la direction. La clôture de caisse du jour reste accessible.</span></div>`}
  ${per}`;
 }
-function formPaiement(iid){if(noArch())return;
+let PAY_ONLY=null;
+function formPaiement(iid,only){if(noArch())return;PAY_ONLY=iid&&only?only:null;
  const PL=yearInscs().map(i=>{const e=elv(i.eleveId);return [i.id,fullName(e)+' — '+(cls(i.classeId)?.nom||'')+' — '+(e?.matricule||''),e?.matricule||'']});
  arrInscs().forEach(i=>{const e=elv(i.eleveId);if(e&&reste(i)>0)PL.push([i.id,fullName(e)+' — arriéré seul ('+fcfa(reste(i))+') — '+(e.matricule||''),e.matricule||''])});
  DB.eleves.forEach(e=>{if((+e.arriereEnAttente||0)>0&&!inscOf(e.id)&&!arrOnlyOf(e.id))PL.push(['E:'+e.id,fullName(e)+' — non inscrit, arriéré seul ('+fcfa(e.arriereEnAttente)+') — '+(e.matricule||''),e.matricule||''])});
  PL.sort((a,b)=>a[1].localeCompare(b[1],'fr'));
  const sel=iid?`<input type="hidden" id="f_i" value="${iid}"><div class="field"><label>Élève</label><b style="padding:6px 0">${esc(fullName(elv(ins(iid).eleveId)))}${ins(iid).arrOnly?' <span class="muted">(arriéré seul)</span>':''}</b></div>`:pickerHTML('f_i','Élève * (nom ou numéro)',PL,'payInfo');
- modal(`<h3>Nouveau paiement</h3><div class="form-grid">${sel}${F('Date','f_d',today(),'date')}
+ modal(`<h3>${PAY_ONLY==='A'?'Paiement d\'arriéré des années passées <span class="muted" style="font-weight:400">(reçu série A)</span>':PAY_ONLY==='Y'?'Paiement des frais de l\'année':'Nouveau paiement'}</h3><div class="form-grid">${sel}${F('Date','f_d',today(),'date')}
  <div class="field"><label>Remarque (tranche)</label><input id="f_r" list="f_tr" value=""><datalist id="f_tr">${TRANCHES.map(t=>`<option value="${t}">`).join('')}</datalist></div>
  ${FS('Mode de paiement','f_mo',opts(['Espèces','Orange Money','Moov Money','Chèque','Virement']))}</div>
  <div id="payinfo" style="margin-top:12px"></div>
  <div class="actions"><span id="f_tot" style="margin-right:auto;font-size:16px"></span><button onclick="closeModal()">Annuler</button><button class="primary" onclick="savePaiement()">Enregistrer</button></div>`,true);
  payInfo();
 }
-function payArr(eid){const i=ensureArrOnly(eid);if(!i)return;save();closeModal();formPaiement(i.id)}
+function payArr(eid){const i=ensureArrOnly(eid);if(!i)return;save();closeModal();formPaiement(i.id,'A')}
 function payInfo(){
  const b=document.getElementById('payinfo');if(!b)return;let v=fval('f_i');
  if(v&&v.startsWith('E:')){const ni=ensureArrOnly(v.slice(2));if(ni){document.getElementById('f_i').value=ni.id;v=ni.id;save()}}
@@ -993,10 +994,10 @@ function payInfo(){
  if(!i){b.innerHTML='<div class="muted">Choisissez un élève.</div>';payTot();return}
  {const r=document.getElementById('f_r');if(r&&(!r.value||r.dataset.auto==='1')&&!i.arrOnly){const n=DB.paiements.filter(p=>p.inscriptionId===i.id&&!p.annule&&!isArrPay(p)).length;if(TRANCHES[n]){r.value=TRANCHES[n];r.dataset.auto='1'}}}
  const row=k=>{const d=dueC(i,k),p=paidC(i.id,k),r=Math.max(0,d-p);if(!d&&!p)return '';return `<tr><td>${esc(rubLabel(k))}</td><td class="num">${fcfa(d)}</td><td class="num">${fcfa(p)}</td><td class="num">${r?`<b style="color:var(--danger)">${fcfa(r)}</b>`:'—'}</td><td><input id="f_p_${k}" type="number" min="0" step="any" style="width:110px" oninput="payTot()" placeholder="${r||''}"></td></tr>`};
- const YK=keysAll().filter(k=>k!=='arriere'),rows=i.arrOnly?'':YK.map(row).join(''),arow=row('arriere');
+ const YK=keysAll().filter(k=>k!=='arriere'),rows=i.arrOnly?'':YK.map(row).join(''),arow=PAY_ONLY==='Y'?'':row('arriere');
  const yd=YK.reduce((s,k)=>s+dueC(i,k),0),yp=YK.reduce((s,k)=>s+paidC(i.id,k),0);
  const TH='<thead><tr><th>Rubrique</th><th class="num">Dû</th><th class="num">Déjà payé</th><th class="num">Reste</th><th>Ce paiement (F)</th></tr></thead>';
- b.innerHTML=(i.arrOnly?'<div class="banner" style="margin:0 0 8px">Élève non inscrit cette année : seul l\'arriéré des années passées peut être payé.</div>':`<div style="font-weight:600;margin-bottom:4px">Frais de l'année ${esc(i.annee)}</div><table class="data">${TH}<tbody>${rows}</tbody><tfoot><tr><td>Total de l'année</td><td class="num">${fcfa(yd)}</td><td class="num">${fcfa(yp)}</td><td class="num">${fcfa(Math.max(0,yd-yp))}</td><td></td></tr></tfoot></table>`)
+ b.innerHTML=(PAY_ONLY==='A'?'':i.arrOnly?'<div class="banner" style="margin:0 0 8px">Élève non inscrit cette année : seul l\'arriéré des années passées peut être payé.</div>':`<div style="font-weight:600;margin-bottom:4px">Frais de l'année ${esc(i.annee)}</div><table class="data">${TH}<tbody>${rows}</tbody><tfoot><tr><td>Total de l'année</td><td class="num">${fcfa(yd)}</td><td class="num">${fcfa(yp)}</td><td class="num">${fcfa(Math.max(0,yd-yp))}</td><td></td></tr></tfoot></table>`)
  +(arow?`<div style="font-weight:600;margin:12px 0 4px">Arriéré des années passées <span class="muted" style="font-weight:normal">— fonds à part, reçu séparé (série A), hors recettes de l'école</span></div><table class="data">${TH}<tbody>${arow}</tbody></table>`:'');
  payTot();
 }
