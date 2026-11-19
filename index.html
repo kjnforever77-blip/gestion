@@ -223,7 +223,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='66 (19/11/2026)';
+const APP_VERSION='67 (19/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -949,14 +949,19 @@ function fillPaie(){
  const box=document.getElementById('pres');if(!box)return;
  if(UI.f.peid){const e=elv(UI.f.peid);if(e&&UI.f.pq===fullName(e)+' '+e.matricule){box.innerHTML=payCard(e);return}delete UI.f.peid}const raw=(UI.f.pq||'').trim(),q=norm(raw);
  if(q.length<2){box.innerHTML='';return}
- const rq=q.replace(/\s/g,'');let RB='';
- if(/^(\d{4}-\d{2}-)?[pma]\d+$/.test(rq)){const key=rq.replace(/^.*?([pma])(\d+)$/,(m,x,y)=>x+y.padStart(4,'0'));const R=DB.paiements.filter(p=>norm(p.recu||'').endsWith(key));
-  if(R.length)RB=`<div class="card" style="padding:0;overflow:auto"><div style="padding:10px 14px;font-weight:600">Reçu(s) ${esc(raw)}</div><table class="data"><thead><tr><th>Date</th><th>Reçu N°</th><th>Élève</th><th>Classe</th><th>Détail</th><th>Mode</th><th class="num">Montant</th><th></th></tr></thead><tbody>${R.map(p=>payRow(p,true)).join('')}</tbody></table></div>`}
+ const rq=q.replace(/\s/g,'');let RB='',HINT='';
+ const rcp=k=>DB.paiements.filter(p=>norm(p.recu||'').replace(/\s/g,'').endsWith(k));
+ const mFull=rq.match(/^(\d{2}|\d{4})-(\d{2})-([pmar])(\d+)$/),mAR=rq.match(/^([ar])(\d+)$/);
+ if(mFull||mAR){const R=mFull?rcp(`${mFull[1].slice(-2)}-${mFull[2]}-${mFull[3]}${mFull[4].padStart(4,'0')}`):rcp(`-${mAR[1]}${mAR[2].padStart(4,'0')}`);
+  box.innerHTML=R.length?`<div class="card" style="padding:0;overflow:auto"><div style="padding:10px 14px;font-weight:600">Reçu(s) ${esc(raw)}</div><table class="data"><thead><tr><th>Date</th><th>Reçu N°</th><th>Élève</th><th>Classe</th><th>Détail</th><th>Mode</th><th class="num">Montant</th><th></th></tr></thead><tbody>${R.map(p=>payRow(p,true)).join('')}</tbody></table></div>`:'<div class="card muted">Aucun reçu trouvé. Tapez le numéro complet, comme sur le reçu (ex. 2026-27-p0257).</div>';return}
+ {const mS=rq.match(/^([pm])(\d+)$/);if(mS){const R=rcp(`-${mS[1]}${mS[2].padStart(4,'0')}`);if(R.length)HINT=`<div class="muted" style="margin:-6px 0 10px">Reçus portant aussi ce numéro : ${R.map(p=>`<a href="#" onclick="UI.f.pq='${esc(p.recu)}';document.getElementById('pq').value='${esc(p.recu)}';fillPaie();return false">${esc(p.recu)}</a>`).join(', ')}</div>`}}
+ {const mE=rq.match(/^([pm])(\d+)$/);if(mE){const key=(mE[1]+mE[2].padStart(4,'0')).toUpperCase();const ex=DB.eleves.filter(e=>[e.matricule,e.matriculeMat].some(m=>String(m||'').toUpperCase()===key));
+  box.innerHTML=ex.length===1?payCard(ex[0])+HINT:ex.length?HINT+ex.map(e=>`<div class="card"><a href="#" onclick="pickPay('${e.id}');return false"><b>${esc(fullName(e))}</b></a> ${esc(e.matricule)}</div>`).join(''):`<div class="card muted">Aucun élève n° ${esc(key)}. Pour un reçu, tapez le numéro complet (ex. 2026-27-${esc(rq)}).</div>`+HINT;return}}
  const digits=q.replace(/[^0-9]/g,'');
  const L=DB.eleves.filter(e=>{const k=norm(fullName(e)+' '+e.matricule+' '+(e.matriculeMat||''));return k.includes(q)||(digits&&/^[a-z]?\d+$/.test(rq)&&[e.matricule,e.matriculeMat].some(m=>String(m||'').replace(/\D/g,'').endsWith(digits.padStart(4,'0'))))}).sort((a,b)=>(inscOf(b.id)?1:0)-(inscOf(a.id)?1:0)||byName(a,b));
- if(!L.length){box.innerHTML=RB||'<div class="card muted">Aucun élève ni reçu trouvé.</div>';return}
- if(L.length===1){box.innerHTML=RB+payCard(L[0]);return}
- box.innerHTML=RB+`<div class="card" style="padding:0;overflow:auto"><div style="padding:10px 14px" class="muted">${L.length} élève(s) — cliquez sur un nom</div><table class="data"><tbody>${L.slice(0,30).map(e=>{const i=inscOf(e.id);return `<tr><td><a href="#" onclick="pickPay('${e.id}');return false"><b>${esc(fullName(e))}</b></a></td><td>${esc(e.matricule)}</td><td>${i?esc(cls(i.classeId)?.nom||''):'<span class="muted">non inscrit(e)</span>'}</td><td class="num">${i?(reste(i)>0?'reste '+fcfa(reste(i)):'<span class="tag ok">soldé</span>'):''}</td></tr>`}).join('')}</tbody></table></div>`;
+ if(!L.length){box.innerHTML='<div class="card muted">Aucun élève trouvé.'+(/\d/.test(rq)?' Pour un reçu, tapez le numéro complet (ex. 2026-27-p0257).':'')+'</div>'+HINT;return}
+ if(L.length===1){box.innerHTML=payCard(L[0])+HINT;return}
+ box.innerHTML=HINT+`<div class="card" style="padding:0;overflow:auto"><div style="padding:10px 14px" class="muted">${L.length} élève(s) — cliquez sur un nom</div><table class="data"><tbody>${L.slice(0,30).map(e=>{const i=inscOf(e.id);return `<tr><td><a href="#" onclick="pickPay('${e.id}');return false"><b>${esc(fullName(e))}</b></a></td><td>${esc(e.matricule)}</td><td>${i?esc(cls(i.classeId)?.nom||''):'<span class="muted">non inscrit(e)</span>'}</td><td class="num">${i?(reste(i)>0?'reste '+fcfa(reste(i)):'<span class="tag ok">soldé</span>'):''}</td></tr>`}).join('')}</tbody></table></div>`;
 }
 function vPaie(){
  const cl=UI.f.pcl||'',ec=UI.f.pec||'',na=UI.f.pna||'';
@@ -967,7 +972,7 @@ function vPaie(){
   per=`<div class="card" style="padding:0;overflow:auto"><div style="padding:10px 14px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><b>Paiements du ${fmtDate(UI.f.pd1)} au ${fmtDate(UI.f.pd2)}</b><button class="small" onclick="UI.f.pd1=UI.f.pd2='';render()">Fermer la liste</button></div><table class="data"><thead><tr><th>Date</th><th>Reçu N°</th><th>Élève</th><th>Classe</th><th>Détail</th><th>Mode</th><th class="num">Montant</th><th></th></tr></thead><tbody>${P.map(p=>payRow(p,true)).join('')||'<tr><td colspan="8" class="muted" style="padding:20px;text-align:center">Aucun paiement sur cette période.</td></tr>'}</tbody>${P.length?`<tfoot><tr><td colspan="6">${P.length} reçu(s) — total encaissé (reçus annulés non comptés)</td><td class="num">${fcfa(tot)}</td><td></td></tr><tr><td colspan="6" style="font-weight:400">dont <b>recettes de l'école</b></td><td class="num"><b>${fcfa(tSch)}</b></td><td></td></tr>${tExt?`<tr><td colspan="6" style="font-weight:400">dont APE (hors recettes de l'école)</td><td class="num">${fcfa(tExt)}</td><td></td></tr>`:''}${tArr?`<tr><td colspan="6" style="font-weight:400">dont arriérés des années passées (fonds à part)</td><td class="num">${fcfa(tArr)}</td><td></td></tr>`:''}</tfoot>`:''}</table></div>`}
  setTimeout(fillPaie,0);
  return `${backupBanner()}${hd('Paiements / frais '+esc(S().annee),pB('État des paiements'+(isAdmin()?'':' 🔒'),`requirePin(()=>printDoc(paiementsHTML(UI.f.pcl||'',false,UI.f.pec||'')),'imprimer l\\'état des paiements')`))}
- <div class="card"><div class="row" style="align-items:flex-end"><div class="field" style="flex:1;min-width:260px"><label style="font-size:14px;color:var(--ink)">Rechercher un élève (nom ou numéro) ou un reçu (ex. p0282)</label><input id="pq" style="font-size:17px;padding:10px;max-width:520px" value="${esc(UI.f.pq||'')}" oninput="UI.f.pq=this.value;fillPaie()" autocomplete="off" placeholder="ex. Sanou Jean, 0058 ou p0282"></div><button class="primary" onclick="formPaiement()">+ Nouveau paiement</button><button onclick="formCloture()">Clôture de caisse</button></div></div>
+ <div class="card"><div class="row" style="align-items:flex-end"><div class="field" style="flex:1;min-width:260px"><label style="font-size:14px;color:var(--ink)">Rechercher un élève (nom ou numéro, ex. P0257) ou un reçu (numéro complet, ex. 2026-27-p0257)</label><input id="pq" style="font-size:17px;padding:10px;max-width:520px" value="${esc(UI.f.pq||'')}" oninput="UI.f.pq=this.value;fillPaie()" autocomplete="off" placeholder="ex. Sanou Jean, P0058 ou 2026-27-p0282"></div><button class="primary" onclick="formPaiement()">+ Nouveau paiement</button><button onclick="formCloture()">Clôture de caisse</button></div></div>
  <div id="pres"></div>
  ${isAdmin()?`<details class="card"${UI.f.pd1||UI.f.popen?' open':''}><summary style="cursor:pointer;font-weight:600">Consulter par période (école, classe)</summary>
  <div class="row" style="margin-top:12px">${[['','Toutes les écoles'],['maternelle','Maternelle'],['primaire','Primaire']].map(([v,l])=>`<button class="${ec===v?'primary':''}" onclick="UI.f.pec='${v}';delete UI.f.pcl;UI.f.popen=1;render()">${l}</button>`).join('')}</div>
