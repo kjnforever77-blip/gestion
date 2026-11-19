@@ -223,7 +223,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='59 (19/11/2026)';
+const APP_VERSION='60 (19/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -889,7 +889,8 @@ function vPaie(){
  <div class="card"><div class="row" style="align-items:flex-end"><div class="field" style="flex:1;min-width:260px"><label style="font-size:14px;color:var(--ink)">Rechercher un élève (nom ou numéro) ou un reçu (ex. p0282)</label><input id="pq" style="font-size:17px;padding:10px;max-width:520px" value="${esc(UI.f.pq||'')}" oninput="UI.f.pq=this.value;fillPaie()" autocomplete="off" placeholder="ex. Sanou Jean, 0058 ou p0282"></div><button class="primary" onclick="formPaiement()">+ Nouveau paiement</button><button onclick="formCloture()">Clôture de caisse</button></div></div>
  <div id="pres"></div>
  ${isAdmin()?`<details class="card"${UI.f.pd1||UI.f.popen?' open':''}><summary style="cursor:pointer;font-weight:600">Consulter par période (école, classe)</summary>
- <div class="row" style="margin-top:12px">${FS('École','p_ec',opts([['','Les deux écoles'],['primaire','Primaire'],['maternelle','Maternelle']],ec),'onchange="UI.f.pec=this.value;delete UI.f.pcl;UI.f.popen=1;render()"')}${FS('Classe','p_cl','<option value="">Toutes les classes</option>'+classOpts(cl,ec),'onchange="UI.f.pcl=this.value;UI.f.popen=1;render()"')}${FS('Reçus','p_na',opts([['','Tous'],['Y',"Frais de l'année"],['A','Arriérés (série A)']],na),'onchange="UI.f.pna=this.value"')}${F('Du','p_d1',UI.f.pd1||today().slice(0,8)+'01','date')}${F('Au','p_d2',UI.f.pd2||today(),'date')}<button onclick="const a=fval('p_d1'),b=fval('p_d2');if(!a||!b||a>b){alert('Choisissez une période valide.');return}UI.f.pd1=a;UI.f.pd2=b;render()">Afficher les paiements</button></div></details>`:`<div class="card"><button onclick="requirePin(()=>{UI.f.popen=1;render()},'consulter les paiements par période')">Consulter par période (école, classe) 🔒</button> <span class="muted">Réservé à la direction. La clôture de caisse du jour reste accessible.</span></div>`}
+ <div class="row" style="margin-top:12px">${[['','Toutes les écoles'],['maternelle','Maternelle'],['primaire','Primaire']].map(([v,l])=>`<button class="${ec===v?'primary':''}" onclick="UI.f.pec='${v}';delete UI.f.pcl;UI.f.popen=1;render()">${l}</button>`).join('')}</div>
+ <div class="row" style="margin-top:10px">${FS('Classe','p_cl','<option value="">Toutes les classes</option>'+classOpts(cl,ec),'onchange="UI.f.pcl=this.value;UI.f.popen=1;render()"')}${FS('Reçus','p_na',opts([['','Tous'],['Y',"Frais de l'année"],['A','Arriérés (série A)']],na),'onchange="UI.f.pna=this.value"')}${F('Du','p_d1',UI.f.pd1||today().slice(0,8)+'01','date')}${F('Au','p_d2',UI.f.pd2||today(),'date')}<button onclick="const a=fval('p_d1'),b=fval('p_d2');if(!a||!b||a>b){alert('Choisissez une période valide.');return}UI.f.pd1=a;UI.f.pd2=b;render()">Afficher les paiements</button></div></details>`:`<div class="card"><button onclick="requirePin(()=>{UI.f.popen=1;render()},'consulter les paiements par période')">Consulter par période (école, classe) 🔒</button> <span class="muted">Réservé à la direction. La clôture de caisse du jour reste accessible.</span></div>`}
  ${per}`;
 }
 function formPaiement(iid){if(noArch())return;
