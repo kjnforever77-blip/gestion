@@ -157,9 +157,9 @@ function download(name,content,mime){const b=new Blob([content],{type:mime});con
 /* ---------- données ---------- */
 function defaultMatieres(niv){
  const m=a=>a.map(([n,max])=>({id:uid(),nom:n,max:max??null}));
- if(niv==='CP1'||niv==='CP2')return m([['Lecture',10],['Écriture',10],['Calcul',10],['Langage',10],["Exercices d'observation",10],['Chant / Récitation',10],['Dessin',10]]);
- if(niv==='CE1'||niv==='CE2')return m([['Dictée',10],['Lecture',10],['Écriture',10],['Rédaction',10],['Calcul',10],['Histoire',10],['Géographie',10],['Sciences',10],['Éducation civique et morale',10]]);
- if(niv==='CM1'||niv==='CM2')return m([['Dictée',10],['Questions de dictée',10],['Rédaction',10],['Calcul',10],['Problème',10],['Histoire',10],['Géographie',10],['Sciences',10],['Éducation civique et morale',10]]);
+ if(niv==='CP1'||niv==='CP2')return m([['Dictée',10],['Ecriture',10],['Copie',10],['Lecture',10],['Calcul',10],['Langage',10],['Exercices sensoriels',10],['Dessin',10],['Récitation / Chant',10],['EMC',10]]);
+ if(niv==='CE1'||niv==='CE2')return m([['Lecture',10],['Expression écrite ou Rédaction',10],['Ecriture',10],['Dictée',10],['Conjugaison',10],['Vocabulaire',10],['Grammaire',10],['Copie',10],['Histoire',10],['Orthographe',10],['Opérations',10],['Problème',10],['Sciences',10],['Géographie',10],['Dessin',10],['Récitation / Chant',10],['EMC',10],['Anglais',10]]);
+ if(niv==='CM1'||niv==='CM2')return m([['Lecture',10],['Rédaction',10],['Présentation',10],['Dictée',10],['Etude de texte',20],['Opération',20],['Problème',20],['Observation',20],['Histoire-Géo',20],['Dessin',10],['Récitation / Chant',10],['EMC',10],...(niv==='CM2'?[['Sport',10]]:[]),['Anglais',10]]);
  return m([['Langage oral'],['Pré-lecture'],['Graphisme / Pré-écriture'],['Pré-mathématiques'],['Découverte du monde'],['Activités artistiques (dessin, chant)'],['Éducation physique'],['Vivre ensemble / Comportement']]);
 }
 function zeroFrais(){const f={};DEF_RUB.forEach(r=>f[r.k]=0);return f}
@@ -193,6 +193,11 @@ function migrate(d){
   (d.inscriptions||[]).forEach(i=>{if(i.annee==='2026-2027'&&!i.arrOnly&&(i.date||'')<'2026-06-01'){const ps=(d.paiements||[]).filter(p=>p.inscriptionId===i.id&&p.date).map(p=>p.date).sort();i.dateOrig=i.date;i.date=ps[0]||'2026-09-01'}});
   d.settings.dateFix1=true;
  }
+ if(!d.settings.matFix1){/* CM1-CM2 : matières notées sur 20 (coefficient 2), comme dans l'Excel des bulletins */
+  const S20=['etude de texte','operation','operations','probleme','observation','histoire-geo'];const nz=x=>String(x||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
+  (d.classes||[]).forEach(c=>{if(c.ecole==='primaire'&&/^CM/.test(c.niveau||''))(c.matieres||[]).forEach(m=>{if(S20.includes(nz(m.nom))&&(+m.max||0)===10)m.max=20})});
+  d.settings.matFix1=true;
+ }
  if(!d.settings.entreeFix1){/* élèves nouveaux de l'année : date d'entrée à l'école = date d'inscription */
   const E={};(d.eleves||[]).forEach(e=>E[e.id]=e);
   (d.inscriptions||[]).forEach(i=>{const e=E[i.eleveId];if(e&&!e.dateEntree&&!i.arrOnly&&i.type==='Nouveau'&&i.date&&!(d.inscriptions||[]).some(x=>x.eleveId===i.eleveId&&x!==i&&!x.arrOnly&&x.annee<i.annee))e.dateEntree=i.date});
@@ -213,7 +218,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='41 (18/11/2026)';
+const APP_VERSION='42 (19/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
