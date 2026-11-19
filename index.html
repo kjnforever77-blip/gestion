@@ -221,7 +221,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='43 (19/11/2026)';
+const APP_VERSION='44 (19/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -714,8 +714,7 @@ function clotureHTML(d,ec){
  <p style="margin:10px 0 0"><b>Recettes de l'école : ${fcfa(TS)}</b>${TE?` &nbsp;·&nbsp; APE (hors recettes école) : <b>${fcfa(TE)}</b>`:''} &nbsp;·&nbsp; Total encaissé : ${fcfa(T)}</p>${TA?`<p style="margin:4px 0 0">Arriérés des années passées reçus ce jour (fonds à part, hors caisse de l'école) : <b>${fcfa(TA)}</b> — reçus ${PA.map(p=>esc(p.recu)).join(', ')}</p>`:''}
  <table style="margin-top:10px;width:60%"><tr><th colspan="2">Par mode de paiement</th></tr>${Object.entries(tm).map(([m,v])=>`<tr><td>${esc(m)}</td><td class="r">${fcfa(v)}</td></tr>`).join('')||'<tr><td colspan="2">—</td></tr>'}</table>
  ${A.length?`<table class="small" style="margin-top:10px"><tr><th colspan="4">Reçus annulés</th></tr>${A.map(p=>`<tr><td>${esc(p.recu)}</td><td>${esc(fullName(elv(ins(p.inscriptionId)?.eleveId)))}</td><td class="r">${fcfa(p.montant)}</td><td>${esc(p.annule.motif)}</td></tr>`).join('')}</table>`:''}
- ${(()=>{const D=DB.depenses.filter(x=>x.date===d&&!x.annule);const td=D.reduce((s,x)=>s+(+x.montant||0),0);return D.length?`<table class="small" style="margin-top:10px"><thead><tr><th colspan="4">Dépenses du jour (payées par la caisse)</th></tr><tr><th>Reçu</th><th>Description</th><th>Catégorie</th><th class="r">Montant</th></tr></thead><tbody>${D.map(x=>`<tr><td class="c">${esc(x.recu)}</td><td>${esc(x.desc)}</td><td>${esc(x.cat)}</td><td class="r">${fcfa(x.montant)}</td></tr>`).join('')}</tbody><tfoot><tr><th colspan="3">Total des dépenses</th><th class="r">${fcfa(td)}</th></tr></tfoot></table>`:''})()}
- <table style="margin-top:14px"><tr><td style="width:50%">Espèces reçues : ${fcfa(esp)}${(()=>{const td=DB.depenses.filter(x=>x.date===d&&!x.annule&&(x.source||'Caisse Générale')==='Caisse Générale').reduce((s,x)=>s+(+x.montant||0),0);return td?` − dépenses ${fcfa(td)} = <b>${fcfa(esp-td)}</b>`:''})()}<br>Mouvement de caisse du jour : <b>${fcfa(esp-DB.depenses.filter(x=>x.date===d&&!x.annule&&(x.source||'Caisse Générale')==='Caisse Générale').reduce((s,x)=>s+(+x.montant||0),0))}</b></td><td>Espèces comptées : ..............................</td></tr><tr><td>Écart : ..............................</td><td>Observations : ..............................</td></tr></table>
+ <table style="margin-top:14px"><tr><td style="width:50%">Espèces attendues en caisse : <b>${fcfa(esp)}</b></td><td>Espèces comptées : ..............................</td></tr><tr><td>Écart : ..............................</td><td>Observations : ..............................</td></tr></table>
  <div class="sign"><div>Le/La Caissier(ère)</div><div>Le Directeur / La Directrice</div></div></div>`;
 }
 function partsTxt(p){return Object.entries(p.parts||{}).filter(([k,v])=>+v).map(([k,v])=>`${rubLabel(k)} ${fcfa(v)}`).join(' · ')}
