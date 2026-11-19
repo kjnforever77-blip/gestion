@@ -221,7 +221,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='46 (19/11/2026)';
+const APP_VERSION='47 (19/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -646,15 +646,23 @@ function afterInscription(iid){
 
 /* ---------- Inscriptions ---------- */
 function vInscr(){
- const a=S().annee,cl=UI.f.icl||'',money=isAdmin()&&UI.f.imoney;
- let L=sortBy(cl?classInscs(cl):yearInscs(),'isort',{mat:i=>elv(i.eleveId)?.matricule,nom:i=>fullName(elv(i.eleveId)),date:i=>i.date||'',cl:i=>NIV_ALL.indexOf(cls(i.classeId)?.niveau)*100+(cls(i.classeId)?.nom||'').length});
+ const a=S().annee,cl=UI.f.icl||'',money=isAdmin()&&UI.f.imoney,ec=UI.f.iec||'';
+ const base=yearInscs().filter(i=>!ec||insEcole(i)===ec);
+ const tab=(v,l)=>`<button class="${ec===v?'primary':''}" onclick="UI.f.iec='${v}';UI.f.icl='';render()">${l}</button>`;
+ const sumCls=sortedClasses().filter(c=>!ec||c.ecole===ec);let sG=0,sF=0;
+ const chips=sumCls.map(c=>{const I=base.filter(i=>i.classeId===c.id);const nf=I.filter(i=>elv(i.eleveId)?.sexe==='F').length,ng=I.length-nf;sG+=ng;sF+=nf;
+  return `<div onclick="UI.f.icl='${cl===c.id?'':c.id}';render()" style="cursor:pointer;border:1px solid ${cl===c.id?'var(--accent)':'var(--line,#ddd)'};${cl===c.id?'background:#eef6ef;':''}border-radius:8px;padding:8px 12px;min-width:92px"><div style="font-weight:600">${esc(c.nom)}</div><div style="font-size:20px;font-weight:700">${I.length}</div><div class="muted" style="font-size:12px">G ${ng} · F ${nf}</div></div>`}).join('');
+ const summary=`<div class="card"><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:stretch">${chips}<div style="border:1px solid var(--line,#ddd);border-radius:8px;padding:8px 12px;min-width:110px;background:#f6f6f6"><div style="font-weight:600">Total ${ec==='maternelle'?'maternelle':ec==='primaire'?'primaire':'2 écoles'}</div><div style="font-size:20px;font-weight:700">${sG+sF}</div><div class="muted" style="font-size:12px">G ${sG} · F ${sF}</div></div></div><div class="muted" style="font-size:12px;margin-top:6px">Cliquez sur une classe pour afficher sa liste.</div></div>`;
+ let L=sortBy(cl?classInscs(cl):base,'isort',{mat:i=>elv(i.eleveId)?.matricule,nom:i=>fullName(elv(i.eleveId)),date:i=>i.date||'',cl:i=>NIV_ALL.indexOf(cls(i.classeId)?.niveau)*100+(cls(i.classeId)?.nom||'').length});
  if(UI.f.ibours)L=L.filter(i=>elv(i.eleveId)?.boursier);
  let tD=0,tP=0,tR=0,g=0,f=0;
  const rows=L.map((i,k)=>{const e=elv(i.eleveId);e?.sexe==='F'?f++:g++;let mc='';if(money){const d=du(i),p=paye(i.id),r=reste(i);tD+=d;tP+=p;tR+=r;mc=`<td class="num">${fcfa(d)}</td><td class="num">${fcfa(p)}</td><td class="num">${r>0?`<span style="color:var(--danger)">${fcfa(r)}</span>`:'<span class="tag ok">soldé</span>'}</td>`}
   return `<tr data-s="${rowKey(e)}"><td>${k+1}</td><td>${esc(e?.matricule)}</td><td><a href="#" onclick="openFiche('${i.eleveId}');return false"><b>${esc(fullName(e))}</b></a>${e?.boursier?' <span class="tag">boursier</span>':''}</td><td>${fmtDate(i.date)}</td><td>${esc(e?.sexe)}</td><td>${fmtDate(e?.dateNaiss)}</td><td>${esc(cls(i.classeId)?.nom||'')}</td><td>${esc(i.type)}${i.redoublant?' <span class="tag warn">redoublant(e)</span>':''}</td><td>${[e?.tuteur||e?.pere||e?.mere,e?.telephone].filter(Boolean).map(esc).join('<br>')}</td>${mc}<td style="white-space:nowrap"><button class="small" onclick="formInscription('${i.id}')">Modifier</button></td></tr>`}).join('');
  const nc=money?13:10;
  return `${backupBanner()}<h1>Classes et effectifs ${esc(a)}</h1>
- <div class="card row">${FS('Classe','i_cl','<option value="">Toutes les classes</option>'+classOpts(cl),'onchange="UI.f.icl=this.value;render()"')}
+ <div class="row" style="margin-bottom:10px">${tab('','Toutes les écoles')}${tab('maternelle','Maternelle')}${tab('primaire','Primaire')}</div>
+ ${summary}
+ <div class="card row">${FS('Classe','i_cl','<option value="">Toutes les classes</option>'+classOpts(cl,ec),'onchange="UI.f.icl=this.value;render()"')}
  <div class="field" style="min-width:220px"><label>Rechercher (nom ou numéro)</label><input oninput="filterRows('tb_i',this.value)" placeholder="ex. 0178 ou Sanou"></div><label style="display:flex;gap:6px;align-items:center;padding-bottom:8px"><input type="checkbox" ${UI.f.ibours?'checked':''} onchange="UI.f.ibours=this.checked;render()"> Boursiers seulement</label><button class="primary" onclick="go('inscrire')">+ Inscrire un élève</button>
  ${cl?`<button onclick="printDoc(listeHTML('${cl}'))">Imprimer la liste de classe</button>`:''}<span style="flex:1"></span>${isAdmin()?`<button onclick="UI.f.imoney=!UI.f.imoney;render()">${money?'Masquer les montants':'Afficher les montants'}</button>`:''}</div>
  <div class="card" style="padding:0;overflow:auto"><table class="data"><thead><tr><th>N°</th>${sortTh('Matricule','mat','isort','render()')}${sortTh('Nom et prénoms','nom','isort','render()')}${sortTh('Inscrit le','date','isort','render()')}<th>Sexe</th><th>Né(e) le</th>${sortTh('Classe','cl','isort','render()')}<th>Type</th><th>Parent / Téléphone</th>${money?'<th class="num">Dû</th><th class="num">Payé</th><th class="num">Reste</th>':''}<th></th></tr></thead>
