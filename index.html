@@ -223,7 +223,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='70 (19/11/2026)';
+const APP_VERSION='71 (19/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -866,7 +866,7 @@ function formDep(id){
  ${FS('Source de financement','dp_s',opts(DEP_SOURCES.map(c=>[c,c]),x?.source||'Caisse Générale'))}${F('Fournisseur / bénéficiaire','dp_f',x?.fournisseur||'','text')}
  <div class="field" style="grid-column:1/-1"><label>Observations</label><input id="dp_o" value="${esc(x?.obs||'')}"></div></div>
  <div class="actions"><button onclick="closeModal()">Annuler</button><button class="primary" onclick="saveDep('${id||''}')">Enregistrer</button></div>`)};
- if(id)requirePin(go2,'modifier une dépense');else go2();
+ if(id)go2();else go2();
 }
 function saveDep(id){
  const d=fval('dp_d'),ds=(fval('dp_ds')||'').trim(),c=fval('dp_c'),m=+fval('dp_m'),rc=(fval('dp_r')||'').trim();
