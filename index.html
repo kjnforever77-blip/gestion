@@ -223,7 +223,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='57 (19/11/2026)';
+const APP_VERSION='58 (19/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -370,7 +370,13 @@ function schoolPay(p){const pt=p.parts||{};if(!+pt.arriere)return p;const parts=
 function arrEntrees(d1,d2){return DB.paiements.filter(p=>!p.annule&&+(p.parts||{}).arriere>0&&(!d1||p.date>=d1)&&(!d2||p.date<=d2)).sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.recu||'').localeCompare(b.recu||''))}
 function arrSorties(d1,d2){return (DB.fondsArr||[]).filter(x=>!x.annule&&(!d1||x.date>=d1)&&(!d2||x.date<=d2)).sort((a,b)=>(a.date||'').localeCompare(b.date||''))}
 function fondsSolde(d2){return arrEntrees('',d2).reduce((s,p)=>s+(+p.parts.arriere||0),0)-arrSorties('',d2).reduce((s,x)=>s+(+x.montant||0),0)}
-function nextRecu(ec){ec=ec==='maternelle'?'maternelle':'primaire';S().cptRecu[ec]=(+S().cptRecu[ec]||0)+1;return `${anneeCourte(S().annee)}-${ec==='maternelle'?'m':'p'}${String(S().cptRecu[ec]).padStart(4,'0')}`}
+/* numéros de reçu : la numérotation repart à 0001 à chaque année scolaire */
+function nextRecu(ec){ec=ec==='maternelle'?'maternelle':'primaire';const s=S(),an=s.annee,pre=`${anneeCourte(an)}-${ec==='maternelle'?'m':'p'}`;
+ if(!s.cptRecuAn)s.cptRecuAn=an;
+ let mx=0;DB.paiements.forEach(p=>{const r=String(p.recu||'');if(r.startsWith(pre)){const v=parseInt(r.slice(pre.length),10);if(v>mx)mx=v}});
+ const n=Math.max(mx,s.cptRecuAn===an?(+s.cptRecu[ec]||0):0)+1;
+ if(s.cptRecuAn!==an){s.cptRecu={primaire:0,maternelle:0};s.cptRecuAn=an}
+ s.cptRecu[ec]=n;return pre+String(n).padStart(4,'0')}
 /* Nouveau / Ancien : jugé par école (maternelle et primaire sont deux écoles) */
 function typeFor(eid,cid,annee){const ec=cls(cid)?.ecole;if(!eid)return 'Nouveau';return DB.inscriptions.some(x=>x.eleveId===eid&&x.annee!==(annee||S().annee)&&!x.arrOnly&&(!ec||insEcole(x)===ec))?'Ancien':'Nouveau'}
 function createInscription(eid,cid,annee,extra){
