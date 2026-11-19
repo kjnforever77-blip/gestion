@@ -221,7 +221,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='49 (19/11/2026)';
+const APP_VERSION='50 (19/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -746,7 +746,7 @@ function vDep(){
  return `${backupBanner()}<h1>Dépenses de l'école</h1>
  <div class="card"><div class="row" style="align-items:flex-end"><div class="field" style="flex:1;min-width:240px"><label>Rechercher (description, fournisseur, n° de reçu)</label><input id="dq" value="${esc(UI.f.dq||'')}" onchange="UI.f.dq=this.value;render()" placeholder="ex. sucre, sonabel, 114"></div><button class="primary" onclick="formDep()">+ Nouvelle dépense</button></div>
  <p class="muted" style="margin:8px 0 0">Une ligne par reçu de dépense. Ne pas saisir ici les dépenses APE (gérées par l'Association des Parents d'Élèves), ni les salaires et cotisations sociales (suivis dans le fichier Salaires).</p></div>
- <div class="card row">${F('Du','dd1',d1,'date','onchange="UI.f.dd1=this.value;render()"')}${F('Au','dd2',d2,'date','onchange="UI.f.dd2=this.value;render()"')}${FS('Catégorie','dcat',opts([['','Toutes'],...S().depCats.map(c=>[c,c])],cat),'onchange="UI.f.dcat=this.value;render()"')}${q?`<button onclick="UI.f.dq='';render()">Effacer la recherche</button>`:''}</div>
+ <div class="card row">${F('Du','dd1',d1,'date','onchange="UI.f.dd1=this.value;render()"')}${F('Au','dd2',d2,'date','onchange="UI.f.dd2=this.value;render()"')}${FS('Catégorie','dcat',opts([['','Toutes'],...S().depCats.map(c=>[c,c])],cat),'onchange="UI.f.dcat=this.value;render()"')}${q?`<button onclick="UI.f.dq='';render()">Effacer la recherche</button>`:''}<span style="flex:1"></span><button onclick="requirePin(()=>printDoc(depensesHTML('${d1}','${d2}','${esc(cat)}')),'imprimer les dépenses')">🖨 Imprimer cette période</button><button onclick="requirePin(()=>depensesXLSX('${d1}','${d2}'),'exporter les dépenses')">Excel</button></div>
  <div class="card" style="padding:0;overflow:auto"><div style="padding:10px 14px;font-weight:600">${q?`Résultats de la recherche « ${esc(UI.f.dq)} »`:`Dépenses du ${fmtDate(d1)} au ${fmtDate(d2)}`}</div><table class="data"><thead><tr><th>Date</th><th>Reçu N°</th><th>Description</th><th>Catégorie</th><th>Source</th><th class="num">Montant</th><th></th></tr></thead>
  <tbody>${L.map(depRow).join('')||'<tr><td colspan="7" class="muted" style="padding:20px;text-align:center">Aucune dépense.</td></tr>'}</tbody>${L.length?`<tfoot><tr><td colspan="5">${L.length} dépense(s) (annulées non comptées)</td><td class="num">${fcfa(tot)}</td><td></td></tr></tfoot>`:''}</table></div>
  ${Object.keys(byCat).length?`<div class="card"><b>Par catégorie</b><table class="data" style="margin-top:6px;max-width:520px"><tbody>${Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<tr><td>${esc(c)}</td><td class="num">${fcfa(v)}</td></tr>`).join('')}</tbody></table></div>`:''}`;
@@ -774,9 +774,9 @@ function saveDep(id){
 }
 function annulDep(id){requirePin(()=>{const x=DB.depenses.find(y=>y.id===id);if(!x||x.annule)return;const m=prompt(`Annuler la dépense N° ${x.recu} (${x.desc}, ${fcfa(x.montant)}) ?\n\nElle n'est pas effacée : elle reste marquée « ANNULÉE ».\nMotif :`);if(!m)return;
  x.annule={t:new Date().toISOString(),motif:m,dev:devName()||''};logJ('Dépense annulée',`N° ${x.recu} — ${x.desc} — ${fcfa(x.montant)} — motif : ${m}`);save();render()},'annuler une dépense')}
-function depensesHTML(d1,d2){
- const L=depList(d1,d2).filter(x=>!x.annule).sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(+a.recu||0)-(+b.recu||0));const tot=L.reduce((s,x)=>s+(+x.montant||0),0);const byCat={};L.forEach(x=>byCat[x.cat]=(byCat[x.cat]||0)+(+x.montant||0));
- return `<div class="pg">${pageHeader({nom:'Écoles Être et Avoir en Jésus-Christ (primaire et maternelle)'},S().annee)}<div class="title">Registre des dépenses du ${fmtDate(d1)} au ${fmtDate(d2)}</div>
+function depensesHTML(d1,d2,cat){
+ const L=depList(d1,d2,cat).filter(x=>!x.annule).sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(+a.recu||0)-(+b.recu||0));const tot=L.reduce((s,x)=>s+(+x.montant||0),0);const byCat={};L.forEach(x=>byCat[x.cat]=(byCat[x.cat]||0)+(+x.montant||0));
+ return `<div class="pg">${pageHeader({nom:'Écoles Être et Avoir en Jésus-Christ (primaire et maternelle)'},S().annee)}<div class="title">Registre des dépenses du ${fmtDate(d1)} au ${fmtDate(d2)}${cat?' — '+esc(cat):''}</div>
  <table class="small"><thead><tr><th>Date</th><th>Reçu</th><th>Description</th><th>Catégorie</th><th>Fournisseur</th><th class="r">Montant</th></tr></thead><tbody>${L.map(x=>`<tr><td>${fmtDate(x.date)}</td><td class="c">${esc(x.recu)}</td><td>${esc(x.desc)}</td><td>${esc(x.cat)}</td><td>${esc(x.fournisseur||'')}</td><td class="r">${fcfa(x.montant)}</td></tr>`).join('')||'<tr><td colspan="6" class="c">Aucune dépense</td></tr>'}</tbody><tfoot><tr><th colspan="5">Total (${L.length} dépense(s))</th><th class="r">${fcfa(tot)}</th></tr></tfoot></table>
  <table class="small" style="width:auto;min-width:50%;margin-top:5mm"><thead><tr><th>Catégorie</th><th class="r">Montant</th></tr></thead><tbody>${Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<tr><td>${esc(c)}</td><td class="r">${fcfa(v)}</td></tr>`).join('')}</tbody></table>
  <div class="sign"><div>Le/La Caissier(ère)</div><div>Le Directeur / La Directrice</div></div></div>`;
