@@ -221,7 +221,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='47 (19/11/2026)';
+const APP_VERSION='48 (19/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -754,7 +754,7 @@ function vDep(){
 function formDep(id){
  const go2=()=>{const x=id?DB.depenses.find(y=>y.id===id):null;const y=(x?.date||today()).slice(0,4);
  modal(`<h3>${x?'Modifier la dépense N° '+esc(x.recu):'Nouvelle dépense'}</h3><div class="form-grid">
- ${F('Date *','dp_d',x?.date||today(),'date')}<div class="field"><label>N° de reçu</label><b style="padding:6px 0">${x?esc(x.recu):depNext(y)+' <span class="muted" style="font-weight:400">(automatique)</span>'}</b></div>
+ ${F('Date *','dp_d',x?.date||today(),'date')}${(()=>{const last=DB.depenses.filter(z=>!z.annule&&(z.date||'').slice(0,4)===y).sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];return F('N° de reçu * (du cahier des dépenses)','dp_r',x?.recu||'','text','placeholder="'+(last?'dernier saisi : '+esc(last.recu):'ex. 116')+'"')})()}
  <div class="field" style="grid-column:1/-1"><label>Description *</label><input id="dp_ds" value="${esc(x?.desc||'')}" placeholder="ex. Achat de sucre (cantine)"></div>
  ${FS('Catégorie *','dp_c',opts([['','— choisir —'],...S().depCats.map(c=>[c,c])],x?.cat||''))}${F('Montant (F) *','dp_m',x?.montant||'','number','min="0" step="any"')}
  ${FS('Source de financement','dp_s',opts(DEP_SOURCES.map(c=>[c,c]),x?.source||'Caisse Générale'))}${F('Fournisseur / bénéficiaire','dp_f',x?.fournisseur||'','text')}
@@ -763,11 +763,13 @@ function formDep(id){
  if(id)requirePin(go2,'modifier une dépense');else go2();
 }
 function saveDep(id){
- const d=fval('dp_d'),ds=(fval('dp_ds')||'').trim(),c=fval('dp_c'),m=+fval('dp_m');
- if(!d||!ds||!c||!(m>0)){alert('Remplissez la date, la description, la catégorie et le montant.');return}
- const data={date:d,desc:ds,cat:c,montant:m,source:fval('dp_s')||'Caisse Générale',fournisseur:fval('dp_f'),obs:fval('dp_o')};
- if(id){const x=DB.depenses.find(y=>y.id===id);const b=Object.assign({},x);Object.assign(x,data);const ch=['date','desc','cat','montant','source','fournisseur','obs'].filter(k=>String(b[k]??'')!==String(x[k]??'')).map(k=>`${k} : ${k==='montant'?fcfa(b[k]):(b[k]||'—')} → ${k==='montant'?fcfa(x[k]):(x[k]||'—')}`).join(' ; ');logJ('Dépense modifiée',`N° ${x.recu} — ${ch||'aucun changement'}`)}
- else{const x=Object.assign({id:uid(),recu:depTake(d.slice(0,4)),by:devName()||''},data);DB.depenses.push(x);logJ('Dépense',`N° ${x.recu} — ${x.desc} — ${fcfa(x.montant)}`);toast('Dépense enregistrée — reçu N° '+x.recu)}
+ const d=fval('dp_d'),ds=(fval('dp_ds')||'').trim(),c=fval('dp_c'),m=+fval('dp_m'),rc=(fval('dp_r')||'').trim();
+ if(!d||!rc||!ds||!c||!(m>0)){alert('Remplissez la date, le N° de reçu, la description, la catégorie et le montant.');return}
+ const dup=DB.depenses.find(z=>z.id!==id&&!z.annule&&String(z.recu).trim()===rc&&(z.date||'').slice(0,4)===d.slice(0,4));
+ if(dup&&!confirm(`Le reçu N° ${rc} existe déjà (${fmtDate(dup.date)} — ${dup.desc} — ${fcfa(dup.montant)}).\n\nEnregistrer quand même ?`))return;
+ const data={recu:rc,date:d,desc:ds,cat:c,montant:m,source:fval('dp_s')||'Caisse Générale',fournisseur:fval('dp_f'),obs:fval('dp_o')};
+ if(id){const x=DB.depenses.find(y=>y.id===id);const b=Object.assign({},x);Object.assign(x,data);const ch=['recu','date','desc','cat','montant','source','fournisseur','obs'].filter(k=>String(b[k]??'')!==String(x[k]??'')).map(k=>`${k} : ${k==='montant'?fcfa(b[k]):(b[k]||'—')} → ${k==='montant'?fcfa(x[k]):(x[k]||'—')}`).join(' ; ');logJ('Dépense modifiée',`N° ${x.recu} — ${ch||'aucun changement'}`)}
+ else{const x=Object.assign({id:uid(),by:devName()||''},data);DB.depenses.push(x);logJ('Dépense',`N° ${x.recu} — ${x.desc} — ${fcfa(x.montant)}`);toast('Dépense enregistrée — reçu N° '+x.recu)}
  save();closeModal();render();
 }
 function annulDep(id){requirePin(()=>{const x=DB.depenses.find(y=>y.id===id);if(!x||x.annule)return;const m=prompt(`Annuler la dépense N° ${x.recu} (${x.desc}, ${fcfa(x.montant)}) ?\n\nElle n'est pas effacée : elle reste marquée « ANNULÉE ».\nMotif :`);if(!m)return;
