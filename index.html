@@ -221,7 +221,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='48 (19/11/2026)';
+const APP_VERSION='49 (19/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -664,7 +664,7 @@ function vInscr(){
  ${summary}
  <div class="card row">${FS('Classe','i_cl','<option value="">Toutes les classes</option>'+classOpts(cl,ec),'onchange="UI.f.icl=this.value;render()"')}
  <div class="field" style="min-width:220px"><label>Rechercher (nom ou numéro)</label><input oninput="filterRows('tb_i',this.value)" placeholder="ex. 0178 ou Sanou"></div><label style="display:flex;gap:6px;align-items:center;padding-bottom:8px"><input type="checkbox" ${UI.f.ibours?'checked':''} onchange="UI.f.ibours=this.checked;render()"> Boursiers seulement</label><button class="primary" onclick="go('inscrire')">+ Inscrire un élève</button>
- ${cl?`<button onclick="printDoc(listeHTML('${cl}'))">Imprimer la liste de classe</button>`:''}<span style="flex:1"></span>${isAdmin()?`<button onclick="UI.f.imoney=!UI.f.imoney;render()">${money?'Masquer les montants':'Afficher les montants'}</button>`:''}</div>
+ ${cl?`<button onclick="printDoc(listeHTML('${cl}'))">🖨 Imprimer la liste de ${esc(cls(cl)?.nom||'')}</button><button onclick="printListePhotos('${cl}')">🖨 Liste avec photos</button>`:`<button onclick="printDoc(sortedClasses().filter(c=>!'${ec}'||c.ecole==='${ec}').filter(c=>classInscs(c.id).length).map(c=>listeHTML(c.id)).join(''))">🖨 Imprimer toutes les listes${ec?' ('+ec+')':''}</button>`}<button onclick="printDoc(effectifsHTML('${ec}'))">🖨 Imprimer les effectifs</button><span style="flex:1"></span>${isAdmin()?`<button onclick="UI.f.imoney=!UI.f.imoney;render()">${money?'Masquer les montants':'Afficher les montants'}</button>`:''}</div>
  <div class="card" style="padding:0;overflow:auto"><table class="data"><thead><tr><th>N°</th>${sortTh('Matricule','mat','isort','render()')}${sortTh('Nom et prénoms','nom','isort','render()')}${sortTh('Inscrit le','date','isort','render()')}<th>Sexe</th><th>Né(e) le</th>${sortTh('Classe','cl','isort','render()')}<th>Type</th><th>Parent / Téléphone</th>${money?'<th class="num">Dû</th><th class="num">Payé</th><th class="num">Reste</th>':''}<th></th></tr></thead>
  <tbody id="tb_i">${rows||`<tr><td colspan="${nc}" class="muted" style="padding:24px;text-align:center">Aucune inscription.</td></tr>`}</tbody>
  ${L.length?`<tfoot><tr><td colspan="9">${L.length} élève(s) — ${g} garçon(s), ${f} fille(s)</td>${money?`<td class="num">${fcfa(tD)}</td><td class="num">${fcfa(tP)}</td><td class="num">${fcfa(tR)}</td>`:''}<td></td></tr></tfoot>`:''}</table></div>`;
@@ -1226,10 +1226,10 @@ function recettesHTML(ec,d1,d2){
  <tfoot><tr><th colspan="4">Total</th><th class="r">${fcfa(TS)}</th>${KE.map(k=>`<th class="r">${fcfa(tot[k])}</th>`).join('')}${KE.length?`<th class="r">${fcfa(T)}</th>`:''}</tr></tfoot></table>
  <p><b>Recettes de l'école : ${fcfa(TS)}</b>${KE.length?` &nbsp;·&nbsp; ${KE.map(k=>esc(rubLabel(k))+' (hors recettes école) : '+fcfa(tot[k])).join(' · ')} &nbsp;·&nbsp; Total encaissé : ${fcfa(T)}`:''}</p>${signBlock().replace("L'enseignant(e)","Le/La Caissier(ère)").replace('<div>Le Parent</div>','')}</div>`;
 }
-function effectifsHTML(){
+function effectifsHTML(only){
  const part=ec=>{let G=0,Fi=0;const rows=sortedClasses().filter(c=>c.ecole===ec).map(c=>{const L=classInscs(c.id);let g=0,f=0;L.forEach(i=>elv(i.eleveId)?.sexe==='F'?f++:g++);G+=g;Fi+=f;return `<tr><td>${esc(c.nom)}</td><td>${esc(c.enseignant||'')}</td><td class="c">${g}</td><td class="c">${f}</td><td class="c"><b>${g+f}</b></td></tr>`}).join('');
   return `<h3 style="margin:14px 0 6px">${esc(S().ecoles[ec].nom)}</h3><table><thead><tr><th>Classe</th><th>Enseignant(e)</th><th class="c">Garçons</th><th class="c">Filles</th><th class="c">Total</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><th colspan="2">Total</th><th class="c">${G}</th><th class="c">${Fi}</th><th class="c">${G+Fi}</th></tr></tfoot></table>`};
- return `<div class="pg">${pageHeader(S().ecoles.primaire,S().annee)}<div class="title">Effectifs par classe</div><p>Arrêté au ${fmtDate(today())}</p>${part('maternelle')}${part('primaire')}</div>`;
+ return `<div class="pg">${pageHeader(S().ecoles.primaire,S().annee)}<div class="title">Effectifs par classe</div><p>Arrêté au ${fmtDate(today())}</p>${only!=='primaire'?part('maternelle'):''}${only!=='maternelle'?part('primaire'):''}</div>`;
 }
 function registreHTML(){
  const L=DB.eleves.slice().sort((a,b)=>(a.matricule||'').localeCompare(b.matricule||''));
