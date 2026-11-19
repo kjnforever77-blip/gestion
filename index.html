@@ -222,7 +222,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='52 (19/11/2026)';
+const APP_VERSION='53 (19/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -1092,11 +1092,11 @@ function classementHTML(cid,T){
 function paiementsHTML(cid,onlyImp,ec){
  let L=(cid?yearInscs():allYearInscs()).filter(i=>(!cid||i.classeId===cid)&&(!ec||insEcole(i)===ec)).sort((x,y)=>NIV_ALL.indexOf(cls(x.classeId)?.niveau)-NIV_ALL.indexOf(cls(y.classeId)?.niveau)||byName(elv(x.eleveId),elv(y.eleveId)));
  if(onlyImp)L=L.filter(i=>reste(i)>0);
- let tD=0,tP=0,tR=0;const rows=L.map((i,k)=>{const e=elv(i.eleveId),d=du(i),p=paye(i.id),r=reste(i);tD+=d;tP+=p;tR+=r;return `<tr><td class="c">${k+1}</td><td>${esc(e.matricule)}</td><td>${esc(fullName(e))}</td><td>${esc(clsNom(i))}</td><td>${esc(e.telephone||'')}</td><td class="r">${fcfa(d)}</td><td class="r">${fcfa(p)}</td><td class="r"><b>${fcfa(r)}</b></td></tr>`}).join('');
+ let tD=0,tP=0,tR=0;const rows=L.map((i,k)=>{const e=elv(i.eleveId),d=du(i),p=paye(i.id),r=reste(i);tD+=d;tP+=p;tR+=r;return `<tr><td class="c">${k+1}</td><td>${esc(e.matricule)}</td><td>${esc(fullName(e))}</td><td>${esc(clsNom(i))}</td><td>${esc(e.telephone||'')}</td>${onlyImp?'':`<td class="r">${fcfa(d)}</td><td class="r">${fcfa(p)}</td>`}<td class="r"><b>${fcfa(r)}</b></td></tr>`}).join('');
  const c=cls(cid);
  return `<div class="pg">${pageHeader(c?ecoleOf(c):S().ecoles[ec||'primaire'],S().annee)}<div class="title">${onlyImp?'Liste des impayés':'État des paiements'}${c?' — '+esc(c.nom):''}</div><p>Arrêté au ${fmtDate(today())}</p>
- <table class="small"><thead><tr><th>N°</th><th>Matricule</th><th>Nom et prénoms</th><th>Classe</th><th>Téléphone</th><th class="r">Dû</th><th class="r">Payé</th><th class="r">Reste</th></tr></thead><tbody>${rows||'<tr><td colspan="8" class="c">Aucun</td></tr>'}</tbody>
- <tfoot><tr><th colspan="5">Total (${L.length} élève(s))</th><th class="r">${fcfa(tD)}</th><th class="r">${fcfa(tP)}</th><th class="r">${fcfa(tR)}</th></tr></tfoot></table></div>`;
+ <table class="small"><thead><tr><th>N°</th><th>Matricule</th><th>Nom et prénoms</th><th>Classe</th><th>Téléphone</th>${onlyImp?'<th class="r">Reste à payer</th>':'<th class="r">Dû</th><th class="r">Payé</th><th class="r">Reste</th>'}</tr></thead><tbody>${rows||`<tr><td colspan="${onlyImp?6:8}" class="c">Aucun</td></tr>`}</tbody>
+ <tfoot><tr><th colspan="5">Total (${L.length} élève(s))</th>${onlyImp?'':`<th class="r">${fcfa(tD)}</th><th class="r">${fcfa(tP)}</th>`}<th class="r">${fcfa(tR)}</th></tr></tfoot></table></div>`;
 }
 /* ---------- Récapitulatif mensuel (comptable) ---------- */
 const MOIS_FR=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
