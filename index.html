@@ -223,7 +223,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='73 (20/11/2026)';
+const APP_VERSION='74 (20/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -613,14 +613,18 @@ function formEleve(id,presetCl,q){
  ${F('Nom *','f_nom',e.nom)}${F('Prénoms *','f_pre',e.prenoms)}
  ${FS('Sexe','f_sexe',opts([['M','Masculin'],['F','Féminin']],e.sexe))}
  ${F('Date de naissance','f_dn',/^\d{4}-\d{2}-\d{2}$/.test(e.dateNaiss||'')?e.dateNaiss:'','date')}
- ${F('Lieu de naissance','f_ln',e.lieuNaiss)}${F('Nationalité','f_nat',e.nationalite)}${F("N° d'acte de naissance",'f_acte',e.acte)}
- ${F('Nom du père','f_pere',e.pere)}${F('Nom de la mère','f_mere',e.mere)}${F('Tuteur / personne à contacter','f_tut',e.tuteur)}
- ${F('Téléphone','f_tel',e.telephone)}${F('Adresse / quartier','f_adr',e.adresse)}
+ ${F('Lieu de naissance','f_ln',e.lieuNaiss)}${F('Nationalité','f_nat',e.nationalite)}${F("N° d'acte de naissance",'f_acte',e.acte)}${F('Religion','f_rel',e.religion)}
+ ${F('Nom du père','f_pere',e.pere)}${F('Profession du père','f_ppere',e.profPere)}${F('Téléphone','f_tel',e.telephone)}
+ ${F('Nom de la mère','f_mere',e.mere)}${F('Profession de la mère','f_pmere',e.profMere)}<div></div>
+ ${F('Tuteur / logeur (si différent des parents)','f_tut',e.tuteur)}${F('Adresse du tuteur / logeur','f_atut',e.adresseTuteur)}${F('Domicile (adresse / quartier)','f_adr',e.adresse)}
  ${F("Date d'entrée à l'école",'f_de',e.dateEntree||(id?'':today()),'date')}${F("École d'origine",'f_eo',e.ecoleOrigine)}
  ${FS('Statut','f_st',opts(STATUTS,e.statut))}
  <div class="field"><label>&nbsp;</label><label style="font-size:14px;color:inherit"><input type="checkbox" id="f_bour" ${e.boursier?'checked':''}> Boursier(ère)</label></div>
  ${arrPending(e.id)?`<div class="field"><label>Arriéré des années passées</label><b style="padding:6px 0">${fcfa(arrPending(e.id))}</b><span class="muted" style="font-size:12px">calculé automatiquement</span></div>`:''}
- </div><div class="field" style="margin-top:10px"><label>Observations</label><textarea id="f_obs">${esc(e.observations||'')}</textarea></div>
+ </div>
+ <h3 style="margin:16px 0 8px;font-size:15px">Départ de l'école <span class="muted" style="font-weight:400;font-size:13px">(à remplir quand l'élève quitte l'école)</span></h3>
+ <div class="form-grid">${F('Sortie le','f_ds',e.dateSortie,'date')}${F('Allant à (école)','f_ea',e.ecoleDest)}${F('Motif du départ','f_md',e.motifDepart)}</div>
+ <div class="field" style="margin-top:10px"><label>Observations</label><textarea id="f_obs">${esc(e.observations||'')}</textarea></div>
  ${inscPart}
  <div class="actions"><button onclick="closeModal()">Annuler</button><button class="primary" onclick="saveEleve('${id||''}')">Enregistrer</button></div>`);
 }
@@ -629,9 +633,9 @@ function saveEleve(id){
  const isNew=!id;const e=isNew?{id:uid()}:elv(id);
  const mat=fval('f_mat');
  if(mat&&DB.eleves.some(x=>x.matricule===mat&&x.id!==e.id)){alert('Ce matricule est déjà utilisé.');return}
- const data={nom:nom.toUpperCase(),prenoms:pre,sexe:fval('f_sexe'),dateNaiss:fval('f_dn'),lieuNaiss:fval('f_ln'),nationalite:fval('f_nat'),acte:fval('f_acte'),pere:fval('f_pere'),mere:fval('f_mere'),tuteur:fval('f_tut'),telephone:fval('f_tel'),adresse:fval('f_adr'),dateEntree:fval('f_de'),ecoleOrigine:fval('f_eo'),statut:fval('f_st'),boursier:fval('f_bour'),observations:fval('f_obs'),};
+ const data={nom:nom.toUpperCase(),prenoms:pre,sexe:fval('f_sexe'),dateNaiss:fval('f_dn'),lieuNaiss:fval('f_ln'),nationalite:fval('f_nat'),acte:fval('f_acte'),pere:fval('f_pere'),mere:fval('f_mere'),tuteur:fval('f_tut'),adresseTuteur:fval('f_atut'),profPere:fval('f_ppere'),profMere:fval('f_pmere'),religion:fval('f_rel'),telephone:fval('f_tel'),adresse:fval('f_adr'),dateEntree:fval('f_de'),ecoleOrigine:fval('f_eo'),dateSortie:fval('f_ds'),ecoleDest:fval('f_ea'),motifDepart:fval('f_md'),statut:fval('f_st'),boursier:fval('f_bour'),observations:fval('f_obs'),};
  if(isNew&&DB.eleves.some(x=>norm(x.nom)===norm(data.nom)&&norm(x.prenoms)===norm(pre)&&(x.dateNaiss||'')===data.dateNaiss)&&!confirm('Un élève avec le même nom (et la même date de naissance) existe déjà. Enregistrer quand même ?'))return;
- if(isNew&&!data.dateEntree)data.dateEntree=today();const before=isNew?null:{...e};Object.assign(e,data);e.matricule=mat||e.matricule||nextMatricule(cls(fval('f_cl'))?.ecole);if(before)hRecord('eleve',e,before,e.id);
+ if(isNew&&!data.dateEntree)data.dateEntree=today();if(['Transféré','Abandon','Exclu','Sorti (fin de cycle)'].includes(data.statut)&&!data.dateSortie&&(isNew||(elv(id)?.statut==='Actif')))data.dateSortie=today();const before=isNew?null:{...e};Object.assign(e,data);e.matricule=mat||e.matricule||nextMatricule(cls(fval('f_cl'))?.ecole);if(before)hRecord('eleve',e,before,e.id);
  let newI=null;if(isNew){DB.eleves.push(e);const cl=fval('f_cl');if(cl){newI=createInscription(e.id,cl);logJ('Inscription',`${fullName(e)} — ${cls(cl)?.nom} ${S().annee} (nouvel élève)`)}}
  save();closeModal();if(newI){UI.f.insq='';render();afterInscription(newI.id)}else{render();toast('Élève enregistré')}
 }
@@ -693,7 +697,7 @@ function openFiche(eid){
  const cur=inscOf(eid);
  modal(`<div style="display:flex;gap:16px;align-items:flex-start">${photoBox(eid)}<div style="flex:1;min-width:0"><h3>${esc(fullName(e))} <span class="muted" style="font-weight:400">· ${esc(e.matricule)}</span> ${statTag(e.statut)}</h3>
  <div class="form-grid" style="gap:8px 14px">${kv('Sexe',e.sexe==='F'?'Féminin':'Masculin')}${kv('Né(e) le',fmtDate(e.dateNaiss)+(e.lieuNaiss?' à '+e.lieuNaiss:''))}${kv('Nationalité',e.nationalite)}${kv('Acte de naissance',e.acte)}
- ${kv('Père',e.pere)}${kv('Mère',e.mere)}${kv('Tuteur / contact',e.tuteur)}${kv('Téléphone',e.telephone)}${kv('Adresse',e.adresse)}${kv("Entrée à l'école",fmtDate(e.dateEntree))}${kv("École d'origine",e.ecoleOrigine)}${e.matriculeMat?kv('Ancien matricule (maternelle)',e.matriculeMat):''}${kv('Boursier',e.boursier?'Oui':'Non')}${arrPending(eid)?kv('Arriéré des années passées',fcfa(arrPending(eid))):''}</div></div></div>
+ ${kv('Père',(e.pere||'')+(e.profPere?' — '+e.profPere:''))}${kv('Mère',(e.mere||'')+(e.profMere?' — '+e.profMere:''))}${kv('Religion',e.religion)}${kv('Tuteur / logeur',(e.tuteur||'')+(e.adresseTuteur?' — '+e.adresseTuteur:''))}${kv('Téléphone',e.telephone)}${kv('Domicile',e.adresse)}${kv("Entrée à l'école",fmtDate(e.dateEntree))}${kv("École d'origine",e.ecoleOrigine)}${e.dateSortie||e.ecoleDest||e.motifDepart?kv('Sortie',[fmtDate(e.dateSortie),e.ecoleDest?'vers '+e.ecoleDest:'',e.motifDepart].filter(Boolean).join(' — ')):''}${e.matriculeMat?kv('Ancien matricule (maternelle)',e.matriculeMat):''}${kv('Boursier',e.boursier?'Oui':'Non')}${arrPending(eid)?kv('Arriéré des années passées',fcfa(arrPending(eid))):''}</div></div></div>
  ${e.observations?`<p><span class="muted" style="font-size:12px">Observations</span><br>${esc(e.observations)}</p>`:''}
  ${(()=>{const H=(DB.hist||[]).filter(h=>h.eid===eid).slice().reverse();return H.length?`<details style="margin-top:12px"><summary style="cursor:pointer;font-weight:600">Historique des modifications (${H.length})</summary><div style="overflow:auto;margin-top:6px"><table class="data"><thead><tr><th>Date</th><th>Par</th><th>Champ</th><th>Avant</th><th>Après</th><th></th></tr></thead><tbody>${hRows(H.slice(0,100),false)}</tbody></table></div></details>`:''})()}
  <h3 style="margin:16px 0 8px;font-size:15px">Parcours scolaire</h3>
@@ -929,7 +933,7 @@ function saveRemb(pid){if(noArch())return;const p=DB.paiements.find(x=>x.id===pi
  if(!confirm(`Rembourser ${fcfa(t)} à ${fullName(e)} le ${fmtDate(d)} ?`))return;
  const r={id:uid(),inscriptionId:i.id,date:d,montant:-t,parts,mode:'Espèces',remarque:'Remboursement — '+m,recu:nextRemb(),remb:{orig:p.id,motif:m,depart:dep,recuRendu:rr},by:devName()||''};
  DB.paiements.push(r);
- if(dep){i.depart={date:d,motif:m,remb:r.id};const before=JSON.parse(JSON.stringify(e));e.statut='Abandon';hRecord('eleve',e,before,e.id)}
+ if(dep){i.depart={date:d,motif:m,remb:r.id};const before=JSON.parse(JSON.stringify(e));e.statut='Abandon';if(!e.dateSortie)e.dateSortie=d;if(!e.motifDepart)e.motifDepart=m;hRecord('eleve',e,before,e.id)}
  logJ('Remboursement',`${r.recu} — ${fullName(e)} — ${fcfa(t)} (reçu ${p.recu}) — motif : ${m}${dep?' — départ de l\'élève':''}`);save();closeModal();render();printDoc(rembHTML(r));
 }
 function rembHTML(r){
@@ -1623,7 +1627,7 @@ function removePin(kind){
  S()[kind==='admin'?'pinAdmin':'pinStaff']=null;logJ('Code PIN supprimé',kind==='admin'?'Direction':'Comptable');save();closeModal();render()}
 
 /* ---------- historique des modifications ---------- */
-const H_ELV={matricule:'Matricule',nom:'Nom',prenoms:'Prénoms',sexe:'Sexe',dateNaiss:'Date de naissance',lieuNaiss:'Lieu de naissance',nationalite:'Nationalité',acte:"N° d'acte de naissance",pere:'Nom du père',mere:'Nom de la mère',tuteur:'Tuteur / contact',telephone:'Téléphone',adresse:'Adresse',dateEntree:"Date d'entrée",ecoleOrigine:"École d'origine",statut:'Statut',boursier:'Boursier',observations:'Observations',arriereEnAttente:'Arriéré à reporter'};
+const H_ELV={matricule:'Matricule',nom:'Nom',prenoms:'Prénoms',sexe:'Sexe',dateNaiss:'Date de naissance',lieuNaiss:'Lieu de naissance',nationalite:'Nationalité',acte:"N° d'acte de naissance",pere:'Nom du père',profPere:'Profession du père',mere:'Nom de la mère',profMere:'Profession de la mère',religion:'Religion',tuteur:'Tuteur / logeur',adresseTuteur:'Adresse du tuteur',telephone:'Téléphone',adresse:'Adresse',dateEntree:"Date d'entrée",ecoleOrigine:"École d'origine",dateSortie:'Sortie le',ecoleDest:'Allant à',motifDepart:'Motif du départ',statut:'Statut',boursier:'Boursier',observations:'Observations',arriereEnAttente:'Arriéré à reporter'};
 const H_INS={classeId:'Classe',type:'Type',redoublant:'Redoublant(e)',remise:'Réduction scolarité',arriere:'Arriéré',date:"Date d'inscription"};
 function hVal(field,v){if(v===undefined||v===null||v==='')return '(vide)';if(field==='classeId')return cls(v)?.nom||'?';if(field==='boursier'||field==='redoublant')return v?'Oui':'Non';if(/date/i.test(field))return fmtDate(v);if(field.startsWith('frais.')||['remise','arriere','arriereEnAttente'].includes(field))return fcfa(v);return String(v)}
 function hLabel(type,field){if(field.startsWith('frais.'))return 'Frais : '+rubLabel(field.slice(6));return (type==='eleve'?H_ELV:H_INS)[field]||field}
