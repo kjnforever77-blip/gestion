@@ -217,13 +217,14 @@ function migrate(d){
  }
  d.settings.rubriques.forEach(r=>{if(r.k==='ape'&&r.ext===undefined)r.ext=true});
  if(d.settings.pin&&!d.settings.pinAdmin){d.settings.pinAdmin=d.settings.pin}delete d.settings.pin;
+ (()=>{const an=d.settings.annee,E={};(d.eleves||[]).forEach(e=>E[e.id]=e);(d.inscriptions||[]).forEach(i=>{const e=E[i.eleveId];if(i.annee===an&&!i.arrOnly&&!i.depart&&e&&['Transféré','Abandon','Exclu'].includes(e.statut))i.depart={date:e.dateSortie||'',motif:e.motifDepart||e.statut}})})();
  return d;
 }
 let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='76 (20/11/2026)';
+const APP_VERSION='77 (20/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -328,7 +329,9 @@ const elv=id=>DB.eleves.find(e=>e.id===id);
 const ins=id=>DB.inscriptions.find(i=>i.id===id);
 function fullName(e){return e?`${(e.nom||'').toUpperCase()} ${e.prenoms||''}`.trim():'?'}
 const byName=(a,b)=>fullName(a).localeCompare(fullName(b),'fr');
-function yearInscs(a){a=a||S().annee;return DB.inscriptions.filter(i=>i.annee===a&&!i.arrOnly)}
+/* élèves partis en cours d'année (i.depart) : retirés des listes, effectifs, notes et impayés ; leurs paiements restent dans les recettes */
+const DEPART_ST=['Transféré','Abandon','Exclu'];
+function yearInscs(a,withGone){a=a||S().annee;return DB.inscriptions.filter(i=>i.annee===a&&!i.arrOnly&&(withGone||!i.depart))}
 function inscOf(eid,a){a=a||S().annee;return DB.inscriptions.find(i=>i.eleveId===eid&&i.annee===a&&!i.arrOnly)}
 /* arriéré seul : élève non inscrit cette année qui paie seulement sa dette */
 function arrOnlyOf(eid,a){a=a||S().annee;return DB.inscriptions.find(i=>i.eleveId===eid&&i.annee===a&&i.arrOnly)}
@@ -343,7 +346,7 @@ function ensureArrOnly(eid){
  e.arriereEnAttente=0;DB.inscriptions.push(i);logJ('Arriéré seul',`${fullName(e)} — ${fcfa(i.arriere)}`);return i;
 }
 function arrPending(eid){const e=elv(eid);const o=arrOnlyOf(eid);return (+e?.arriereEnAttente||0)+(o?reste(o):0)}
-function classInscs(cid,a){a=a||S().annee;return DB.inscriptions.filter(i=>i.classeId===cid&&i.annee===a&&!i.arrOnly).sort((x,y)=>byName(elv(x.eleveId),elv(y.eleveId)))}
+function classInscs(cid,a,withGone){a=a||S().annee;return DB.inscriptions.filter(i=>i.classeId===cid&&i.annee===a&&!i.arrOnly&&(withGone||!i.depart)).sort((x,y)=>byName(elv(x.eleveId),elv(y.eleveId)))}
 const RUB=()=>S().rubriques;
 function keysAll(){return [...RUB().map(r=>r.k),'arriere']}
 function isExt(k){return !!RUB().find(r=>r.k===k&&r.ext)}
@@ -635,7 +638,8 @@ function saveEleve(id){
  if(mat&&DB.eleves.some(x=>x.matricule===mat&&x.id!==e.id)){alert('Ce matricule est déjà utilisé.');return}
  const data={nom:nom.toUpperCase(),prenoms:pre,sexe:fval('f_sexe'),dateNaiss:fval('f_dn'),lieuNaiss:fval('f_ln'),nationalite:fval('f_nat'),acte:fval('f_acte'),pere:fval('f_pere'),mere:fval('f_mere'),tuteur:fval('f_tut'),adresseTuteur:fval('f_atut'),profPere:fval('f_ppere'),profMere:fval('f_pmere'),religion:fval('f_rel'),telephone:fval('f_tel'),adresse:fval('f_adr'),dateEntree:fval('f_de'),ecoleOrigine:fval('f_eo'),dateSortie:fval('f_ds'),ecoleDest:fval('f_ea'),motifDepart:fval('f_md'),statut:fval('f_st'),boursier:fval('f_bour'),observations:fval('f_obs'),};
  if(isNew&&DB.eleves.some(x=>norm(x.nom)===norm(data.nom)&&norm(x.prenoms)===norm(pre)&&(x.dateNaiss||'')===data.dateNaiss)&&!confirm('Un élève avec le même nom (et la même date de naissance) existe déjà. Enregistrer quand même ?'))return;
- if(isNew&&!data.dateEntree)data.dateEntree=today();if(['Transféré','Abandon','Exclu','Sorti (fin de cycle)'].includes(data.statut)&&!data.dateSortie&&(isNew||(elv(id)?.statut==='Actif')))data.dateSortie=today();const before=isNew?null:{...e};Object.assign(e,data);e.matricule=mat||e.matricule||nextMatricule(cls(fval('f_cl'))?.ecole);if(before)hRecord('eleve',e,before,e.id);
+ if(isNew&&!data.dateEntree)data.dateEntree=today();{const ci=!isNew&&inscOf(e.id,DB.settings.annee);if(ci){if(DEPART_ST.includes(data.statut)){ci.depart=Object.assign(ci.depart||{},{date:data.dateSortie||ci.depart?.date||today(),motif:data.motifDepart||ci.depart?.motif||data.statut})}else if(data.statut==='Actif'&&ci.depart){delete ci.depart}}}
+ if(['Transféré','Abandon','Exclu','Sorti (fin de cycle)'].includes(data.statut)&&!data.dateSortie&&(isNew||(elv(id)?.statut==='Actif')))data.dateSortie=today();const before=isNew?null:{...e};Object.assign(e,data);e.matricule=mat||e.matricule||nextMatricule(cls(fval('f_cl'))?.ecole);if(before)hRecord('eleve',e,before,e.id);
  let newI=null;if(isNew){DB.eleves.push(e);const cl=fval('f_cl');if(cl){newI=createInscription(e.id,cl);logJ('Inscription',`${fullName(e)} — ${cls(cl)?.nom} ${S().annee} (nouvel élève)`)}}
  save();closeModal();if(newI){UI.f.insq='';render();afterInscription(newI.id)}else{render();toast('Élève enregistré')}
 }
@@ -691,7 +695,7 @@ function openFiche(eid){
  const e=elv(eid);if(!e)return;
  const hist=DB.inscriptions.filter(i=>i.eleveId===eid).sort((a,b)=>a.annee.localeCompare(b.annee));
  const rows=hist.map(i=>{const c=cls(i.classeId);const G=gradesOf(i);const cells=G?G.map(r=>`<td class="num" style="white-space:nowrap">${r.moy!=null?`<b>${fmtN2(r.moy)}</b><br><span class="muted">${rangTxt(r,e.sexe)}/${r.n}</span>`:'—'}</td>`).join(''):'<td class="num">—</td>'.repeat(4);
-  return `<tr><td>${esc(i.annee)}</td><td>${fmtDate(i.date)}</td><td>${esc(i.arrOnly?'Arriéré seul':(c?.nom||'?'))}</td><td>${esc(i.type)}${i.redoublant?' · redoublant(e)':''}</td>${cells}<td>${esc(i.decision||'')}</td><td class="num">${fcfa(du(i))}</td><td class="num">${fcfa(paye(i.id))}</td></tr>`}).join('')||'<tr><td colspan="11" class="muted">Aucune inscription.</td></tr>';
+  return `<tr><td>${esc(i.annee)}</td><td>${fmtDate(i.date)}</td><td>${esc(i.arrOnly?'Arriéré seul':(c?.nom||'?'))}</td><td>${esc(i.type)}${i.redoublant?' · redoublant(e)':''}</td>${cells}<td>${esc(i.decision||'')}${i.depart?`<br><span class="tag">parti(e)${i.depart.date?' le '+fmtDate(i.depart.date):''}</span>`:''}</td><td class="num">${fcfa(du(i))}</td><td class="num">${fcfa(paye(i.id))}</td></tr>`}).join('')||'<tr><td colspan="11" class="muted">Aucune inscription.</td></tr>';
  const cur=inscOf(eid);
  modal(`<div style="display:flex;gap:16px;align-items:flex-start">${photoBox(eid)}<div style="flex:1;min-width:0"><h3>${esc(fullName(e))} <span class="muted" style="font-weight:400">· ${esc(e.matricule)}</span> ${statTag(e.statut)}</h3>
  <div class="form-grid" style="gap:8px 14px">${kv('Sexe',e.sexe==='F'?'Féminin':'Masculin')}${kv('Né(e) le',fmtDate(e.dateNaiss))}${kv('à (lieu de naissance)',e.lieuNaiss)}
@@ -769,7 +773,7 @@ function vInscr(){
  const sumCls=sortedClasses().filter(c=>!ec||c.ecole===ec);let sG=0,sF=0;
  const chips=sumCls.map(c=>{const I=base.filter(i=>i.classeId===c.id);const nf=I.filter(i=>elv(i.eleveId)?.sexe==='F').length,ng=I.length-nf;sG+=ng;sF+=nf;
   return `<div onclick="UI.f.icl='${cl===c.id?'':c.id}';render()" style="cursor:pointer;border:1px solid ${cl===c.id?'var(--accent)':'var(--line,#ddd)'};${cl===c.id?'background:#eef6ef;':''}border-radius:8px;padding:8px 12px;min-width:92px"><div style="font-weight:600">${esc(c.nom)}</div><div style="font-size:20px;font-weight:700">${I.length}</div><div class="muted" style="font-size:12px">G ${ng} · F ${nf}</div></div>`}).join('');
- const summary=`<div class="card"><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:stretch">${chips}<div style="border:1px solid var(--line,#ddd);border-radius:8px;padding:8px 12px;min-width:110px;background:#f6f6f6"><div style="font-weight:600">Total ${ec==='maternelle'?'maternelle':ec==='primaire'?'primaire':'2 écoles'}</div><div style="font-size:20px;font-weight:700">${sG+sF}</div><div class="muted" style="font-size:12px">G ${sG} · F ${sF}</div></div></div><div class="muted" style="font-size:12px;margin-top:6px">Cliquez sur une classe pour afficher sa liste.</div></div>`;
+ const summary=`<div class="card"><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:stretch">${chips}<div style="border:1px solid var(--line,#ddd);border-radius:8px;padding:8px 12px;min-width:110px;background:#f6f6f6"><div style="font-weight:600">Total ${ec==='maternelle'?'maternelle':ec==='primaire'?'primaire':'2 écoles'}</div><div style="font-size:20px;font-weight:700">${sG+sF}</div><div class="muted" style="font-size:12px">G ${sG} · F ${sF}</div></div></div><div class="muted" style="font-size:12px;margin-top:6px">Cliquez sur une classe pour afficher sa liste.${(()=>{const G=yearInscs(a,true).filter(i=>i.depart&&(!ec||insEcole(i)===ec)&&(!cl||i.classeId===cl));return G.length?` &nbsp;·&nbsp; ${G.length} élève(s) parti(s) en cours d'année, non compté(s) : ${G.map(i=>esc(fullName(elv(i.eleveId)))+' ('+esc(clsNom(i))+')').join(', ')}`:''})()}</div></div>`;
  let L=sortBy(cl?classInscs(cl):base,'isort',{mat:i=>elv(i.eleveId)?.matricule,nom:i=>fullName(elv(i.eleveId)),date:i=>i.date||'',cl:i=>NIV_ALL.indexOf(cls(i.classeId)?.niveau)*100+(cls(i.classeId)?.nom||'').length});
  if(UI.f.ibours)L=L.filter(i=>elv(i.eleveId)?.boursier);
  let tD=0,tP=0,tR=0,g=0,f=0;
