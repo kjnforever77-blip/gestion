@@ -224,7 +224,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='78 (20/11/2026)';
+const APP_VERSION='79 (20/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -673,6 +673,45 @@ function photoBox(eid){
  ${DIR_OK?`<button class="small" style="margin-top:6px;width:100%" onclick="photoPick('${eid}')">${PDIR&&!PDIR_OK?'Autoriser / ':''}Photo…</button>`:''}</div>`;
 }
 async function photoFill(eid){const box=document.getElementById('ph_'+eid);if(!box)return;const u=await photoURL(elv(eid));if(u)box.innerHTML=`<img src="${u}" alt="" style="width:100%;height:100%;object-fit:cover">`}
+
+/* ---------- pièces jointes (acte de naissance…) : fichiers dans « gestion d'ecole/documents », nommés par matricule ---------- */
+const DOC_TYPES=[['acte','Acte de naissance']];
+async function docDir(ask){
+ if(!DIR_OK){if(ask)alert("Ce navigateur ne permet pas d'enregistrer des documents. Utilisez Chrome ou Edge sur l'ordinateur.");return null}
+ if(BDIR&&!BDIR_OK&&ask){try{BDIR_OK=(await BDIR.requestPermission({mode:'readwrite'}))==='granted'}catch(e){}}
+ if(!BDIR_OK){if(!ask)return null;
+  if(!confirm("Choisissez le dossier « gestion d'ecole » sur OneDrive (celui qui contient EAenJC_donnees.json).\n\nLes documents seront rangés dans son sous-dossier « documents ». (Ce même dossier sert aussi aux sauvegardes automatiques.)"))return null;
+  try{BDIR=await window.showDirectoryPicker({id:'eaenjc-backup',mode:'readwrite'});BDIR_OK=true;await idbSet('bdir',BDIR)}catch(e){return null}}
+ try{return await BDIR.getDirectoryHandle('documents',{create:true})}catch(e){return null}
+}
+function docBase(e,t){return [e.matricule,e.matriculeMat].filter(Boolean).map(m=>String(m).replace(/[^A-Za-z0-9_-]/g,'')+'_'+t)}
+async function docFind(e,t,ask){const d=await docDir(ask);if(!d||!e)return null;
+ for(const b of docBase(e,t))for(const x of ['pdf','jpg','jpeg','png']){try{const fh=await d.getFileHandle(b+'.'+x);const f=await fh.getFile();return {name:b+'.'+x,file:f,ext:x}}catch(_){}}return null}
+async function docFill(eid){const box=document.getElementById('docs_'+eid);if(!box)return;const e=elv(eid);
+ const rows=await Promise.all(DOC_TYPES.map(async([t,l])=>{const r=await docFind(e,t,false);
+  return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 0"><span style="min-width:150px">${esc(l)}</span>${r?`<span class="tag">✓ joint (${r.ext.toUpperCase()}, ${fmtDate(new Date(r.file.lastModified).toISOString().slice(0,10))})</span><button class="small" onclick="docView('${eid}','${t}')">Voir / imprimer</button>${ARCH()?'':`<button class="small" onclick="docPick('${eid}','${t}')">Remplacer…</button>`}`:(BDIR_OK?`<span class="muted">aucun</span>`:`<span class="muted">${DIR_OK?'dossier non connecté':'disponible seulement sur l’ordinateur (Chrome / Edge)'}</span>`)+(ARCH()||!DIR_OK?'':`<button class="small" onclick="docPick('${eid}','${t}')">Joindre…</button>`)}</div>`}));
+ box.innerHTML=rows.join('');}
+async function docPick(eid,t){
+ if(TRY){alert("En mode essai, les documents ne sont pas enregistrés.");return}if(noArch())return;
+ const d=await docDir(true);if(!d)return;const e=elv(eid);const lab=(DOC_TYPES.find(x=>x[0]===t)||[])[1]||t;
+ const old=await docFind(e,t,false);if(old&&!confirm(`${lab} déjà joint. Le remplacer ?`))return;
+ const inp=document.createElement('input');inp.type='file';inp.accept='image/*,application/pdf';
+ inp.onchange=async()=>{const f=inp.files&&inp.files[0];if(!f)return;
+  try{let blob=f,ext='pdf';
+   if(f.type==='application/pdf'||/\.pdf$/i.test(f.name)){if(f.size>8*1024*1024){alert('PDF trop lourd (max 8 Mo).');return}}
+   else{const bmp=await createImageBitmap(f,{imageOrientation:'from-image'});const M=1800,k=Math.min(1,M/Math.max(bmp.width,bmp.height));const cv=document.createElement('canvas');cv.width=Math.round(bmp.width*k);cv.height=Math.round(bmp.height*k);const cx=cv.getContext('2d');cx.imageSmoothingQuality='high';cx.drawImage(bmp,0,0,cv.width,cv.height);blob=await new Promise(res=>cv.toBlob(res,'image/jpeg',0.8));ext='jpg'}
+   const name=docBase(e,t)[0]+'.'+ext;
+   if(old&&old.name!==name){try{await d.removeEntry(old.name)}catch(_){}}
+   const fh=await d.getFileHandle(name,{create:true});const w=await fh.createWritable();await w.write(blob);await w.close();
+   logJ('Document',`${lab} — ${fullName(e)} (${e.matricule}) — ${name}, ${Math.round(blob.size/1024)} Ko`);save();toast(lab+' enregistré');docFill(eid);
+  }catch(x){alert("Le document n'a pas pu être enregistré : "+(x.message||x))}};
+ inp.click();
+}
+async function docView(eid,t){const r=await docFind(elv(eid),t,true);if(!r){alert('Document introuvable.');return}const u=URL.createObjectURL(r.file);
+ if(r.ext==='pdf'){window.open(u,'_blank');return}
+ const e=elv(eid),lab=(DOC_TYPES.find(x=>x[0]===t)||[])[1]||t;
+ printDoc(`<div class="pg"><p class="small">${esc(lab)} — ${esc(fullName(e))} (${esc(e.matricule)})</p><img src="${u}" style="max-width:100%;max-height:265mm;display:block;margin:0 auto"></div>`)}
+
 async function photoPick(eid){
  if(TRY){alert("En mode essai, les photos ne sont pas enregistrées.");return}
  if(!(await photoDirEnsure()))return;
@@ -706,6 +745,7 @@ function openFiche(eid){
  ${kv("Entré(e) le",fmtDate(e.dateEntree))}${kv("Venant de",e.ecoleOrigine)}${e.matriculeMat?kv('Ancien matricule (maternelle)',e.matriculeMat):'<div></div>'}
  ${kv('Sortie le',fmtDate(e.dateSortie))}${kv('Allant à',e.ecoleDest)}${kv('Motif du départ',e.motifDepart)}${arrPending(eid)?kv('Arriéré des années passées',fcfa(arrPending(eid))):''}</div></div></div>
  ${e.observations?`<p><span class="muted" style="font-size:12px">Observations</span><br>${esc(e.observations)}</p>`:''}
+ <div style="margin:8px 0 4px"><b style="font-size:14px">Documents</b><div id="docs_${eid}" class="muted">…</div></div>${(setTimeout(()=>docFill(eid),0),'')}
  ${(()=>{const H=(DB.hist||[]).filter(h=>h.eid===eid).slice().reverse();return H.length?`<details style="margin-top:12px"><summary style="cursor:pointer;font-weight:600">Historique des modifications (${H.length})</summary><div style="overflow:auto;margin-top:6px"><table class="data"><thead><tr><th>Date</th><th>Par</th><th>Champ</th><th>Avant</th><th>Après</th><th></th></tr></thead><tbody>${hRows(H.slice(0,100),false)}</tbody></table></div></details>`:''})()}
  <h3 style="margin:16px 0 8px;font-size:15px">Parcours scolaire</h3>
  <div style="overflow:auto"><table class="data"><thead><tr><th>Année</th><th>Inscrit le</th><th>Classe</th><th>Type</th><th class="num">1ère compo.</th><th class="num">2ème compo.</th><th class="num">3ème compo.</th><th class="num">Moy. annuelle</th><th>Décision</th><th class="num">Dû</th><th class="num">Payé</th></tr></thead><tbody>${rows}</tbody></table></div>
