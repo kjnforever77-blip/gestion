@@ -223,7 +223,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='75 (20/11/2026)';
+const APP_VERSION='76 (20/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -700,7 +700,7 @@ function openFiche(eid){
  ${kv('Mère',e.mere)}${kv('Profession de la mère',e.profMere)}${kv('Domicile',e.adresse)}
  ${kv('Logeur / tuteur',e.tuteur)}${kv('Adresse du logeur',e.adresseTuteur)}${kv('Boursier',e.boursier?'Oui':'Non')}
  ${kv("Entré(e) le",fmtDate(e.dateEntree))}${kv("Venant de",e.ecoleOrigine)}${e.matriculeMat?kv('Ancien matricule (maternelle)',e.matriculeMat):'<div></div>'}
- ${e.dateSortie||e.ecoleDest||e.motifDepart?kv('Sortie le',fmtDate(e.dateSortie))+kv('Allant à',e.ecoleDest)+kv('Motif du départ',e.motifDepart):''}${arrPending(eid)?kv('Arriéré des années passées',fcfa(arrPending(eid))):''}</div></div></div>
+ ${kv('Sortie le',fmtDate(e.dateSortie))}${kv('Allant à',e.ecoleDest)}${kv('Motif du départ',e.motifDepart)}${arrPending(eid)?kv('Arriéré des années passées',fcfa(arrPending(eid))):''}</div></div></div>
  ${e.observations?`<p><span class="muted" style="font-size:12px">Observations</span><br>${esc(e.observations)}</p>`:''}
  ${(()=>{const H=(DB.hist||[]).filter(h=>h.eid===eid).slice().reverse();return H.length?`<details style="margin-top:12px"><summary style="cursor:pointer;font-weight:600">Historique des modifications (${H.length})</summary><div style="overflow:auto;margin-top:6px"><table class="data"><thead><tr><th>Date</th><th>Par</th><th>Champ</th><th>Avant</th><th>Après</th><th></th></tr></thead><tbody>${hRows(H.slice(0,100),false)}</tbody></table></div></details>`:''})()}
  <h3 style="margin:16px 0 8px;font-size:15px">Parcours scolaire</h3>
