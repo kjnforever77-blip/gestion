@@ -1,5 +1,5 @@
 /* 장학생 관리 — service worker : 인터넷 없이도 열리고, 인터넷이 되면 새 버전으로 바뀜 */
-const VERSION = 'b1';
+const VERSION = 'b2';
 const CACHE = 'bourses-' + VERSION;
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './favicon.png'];
 self.addEventListener('install', e => {

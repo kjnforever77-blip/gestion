@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>장학생 관리 — EAenJC</title>
+<title>장학생 관리</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="favicon.png">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -115,7 +115,7 @@ table.data tbody tr.click{cursor:pointer}table.data tbody tr.click:hover td{back
    장학생 관리 — 데이터는 OneDrive 폴더의 bourses_donnees.json
    사진: photos/  카드 스캔: fiches/  자동 백업: sauvegardes/
    ========================================================= */
-const APP_VERSION='1 (2026-11-20)';
+const APP_VERSION='2 (2026-11-20)';
 const DATAFILE='bourses_donnees.json';
 const KEY='bourses_db_v1';
 const ST_E=['장학중','중단','졸업'];
@@ -150,7 +150,7 @@ const kidsOf=(did,a=A())=>DB.matches.filter(m=>m.annee===a&&m.donateur===did).ma
 const annees=()=>{const s=new Set(DB.settings.annees||[]);DB.eleves.forEach(e=>Object.keys(e.statut||{}).forEach(a=>s.add(a)));return [...s].sort()};
 function nextId(arr,p){let n=0;arr.forEach(x=>{const k=parseInt(String(x.id).slice(1),10);if(k>n)n=k});return p+String(n+1).padStart(3,'0')}
 function logJ(msg){DB.journal=DB.journal||[];DB.journal.push({at:new Date().toISOString(),msg});if(DB.journal.length>800)DB.journal=DB.journal.slice(-800)}
-function emptyDB(){const y=new Date();const a=y.getMonth()>=7?y.getFullYear():y.getFullYear()-1;const an=`${a}-${String(a+1).slice(2)}`;return {meta:{app:'bourses',format:1,rev:0,at:new Date().toISOString()},settings:{annee:an,annees:[an],ecoles:['Être et Avoir en JC'],lastBackup:null},eleves:[],donateurs:[],matches:[],journal:[]}}
+function emptyDB(){const y=new Date();const a=y.getMonth()>=7?y.getFullYear():y.getFullYear()-1;const an=`${a}-${String(a+1).slice(2)}`;return {meta:{app:'bourses',format:1,rev:0,at:new Date().toISOString()},settings:{annee:an,annees:[an],ecoles:[],lastBackup:null},eleves:[],donateurs:[],matches:[],journal:[]}}
 function migrate(d){d.settings=d.settings||{};d.settings.annees=d.settings.annees||[d.settings.annee];d.settings.ecoles=d.settings.ecoles||[];d.eleves=d.eleves||[];d.donateurs=d.donateurs||[];d.matches=d.matches||[];d.journal=d.journal||[];d.meta=d.meta||{rev:0};d.eleves.forEach(e=>{e.statut=e.statut||{};e.annees=e.annees||{}});d.donateurs.forEach(x=>x.statut=x.statut||{});d.settings.cardTitle=d.settings.cardTitle??'후원해 주셔서 감사합니다';d.settings.cardFooter=d.settings.cardFooter??'부르키나파소 보보디울라소에서';return d}
 
 /* ---------- 저장: 브라우저 + OneDrive 폴더 ---------- */
@@ -235,7 +235,7 @@ function renderNavFoot(){const s=$('#syncst');if(s)s.textContent=syncLabel()}
 function renderNav(){
  const it=[['eleves','👧 장학생'],['donateurs','🤝 후원자'],['cartes','💌 감사카드'],['reglages','⚙️ 설정']];
  const cur=UI.view==='eleve'?'eleves':UI.view==='donateur'?'donateurs':UI.view;
- $('#nav').innerHTML=`<div class="brand"><div class="lg"><img src="icon-192.png" alt=""></div><div>장학생 관리<small>EAenJC 장학 사역</small></div></div>
+ $('#nav').innerHTML=`<div class="brand">장학생 관리</div>
  <div class="yearsel"><label>학년도</label><select onchange="UI.annee=this.value;render()">${annees().map(a=>`<option ${a===A()?'selected':''}>${a}</option>`).join('')}</select></div>
  ${it.map(([v,l])=>`<a class="${cur===v?'active':''}" onclick="go('${v}')">${l}</a>`).join('')}
  <div class="foot"><div id="syncst" style="color:#eceaf8">${esc(syncLabel())}</div>${DSTATE==='ok'?'':`<button onclick="${DSTATE==='need'?'resumeDir()':'pickDir()'}">📁 ${DSTATE==='need'?'폴더 다시 연결':'OneDrive 폴더 연결'}</button>`}<div style="margin-top:8px">버전 ${APP_VERSION}</div></div>`;
@@ -253,7 +253,7 @@ function render(){
  $('#main').innerHTML=banner()+v();fillPhotos($('#main'));
 }
 function renderWelcome(){
- $('#nav').innerHTML=`<div class="brand"><div class="lg"><img src="icon-192.png" alt=""></div><div>장학생 관리<small>EAenJC 장학 사역</small></div></div>`;
+ $('#nav').innerHTML=`<div class="brand">장학생 관리</div>`;
  $('#main').innerHTML=`<div class="card" style="max-width:620px"><h2>시작하기</h2>
  <p>장학생 자료는 OneDrive의 한 폴더에 저장됩니다. 그 폴더에 자료 파일(<b>${DATAFILE}</b>), 사진(<b>photos</b>), 카드 스캔(<b>fiches</b>), 자동 백업(<b>sauvegardes</b>)이 함께 들어갑니다.</p>
  <div class="row"><button class="primary" onclick="pickDir()">📁 OneDrive 폴더 선택</button><label class="btn">백업 파일에서 가져오기<input type="file" accept=".json" hidden onchange="restoreBackup(this.files[0])"></label></div>
@@ -330,7 +330,7 @@ function modal(html){const bg=document.createElement('div');bg.className='modal-
 const closeM=()=>document.querySelector('.modal-bg')?.remove();
 const fv=id=>document.getElementById(id)?.value.trim()??'';
 function editEleve(id){
- const e=id?elv(id):{nom:'',sexe:'',naissance:'',ecole:'Être et Avoir en JC',pere:'',mere:'',tel:'',memo:'',statut:{[A()]:'장학중'},annees:{}};
+ const e=id?elv(id):{nom:'',sexe:'',naissance:'',ecole:'',pere:'',mere:'',tel:'',memo:'',statut:{[A()]:'장학중'},annees:{}};
  const ys=[...new Set([...annees(),...Object.keys(e.statut)])].sort();
  modal(`<h3>${id?'기본 정보 수정':'장학생 추가'}</h3><div class="form-grid">
  <div class="field full"><label>이름 (성 이름, 프랑스어)</label><input id="f_nom" value="${esc(e.nom)}"></div>
