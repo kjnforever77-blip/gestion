@@ -224,7 +224,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='83 (23/11/2026)';
+const APP_VERSION='84 (23/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -546,11 +546,11 @@ function apeAssocHTML(ec){
  const CL=sortedClasses().filter(c=>!ec||c.ecole===ec);const N=apeData('N',ec,'');let tE=0,tP=0,tN=0;
  const rows=CL.map(c=>{const e=classInscs(c.id).length;const n=N.filter(x=>x.i.classeId===c.id).length,pp=apeData('P','',c.id).length;tE+=e;tP+=pp;tN+=n;return `<tr><td>${esc(c.nom)}</td><td class="c">${e}</td><td class="c">${pp}</td><td class="c">${n}</td></tr>`}).join('');
  const sc=ec?S().ecoles[ec]:{nom:'Écoles Être et Avoir en Jésus-Christ (primaire et maternelle)'};
- return `<div class="pg">${pageHeader(sc,S().annee)}<div class="title">Association des Parents d'Élèves — situation des cotisations ${esc(S().annee)}</div><p>Arrêté au ${fmtDate(today())}</p>
+ return `<div class="pg"><div style="padding:0 4mm">${pageHeader(sc,S().annee)}<div style="text-align:center;margin:6mm 0 4mm"><div style="font-size:18px;font-weight:bold;text-transform:uppercase;letter-spacing:.5px">Association des Parents d'Élèves (APE)</div><div style="font-size:15px;font-weight:bold;margin-top:1mm">Situation des cotisations — année scolaire ${esc(S().annee)}</div><div style="margin-top:1mm">Arrêté au ${fmtDate(today())}</div></div>
  <p style="font-weight:bold;margin:10px 0 4px">1. Effectifs par classe</p>
  <table class="small"><thead><tr><th>Classe</th><th class="c">Effectif</th><th class="c">Ont payé</th><th class="c">N'ont pas payé</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><th>Total</th><th class="c">${tE}</th><th class="c">${tP}</th><th class="c">${tN}</th></tr></tfoot></table>
  <p style="font-weight:bold;margin:14px 0 4px">2. Élèves n'ayant pas encore payé la cotisation APE (${tN})</p>
- <table class="small"><thead><tr><th style="width:10mm">N°</th><th>Nom et prénoms</th><th style="width:30mm">Classe</th></tr></thead><tbody>${N.map((x,k)=>`<tr><td class="c">${k+1}</td><td>${esc(fullName(x.e))}</td><td>${esc(x.cls)}</td></tr>`).join('')||'<tr><td colspan="3" class="c">Aucun</td></tr>'}</tbody></table></div>`}
+ <table class="small"><thead><tr><th style="width:10mm">N°</th><th>Nom et prénoms</th><th style="width:30mm">Classe</th></tr></thead><tbody>${N.map((x,k)=>`<tr><td class="c">${k+1}</td><td>${esc(fullName(x.e))}</td><td>${esc(x.cls)}</td></tr>`).join('')||'<tr><td colspan="3" class="c">Aucun</td></tr>'}</tbody></table></div></div>`}
 function apeXLSX(m,ec,cl){const L=apeData(m,ec,cl);const rows=[[`${apeTitle(m,ec,cl)} — arrêté au ${fmtDate(today())}`],[],['Matricule','Élève','Classe','Téléphone',...(m==='P'?['Payé le','Reçu','Montant payé']:['Reste à payer'])]];
  L.forEach(x=>rows.push([x.e.matricule,fullName(x.e),x.cls,x.e.telephone||'',...(m==='P'?[x.P.map(p=>fmtDate(p.date)).join(', '),x.P.map(p=>p.recu).join(', '),x.pa]:[x.r])]));
  const col=m==='P'?'G':'E',n=rows.length;rows.push([],['TOTAL',...Array(m==='P'?5:3).fill(''),L.length?{f:`SUM(${col}4:${col}${n})`}:0]);
