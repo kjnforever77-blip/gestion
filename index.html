@@ -224,7 +224,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='87 (24/11/2026)';
+const APP_VERSION='88 (24/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -1159,7 +1159,8 @@ function savePaiement(){if(noArch())return;
  if(ap>0)out.push(Object.assign({id:uid(),montant:ap,parts:ape,recu:nextRecuAPE()},base,{remarque:'Cotisation APE'}));
  if(a>0)out.push(Object.assign({id:uid(),montant:a,parts:{arriere:a},recu:nextRecuA()},base,{remarque:base.remarque||'Arriéré des années passées'}));
  out.forEach(p=>{DB.paiements.push(p);logJ(isArrPay(p)?'Paiement arriéré':isApePay(p)?'Cotisation APE':'Paiement',`${p.recu} — ${fullName(elv(i.eleveId))} — ${fcfa(p.montant)}`)});save();closeModal();render();
- toast(`Paiement enregistré — reçu${out.length>1?'s':''} N° ${out.map(p=>p.recu).join(' et ')}`);printDoc(out.map(recuHTML).join(''));
+ {const pa=out.find(isApePay),ps=out.find(p=>!isApePay(p)&&!isArrPay(p));if(pa&&ps){ps.apeRef=pa.id}}
+ toast(`Paiement enregistré — reçu${out.length>1?'s':''} N° ${out.map(p=>p.recu).join(' et ')}${out.some(isApePay)?' (APE : non imprimé séparément)':''}`);const PR=out.filter(p=>!isApePay(p));if(PR.length)printDoc(PR.map(recuHTML).join(''));
 }
 function delPaiement(pid){if(noArch())return;{const p0=DB.paiements.find(x=>x.id===pid),i0=p0&&ins(p0.inscriptionId);if(i0&&i0.annee!==DB.settings.annee&&!isArrPay(p0)){alert(`Ce reçu appartient à l'année ${i0.annee} (archives) : il ne peut plus être annulé.`);return}}requirePin(()=>{const p=DB.paiements.find(x=>x.id===pid);if(!p||p.annule)return;const e=elv(ins(p.inscriptionId)?.eleveId);
  modal(`<h3>Annuler le reçu N° ${esc(p.recu)}</h3><p>${esc(fullName(e))} — ${fcfa(p.montant)} du ${fmtDate(p.date)}</p><p class="muted">Le reçu n'est pas effacé : il reste dans la liste et dans le journal, marqué « ANNULÉ », et son montant ne compte plus. Son numéro n'est pas réutilisé.</p>
@@ -1318,7 +1319,7 @@ function recuHTML(p){
  <table class="info"><tr><td style="width:62%">Élève : <b>${esc(fullName(e))}</b> (${esc(e.matricule)}) — Classe : <b>${esc(c.nom)}</b></td><td>Date : <b>${fmtDate(p.date)}</b></td></tr><tr><td>${p.annule?`<b>Annulé le ${fmtDate(p.annule.t.slice(0,10))} — motif : ${esc(p.annule.motif)}</b>`:`Objet : ${esc(AR?'Paiement d\'arriéré des années passées'+(p.remarque&&p.remarque!=='Arriéré des années passées'?' — '+p.remarque:''):AP?'Cotisation de l\'Association des Parents d\'Élèves (APE)':(p.remarque||'Paiement des frais scolaires'))}`}</td><td>Mode : ${esc(p.mode||'')}</td></tr></table></div>
  <table><thead><tr><th>Rubrique</th><th class="r" style="width:32%">Montant payé</th><th class="r" style="width:32%">Reste à payer</th></tr></thead><tbody>${lines}</tbody><tfoot><tr><th>TOTAL</th><th class="r" style="font-size:16px">${fcfa(tP)}</th><th class="r">${fcfa(tR)}</th></tr></tfoot></table>
  <div><div>Arrêté le présent reçu à la somme de : <b>${nombreEnLettres(tP)} (${fcfa(tP).replace(' F','')}) francs CFA</b>.</div>
- <div style="font-size:12px;margin-top:2px">Situation au ${fmtDate(p.date)} : payé ${AR?'sur l\'arriéré':AP?'pour l\'APE':'pour l\'année'} ${fcfa(tPaid)} sur ${fcfa(tDue)} — reste ${fcfa(tR)}.</div></div>
+ ${(()=>{const q=p.apeRef&&DB.paiements.find(x=>x.id===p.apeRef);return q&&!q.annule?`<div style="font-size:12px;margin-top:2px;border-top:1px dashed #000;padding-top:2px">Cotisation APE reçue (hors frais scolaires) : <b>${fcfa(q.montant)}</b> — reçu APE N° ${esc(q.recu)}</div>`:''})()}<div style="font-size:12px;margin-top:2px">Situation au ${fmtDate(p.date)} : payé ${AR?'sur l\'arriéré':AP?'pour l\'APE':'pour l\'année'} ${fcfa(tPaid)} sur ${fcfa(tDue)} — reste ${fcfa(tR)}.</div></div>
  <div class="sign"><div>Le Parent</div><div>Reçu par : ${esc(p.par||S().caissier||'..................................')}<br><span style="font-size:11px">(signature et cachet de l'école)</span></div></div>${S().piedRecu?`<div class="c" style="font-size:10.5px"><i>${esc(S().piedRecu)}</i></div>`:''}</div>`;
  return `<div class="pg recu-page"><div class="recu-wrap"><div class="recu-half">${one('Copie PARENTS')}</div><div class="recu-cut">✂ ${'- '.repeat(70)}✂</div><div class="recu-half">${one('Copie ÉCOLE')}</div></div></div>`;
 }
