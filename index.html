@@ -224,7 +224,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='88 (24/11/2026)';
+const APP_VERSION='89 (24/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -957,13 +957,14 @@ function clotureHTML(d,ec){
  const A=DB.paiements.filter(p=>p.annule&&inEc(p)&&(p.date===d||(p.annule.t||'').slice(0,10)===d));
  const K=keysAll().filter(k=>P.some(p=>+(p.parts||{})[k]));const tk={},tm={};let T=0;
  P.forEach(p=>{K.forEach(k=>tk[k]=(tk[k]||0)+(+(p.parts||{})[k]||0));tm[p.mode||'?']=(tm[p.mode||'?']||0)+(+p.montant||0);T+=+p.montant||0});
- const rows=P.map(p=>{const i=ins(p.inscriptionId),e=elv(i.eleveId);return `<tr><td>${esc(p.recu)}</td><td>${esc(fullName(e))}</td><td>${esc(clsNom(i))}</td><td>${esc(p.mode||'')}</td>${K.map(k=>`<td class="r">${+(p.parts||{})[k]?fcfa(p.parts[k]):''}</td>`).join('')}<td class="r"><b>${fcfa(p.montant)}</b></td></tr>`}).join('');
+ const rows=P.map(p=>{const i=ins(p.inscriptionId),e=elv(i.eleveId);return `<tr><td>${esc(p.recu)}</td><td>${esc(fullName(e))}</td><td>${esc(clsNom(i))}</td><td>${esc(p.par||'')}</td>${K.map(k=>`<td class="r">${+(p.parts||{})[k]?fcfa(p.parts[k]):''}</td>`).join('')}<td class="r"><b>${fcfa(p.montant)}</b></td></tr>`}).join('');
+ const byU={};P.forEach(p=>{const u=p.par||'—';byU[u]=byU[u]||{n:0,s:0,e:0,t:0};byU[u].n++;byU[u].s+=partsK(p,keysSchool());byU[u].e+=partsK(p,keysExt());byU[u].t+=+p.montant||0});
  const esp=tm['Espèces']||0;const TS=P.reduce((s,p)=>s+partsK(p,keysSchool()),0),TE=T-TS;
  return `<div class="pg">${pageHeader(ec?S().ecoles[ec]:{nom:'Écoles Être et Avoir en Jésus-Christ (primaire et maternelle)'},S().annee)}<div class="title">Clôture de caisse du ${fmtDate(d)}${ec?' — '+(ec==='primaire'?'Primaire':'Maternelle'):''}</div>
- <table class="small"><thead><tr><th>Reçu</th><th>Élève</th><th>Classe</th><th>Mode</th>${K.map(k=>`<th class="r">${esc(rubLabel(k))}</th>`).join('')}<th class="r">Total</th></tr></thead><tbody>${rows||`<tr><td colspan="${5+K.length}" class="c">Aucun reçu ce jour</td></tr>`}</tbody>
+ <table class="small"><thead><tr><th>Reçu</th><th>Élève</th><th>Classe</th><th>Reçu par</th>${K.map(k=>`<th class="r">${esc(rubLabel(k))}</th>`).join('')}<th class="r">Total</th></tr></thead><tbody>${rows||`<tr><td colspan="${5+K.length}" class="c">Aucun reçu ce jour</td></tr>`}</tbody>
  <tfoot><tr><th colspan="4">Total (${P.length} reçu(s))</th>${K.map(k=>`<th class="r">${fcfa(tk[k])}</th>`).join('')}<th class="r">${fcfa(T)}</th></tr></tfoot></table>
  <p style="margin:10px 0 0"><b>Recettes de l'école : ${fcfa(TS)}</b>${TE?` &nbsp;·&nbsp; APE (hors recettes école) : <b>${fcfa(TE)}</b>`:''} &nbsp;·&nbsp; Total encaissé : ${fcfa(T)}</p>${(()=>{const RR=(DB.apeRemises||[]).filter(r=>r.date===d&&!r.annule);return RR.length?`<p style="margin:4px 0 0">Remise(s) des cotisations à l'APE ce jour : <b>${fcfa(RR.reduce((s,r)=>s+r.montant,0))}</b> — ${RR.map(r=>esc(r.no)+' à '+esc(r.remisA)).join(', ')}</p>`:''})()}${TA?`<p style="margin:4px 0 0">Arriérés des années passées reçus ce jour (fonds à part, hors caisse de l'école) : <b>${fcfa(TA)}</b> — reçus ${PA.map(p=>esc(p.recu)).join(', ')}</p>`:''}
- <table style="margin-top:10px;width:60%"><tr><th colspan="2">Par mode de paiement</th></tr>${Object.entries(tm).map(([m,v])=>`<tr><td>${esc(m)}</td><td class="r">${fcfa(v)}</td></tr>`).join('')||'<tr><td colspan="2">—</td></tr>'}</table>
+ ${Object.keys(byU).length?`<table class="small" style="margin-top:10px;width:80%"><tr><th>Reçu par</th><th class="c">Reçus</th><th class="r">École</th><th class="r">APE</th><th class="r">Total encaissé</th></tr>${Object.entries(byU).map(([u,v])=>`<tr><td>${esc(u)}</td><td class="c">${v.n}</td><td class="r">${fcfa(v.s)}</td><td class="r">${v.e?fcfa(v.e):''}</td><td class="r"><b>${fcfa(v.t)}</b></td></tr>`).join('')}</table>`:''}
  ${A.length?`<table class="small" style="margin-top:10px"><tr><th colspan="4">Reçus annulés</th></tr>${A.map(p=>`<tr><td>${esc(p.recu)}</td><td>${esc(fullName(elv(ins(p.inscriptionId)?.eleveId)))}</td><td class="r">${fcfa(p.montant)}</td><td>${esc(p.annule.motif)}</td></tr>`).join('')}</table>`:''}
  <table style="margin-top:14px"><tr><td style="width:50%">Espèces attendues en caisse : <b>${fcfa(esp)}</b></td><td>Espèces comptées : ..............................</td></tr><tr><td>Écart : ..............................</td><td>Observations : ..............................</td></tr></table>
  <div class="sign"><div>Le/La Caissier(ère)</div><div>Le Directeur / La Directrice</div></div></div>`;
