@@ -225,7 +225,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='92 (24/11/2026)';
+const APP_VERSION='93 (24/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -1389,8 +1389,8 @@ function recuHTML(p){
   const due=KE.reduce((s,k)=>s+dueC(i,k),0);if(!due)return '';
   const paid=DB.paiements.filter(x=>x.inscriptionId===p.inscriptionId&&!x.annule&&(x.date||'')<=(p.date||'')).reduce((s,x)=>s+partsK(x,KE),0);
   const t=paid>=due?`<b>payée</b> (${fcfa(due)})`:paid>0?`<b>payée en partie</b> : ${fcfa(paid)} sur ${fcfa(due)}`:`<b>non payée</b> (${fcfa(due)})`;
-  return `<div style="font-size:12px;margin-top:2px;border-top:1px dashed #000;padding-top:2px">Cotisation APE ${esc(i.annee)} (hors frais scolaires) : ${t}</div>`})()}<div style="font-size:12px;margin-top:2px">Situation au ${fmtDate(p.date)} : payé ${AR?'sur l\'arriéré':AP?'pour l\'APE':'pour l\'année'} ${fcfa(tPaid)} sur ${fcfa(tDue)} — reste ${fcfa(tR)}.</div></div>
- <div class="sign"><div>Le Parent</div><div>Reçu par : ${esc(p.par||S().caissier||'..................................')}<br><span style="font-size:11px">(signature et cachet de l'école)</span></div></div>${S().piedRecu?`<div class="c" style="font-size:10.5px"><i>${esc(S().piedRecu)}</i></div>`:''}</div>`;
+  return `<div style="font-size:12px;margin-top:2px;border-top:1px dashed #000;padding-top:2px">Cotisation APE ${esc(i.annee)} (hors frais scolaires) : ${t}</div>`})()}</div>
+ <div class="sign"><div>Le Parent</div><div>Reçu par : ${esc(p.par||S().caissier||'..................................')}<br><span style="font-size:11px">(signature et cachet de l'école)</span></div></div>${S().piedRecu?`<div class="c" style="font-size:${dense?13:15}px;line-height:1.3;margin-top:2mm"><i>${esc(S().piedRecu)}</i></div>`:''}</div>`;
  return `<div class="pg recu-page"><div class="recu-wrap"><div class="recu-half">${one('Copie PARENTS')}</div><div class="recu-cut">✂ ${'- '.repeat(70)}✂</div><div class="recu-half">${one('Copie ÉCOLE')}</div></div></div>`;
 }
 function certificatHTML(eid,num){
