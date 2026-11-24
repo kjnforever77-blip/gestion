@@ -52,6 +52,7 @@ table.data tfoot td{font-weight:700;border-top:2px solid var(--line)}
 .tag{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;background:#eef1f4}
 .tag.ok{background:#e3f4ea;color:var(--ok)}.tag.warn{background:#fdf0e1;color:var(--warn)}.tag.bad{background:#fde8e6;color:var(--danger)}
 .muted{color:var(--muted)}
+#fgate{position:fixed;inset:0;z-index:9000;background:rgba(20,24,32,.72);display:flex;align-items:center;justify-content:center}#fgate .fgbox{background:#fff;border-radius:10px;padding:22px 26px;max-width:520px;box-shadow:0 10px 40px rgba(0,0,0,.35)}@media print{#fgate{display:none}}
 .banner{padding:9px 12px;border-radius:6px;margin-bottom:12px;background:#fff7e6;border:1px solid #f5d9a8}
 .grid-notes{border-collapse:collapse;background:#fff}
 .grid-notes th,.grid-notes td{border:1px solid var(--line);padding:4px 5px;text-align:center;font-size:13px}
@@ -224,7 +225,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='89 (24/11/2026)';
+const APP_VERSION='90 (24/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -303,7 +304,7 @@ function syncLabel(){
  if(SYNC.dirty)return '… enregistrement dans le fichier';
  return '✓ Synchronisé'+(SYNC.at?' '+new Date(SYNC.at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):'');
 }
-function renderSync(){const el=document.getElementById('syncst');if(el)el.textContent=syncLabel()}
+function renderSync(){const el=document.getElementById('syncst');if(el)el.textContent=syncLabel();fileGate()}
 function syncBanner(){
  if(FSTATE==='need')return `<div class="banner"><b>Fichier de données partagé :</b> Chrome demande votre accord pour l'utiliser à nouveau. <button class="small primary" onclick="reconnect()">Reconnecter le fichier</button></div>`;
  if(FSTATE==='conflict')return `<div class="banner" style="border-color:#e8a29b;background:#fff4f2"><b>Attention : le fichier a été modifié sur un autre ordinateur</b> (${esc(CONFLICT?.by||'?')}, ${CONFLICT?.at?new Date(CONFLICT.at).toLocaleString('fr-FR'):'?'}) pendant que vous aviez des modifications non synchronisées ici.<br>
@@ -313,8 +314,27 @@ function syncBanner(){
 }
 async function initFile(){
  if(!FS_OK)return;
- try{const h=await idbGet('fh');if(!h)return;FH=h;const perm=await h.queryPermission({mode:'readwrite'});
-  if(perm==='granted')await openHandle(h,'resume');else{FSTATE='need';render()}}catch(e){}
+ try{const h=await idbGet('fh');if(h){FH=h;const perm=await h.queryPermission({mode:'readwrite'});
+  if(perm==='granted')await openHandle(h,'resume');else{FSTATE='need';render()}}}catch(e){}
+ FREADY=true;fileGate();
+}
+/* écran bloquant tant que le fichier partagé n'est pas branché : évite de travailler sur une vieille copie sans le savoir */
+let FREADY=false;
+function fileGate(){
+ let el=document.getElementById('fgate');
+ const skip=(()=>{try{return sessionStorage.getItem('fgate_skip')==='1'}catch(e){return false}})();
+ const bad=FSTATE==='need'||FSTATE==='error'||(!FH&&FSTATE==='none');
+ if(!FS_OK||!FREADY||TRY||skip||!bad){if(el)el.remove();return}
+ if(!el){el=document.createElement('div');el.id='fgate';document.body.appendChild(el)}
+ const msg=FSTATE==='need'?"Chrome demande votre accord pour utiliser à nouveau le fichier de données partagé (OneDrive)."
+  :FSTATE==='error'?`Le fichier de données n'est pas accessible (${esc(FERR)}).`
+  :"Ce programme n'est relié à aucun fichier de données. Les informations affichées peuvent être anciennes et ne pas contenir ce qui a été saisi sur l'autre ordinateur.";
+ const btn=FSTATE==='need'||FSTATE==='error'?`<button class="primary" onclick="reconnect()">Reconnecter le fichier</button>`
+  :`<button class="primary" onclick="const d=document.getElementById('fg_dev');if(d&&d.value.trim())setDevName(d.value);openDataFile()">Ouvrir le fichier de données</button>`;
+ el.innerHTML=`<div class="fgbox"><h2 style="margin:0 0 10px">⚠ Fichier de données non connecté</h2><p>${msg}</p>
+  ${FSTATE==='none'&&!devName()?`<div class="field"><label>Nom de cet ordinateur</label><input id="fg_dev" placeholder="ex. MacBook, Laptop école" onchange="setDevName(this.value)"></div>`:''}
+  ${FSTATE==='none'?`<p class="muted">Choisissez <b>EAenJC_donnees.json</b> dans le dossier OneDrive « dossier d'école › gestion d'ecole ».</p>`:''}
+  <div class="row" style="margin-top:14px;gap:8px;flex-wrap:wrap">${btn}<button onclick="try{sessionStorage.setItem('fgate_skip','1')}catch(e){};fileGate()">Continuer sans le fichier (déconseillé)</button></div></div>`;
 }
 try{localStorage.setItem(KEY+'_t','1');localStorage.removeItem(KEY+'_t')}catch(e){STORAGE_OK=false}
 
@@ -442,13 +462,14 @@ function brandHTML(){return `<div class="brand"><span class="lg"><img src="${LOG
 function render(){
  const lb=S().lastBackup,r=role();
  if(!r){document.getElementById('nav').innerHTML=brandHTML()+`<div class="foot"><div id="syncst" style="color:#e2e8f0">${esc(syncLabel())}</div></div>`;
-  document.getElementById('main').innerHTML=syncBanner()+vLogin();setTimeout(()=>{const x=document.getElementById('login_pin');if(x)x.focus()},50);return}
+  document.getElementById('main').innerHTML=syncBanner()+vLogin();fileGate();setTimeout(()=>{const x=document.getElementById('login_pin');if(x)x.focus()},50);return}
  if(ADMIN_VIEWS.includes(UI.view)&&r!=='admin')UI.view='dash';
  document.getElementById('nav').innerHTML=brandHTML()+NAV_GROUPS.map(([g,ks])=>(g?`<div class="grp">${esc(g)}${g==='Direction'?navIc('lock',12):''}</div>`:'')+ks.map(k=>`<a class="${UI.view===k?'active':''}" onclick="go('${k}')">${navIc(NAV_ICON[k])}<span>${VIEWS[k][0]}${ADMIN_VIEWS.includes(k)&&r!=='admin'?' 🔒':''}</span></a>`).join('')).join('')+
   `<div class="foot"><div style="font-size:11px;color:var(--side-muted);margin-bottom:6px">Version du programme : ${APP_VERSION}</div>${secured()?`<div style="margin-bottom:8px;color:#e2e8f0">Connecté : <b>${esc(curUser()?.nom||'')}</b> (${r==='admin'?'Direction':'Comptable'})</div><button onclick="lockNow()">🔒 Verrouiller</button>${r==='admin'&&curUser()?.role==='admin'&&false?`<button onclick="ROLE='staff';render()">Passer en mode comptable</button>`:''}`:''}<div id="syncst" style="margin:6px 0 8px;color:#e2e8f0">${esc(syncLabel())}</div>${devName()?`<div style="margin-bottom:8px">Ordinateur : ${esc(devName())}</div>`:''}<button onclick="downloadBackup()">Télécharger une sauvegarde</button>Dernière sauvegarde :<br>${lb?fmtDate(lb.slice(0,10)):'jamais'}</div>`;
  document.getElementById('main').innerHTML=(ARCH()?`<div class="banner" style="border:2px solid #555;background:#f3f3f3">📁 <b>Archives ${esc(VIEW_YEAR)}</b> — consultation seulement : rien ne peut être saisi ni modifié pour cette année. <button class="small primary" onclick="setViewYear(null)">Revenir à ${esc(DB.settings.annee)}</button></div>`:'')+(TRY?`<div class="banner" style="border:2px solid #b42318;background:#fff4f2"><b>MODE ESSAI</b> — vous pouvez tout essayer : rien n'est enregistré (ni dans ce navigateur, ni dans le fichier partagé). Les reçus imprimés portent la mention « ESSAI ». <button class="small primary" onclick="stopEssai()">Terminer l'essai</button></div>`:'')+VIEWS[UI.view][1]();
  if(AFTER[UI.view])AFTER[UI.view]();
  if(ARCH())document.querySelectorAll('.grid-notes input,.grid-notes select,#main select[onchange*="decision"]').forEach(x=>x.disabled=true);
+ fileGate();
 }
 function backupBanner(){
  let html=syncBanner();
