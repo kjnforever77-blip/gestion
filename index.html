@@ -224,7 +224,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='86 (24/11/2026)';
+const APP_VERSION='87 (24/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -557,6 +557,33 @@ function apeXLSX(m,ec,cl){const L=apeData(m,ec,cl);const rows=[[`${apeTitle(m,ec
  L.forEach(x=>rows.push([x.e.matricule,fullName(x.e),x.cls,x.e.telephone||'',...(m==='P'?[x.P.map(p=>fmtDate(p.date)).join(', '),x.P.map(p=>p.recu).join(', '),x.pa]:[x.r])]));
  const col=m==='P'?'G':'E',n=rows.length;rows.push([],['TOTAL',...Array(m==='P'?5:3).fill(''),L.length?{f:`SUM(${col}4:${col}${n})`}:0]);
  downloadXLSX(`APE_${m==='P'?'payes':'non_payes'}_${S().annee}.xlsx`,[{name:m==='P'?'APE payés':'APE non payés',rows,bold:[0,2,rows.length-1],widths:[10,32,14,16,14,22,13],freeze:3}])}
+
+/* ---------- Fonds APE : encaissé par l'école, remis à l'APE ---------- */
+function apeRemises(a){a=a||S().annee;DB.apeRemises=DB.apeRemises||[];return DB.apeRemises.filter(r=>r.annee===a&&!r.annule)}
+function apeEncaisse(a){a=a||S().annee;const KE=keysExt();return DB.paiements.filter(p=>!p.annule&&ins(p.inscriptionId)?.annee===a).reduce((s,p)=>s+partsK(p,KE),0)}
+function apeFonds(a){const E=apeEncaisse(a),R=apeRemises(a).reduce((s,r)=>s+(+r.montant||0),0);return {E,R,S:E-R}}
+function formApeRemise(){if(noArch())return;requirePin(()=>{const F0=apeFonds();
+ modal(`<h3>Remise des cotisations à l'APE</h3><p class="muted" style="margin-top:0">Encaissé ${esc(S().annee)} : ${fcfa(F0.E)} · déjà remis : ${fcfa(F0.R)} · <b>en caisse : ${fcfa(F0.S)}</b></p>
+ <div class="form-grid">${F('Date de la remise','ar_d',today(),'date')}${F('Montant remis','ar_m',F0.S>0?F0.S:'','number','min="0" step="any"')}${F("Remis à (représentant de l'APE)",'ar_r',(apeRemises().slice(-1)[0]||{}).remisA||'')}${F('Note','ar_n','')}</div>
+ <div class="actions"><button onclick="closeModal()">Annuler</button><button class="primary" onclick="saveApeRemise()">Enregistrer et imprimer le bon</button></div>`)},'enregistrer une remise à l\'APE')}
+function saveApeRemise(){const d=fval('ar_d'),m=+fval('ar_m'),r=fval('ar_r').trim(),n=fval('ar_n');if(!d||!(m>0)||!r){alert('Indiquez la date, le montant et la personne de l\'APE.');return}
+ const F0=apeFonds();if(m>F0.S&&!confirm(`Le montant (${fcfa(m)}) dépasse ce que l'école a en caisse pour l'APE (${fcfa(F0.S)}). Enregistrer quand même ?`))return;
+ DB.apeRemises=DB.apeRemises||[];const pre=`${anneeCourte(S().annee)}-RAPE`;const no=pre+String(DB.apeRemises.filter(x=>String(x.no||'').startsWith(pre)).length+1).padStart(3,'0');
+ const x={id:uid(),no,annee:S().annee,date:d,montant:m,remisA:r,note:n,par:curUserName(),by:devName()||''};DB.apeRemises.push(x);
+ logJ('Remise APE',`${no} — ${fcfa(m)} remis à ${r}`);save();closeModal();render();printDoc(apeRemiseHTML(x.id))}
+function annulApeRemise(id){requirePin(()=>{const x=(DB.apeRemises||[]).find(r=>r.id===id);if(!x)return;const m=prompt('Motif de l\'annulation :');if(!m)return;x.annule={t:new Date().toISOString(),motif:m};logJ('Remise APE annulée',`${x.no} — ${m}`);save();render()},'annuler une remise APE')}
+function apeRemiseHTML(id){const x=(DB.apeRemises||[]).find(r=>r.id===id);if(!x)return '';const F0=apeFonds(x.annee);
+ const one=lab=>`<div class="recu-box">${pageHeader({nom:'Écoles Être et Avoir en Jésus-Christ (primaire et maternelle)'},x.annee)}
+ <div style="display:flex;justify-content:space-between;align-items:baseline;margin:6px 0"><span style="font-size:19px;font-weight:bold;text-transform:uppercase">Bon de remise APE N° ${esc(x.no)}</span><span style="border:1px solid #000;padding:2px 8px;font-weight:bold">${x.annule?'ANNULÉ — ':''}${lab}</span></div>
+ <p>L'école remet à l'Association des Parents d'Élèves (APE), représentée par <b>${esc(x.remisA)}</b>, la somme de <b>${nombreEnLettres(x.montant)} (${fcfa(x.montant).replace(' F','')}) francs CFA</b>, correspondant aux cotisations APE encaissées par l'école pour l'année scolaire ${esc(x.annee)}.</p>
+ <table class="info"><tr><td>Date : <b>${fmtDate(x.date)}</b></td><td>Montant : <b>${fcfa(x.montant)}</b></td></tr>${x.note?`<tr><td colspan="2">Note : ${esc(x.note)}</td></tr>`:''}</table>
+ <p style="font-size:12px">Situation ${esc(x.annee)} au ${fmtDate(today())} : encaissé ${fcfa(F0.E)} · remis à l'APE ${fcfa(F0.R)} · reste en caisse ${fcfa(F0.S)}.</p>
+ <div class="sign"><div>Pour l'école : ${esc(x.par||'')}<br><span style="font-size:11px">(nom et signature)</span></div><div>Pour l'APE : ${esc(x.remisA)}<br><span style="font-size:11px">(« reçu la somme », signature)</span></div></div></div>`;
+ return `<div class="pg recu-page"><div class="recu-wrap"><div class="recu-half">${one('Copie ÉCOLE')}</div><div class="recu-cut">✂ ${'- '.repeat(70)}✂</div><div class="recu-half">${one('Copie APE')}</div></div></div>`}
+function apeFondsCard(){const F0=apeFonds(),L=(DB.apeRemises||[]).filter(r=>r.annee===S().annee).slice().reverse();
+ return `<div class="card"><div class="row" style="align-items:center;justify-content:space-between"><div><b>Fonds APE ${esc(S().annee)}</b> — encaissé par l'école <b>${fcfa(F0.E)}</b> · remis à l'APE <b>${fcfa(F0.R)}</b> · <b>en caisse : ${fcfa(F0.S)}</b></div>${ARCH()?'':`<button class="primary" onclick="formApeRemise()">+ Remise à l'APE${isAdmin()?'':' 🔒'}</button>`}</div>
+ ${L.length?`<table class="data" style="margin-top:8px"><thead><tr><th>N°</th><th>Date</th><th>Remis à</th><th class="num">Montant</th><th>Par</th><th></th></tr></thead><tbody>${L.map(r=>`<tr${r.annule?' style="opacity:.5"':''}><td>${esc(r.no)}</td><td>${fmtDate(r.date)}</td><td>${esc(r.remisA)}</td><td class="num">${fcfa(r.montant)}</td><td>${esc(r.par||'')}</td><td>${r.annule?`<span class="tag">annulé</span>`:`<button class="small" onclick="printDoc(apeRemiseHTML('${r.id}'))">Bon</button> <button class="small danger" onclick="annulApeRemise('${r.id}')">Annuler</button>`}</td></tr>`).join('')}</tbody></table>`:''}</div>`}
+
 function vImpAPE(tabs){
  const f=UI.f,m=f.apm||'N',ec=f.imec||'',cl=f.imcl||'';const L=apeData(m,ec,cl),tot=L.reduce((s,x)=>s+(m==='P'?x.pa:x.r),0);
  const b=(on,js,l)=>`<button class="${on?'primary':''}" onclick="${js};render()">${l}</button>`;
@@ -565,6 +592,7 @@ function vImpAPE(tabs){
  <div class="row" style="margin-bottom:10px">${b(m==='N',"UI.f.apm='N'",`Non payé (${apeData('N',ec,cl).length})`)}${b(m==='P',"UI.f.apm='P'",`Payé (${apeData('P',ec,cl).length})`)}</div>
  <div class="row" style="margin-bottom:10px">${b(!ec,"UI.f.imec='';UI.f.imcl=''",'Toutes les écoles')}${b(ec==='maternelle',"UI.f.imec='maternelle';UI.f.imcl=''",'Maternelle')}${b(ec==='primaire',"UI.f.imec='primaire';UI.f.imcl=''",'Primaire')}
  ${FS('Classe','im_cl','<option value="">Toutes les classes</option>'+classOpts(cl,ec),'onchange="UI.f.imcl=this.value;render()"')}</div>
+ ${apeFondsCard()}
  <p class="muted" style="margin:0 0 8px">Cotisation APE (Association des Parents d'Élèves) — hors recettes de l'école. Les boursiers qui n'ont pas payé l'APE figurent parmi les non payés.</p>
  <div class="card" style="padding:0;overflow:auto"><table class="data"><thead><tr><th>N°</th><th>Matricule</th><th>Nom et prénoms</th><th>Classe</th><th>Téléphone</th>${m==='P'?'<th>Payé le</th><th>Reçu</th><th class="num">Montant payé</th>':'<th class="num">Reste à payer</th><th></th>'}</tr></thead>
  <tbody>${L.map((x,k)=>`<tr><td>${k+1}</td><td>${esc(x.e.matricule)}</td><td><b>${esc(fullName(x.e))}</b>${x.e.boursier?' <span class="tag">boursier</span>':''}</td><td>${esc(x.cls)}</td><td>${esc(x.e.telephone||'')}</td>${m==='P'?`<td>${x.P.map(p=>fmtDate(p.date)).join(', ')}</td><td>${x.P.map(p=>esc(p.recu)).join(', ')}</td><td class="num">${fcfa(x.pa)}</td>`:`<td class="num"><b style="color:var(--danger)">${fcfa(x.r)}</b></td><td>${ARCH()?'':`<button class="small primary" onclick="formPaiement('${x.i.id}','Y')">Payer</button>`}</td>`}</tr>`).join('')||`<tr><td colspan="8" class="muted" style="padding:20px;text-align:center">Aucun élève.</td></tr>`}</tbody>
@@ -934,7 +962,7 @@ function clotureHTML(d,ec){
  return `<div class="pg">${pageHeader(ec?S().ecoles[ec]:{nom:'Écoles Être et Avoir en Jésus-Christ (primaire et maternelle)'},S().annee)}<div class="title">Clôture de caisse du ${fmtDate(d)}${ec?' — '+(ec==='primaire'?'Primaire':'Maternelle'):''}</div>
  <table class="small"><thead><tr><th>Reçu</th><th>Élève</th><th>Classe</th><th>Mode</th>${K.map(k=>`<th class="r">${esc(rubLabel(k))}</th>`).join('')}<th class="r">Total</th></tr></thead><tbody>${rows||`<tr><td colspan="${5+K.length}" class="c">Aucun reçu ce jour</td></tr>`}</tbody>
  <tfoot><tr><th colspan="4">Total (${P.length} reçu(s))</th>${K.map(k=>`<th class="r">${fcfa(tk[k])}</th>`).join('')}<th class="r">${fcfa(T)}</th></tr></tfoot></table>
- <p style="margin:10px 0 0"><b>Recettes de l'école : ${fcfa(TS)}</b>${TE?` &nbsp;·&nbsp; APE (hors recettes école) : <b>${fcfa(TE)}</b>`:''} &nbsp;·&nbsp; Total encaissé : ${fcfa(T)}</p>${TA?`<p style="margin:4px 0 0">Arriérés des années passées reçus ce jour (fonds à part, hors caisse de l'école) : <b>${fcfa(TA)}</b> — reçus ${PA.map(p=>esc(p.recu)).join(', ')}</p>`:''}
+ <p style="margin:10px 0 0"><b>Recettes de l'école : ${fcfa(TS)}</b>${TE?` &nbsp;·&nbsp; APE (hors recettes école) : <b>${fcfa(TE)}</b>`:''} &nbsp;·&nbsp; Total encaissé : ${fcfa(T)}</p>${(()=>{const RR=(DB.apeRemises||[]).filter(r=>r.date===d&&!r.annule);return RR.length?`<p style="margin:4px 0 0">Remise(s) des cotisations à l'APE ce jour : <b>${fcfa(RR.reduce((s,r)=>s+r.montant,0))}</b> — ${RR.map(r=>esc(r.no)+' à '+esc(r.remisA)).join(', ')}</p>`:''})()}${TA?`<p style="margin:4px 0 0">Arriérés des années passées reçus ce jour (fonds à part, hors caisse de l'école) : <b>${fcfa(TA)}</b> — reçus ${PA.map(p=>esc(p.recu)).join(', ')}</p>`:''}
  <table style="margin-top:10px;width:60%"><tr><th colspan="2">Par mode de paiement</th></tr>${Object.entries(tm).map(([m,v])=>`<tr><td>${esc(m)}</td><td class="r">${fcfa(v)}</td></tr>`).join('')||'<tr><td colspan="2">—</td></tr>'}</table>
  ${A.length?`<table class="small" style="margin-top:10px"><tr><th colspan="4">Reçus annulés</th></tr>${A.map(p=>`<tr><td>${esc(p.recu)}</td><td>${esc(fullName(elv(ins(p.inscriptionId)?.eleveId)))}</td><td class="r">${fcfa(p.montant)}</td><td>${esc(p.annule.motif)}</td></tr>`).join('')}</table>`:''}
  <table style="margin-top:14px"><tr><td style="width:50%">Espèces attendues en caisse : <b>${fcfa(esp)}</b></td><td>Espèces comptées : ..............................</td></tr><tr><td>Écart : ..............................</td><td>Observations : ..............................</td></tr></table>
