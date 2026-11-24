@@ -89,7 +89,7 @@ table.data tfoot td{font-weight:700;border-top:2px solid var(--line)}
  body{background:#fff}
  .app,.modal-bg,.toast{display:none!important}
  #print{display:block}
- @page{size:A4;margin:12mm}
+ @page{size:A4;margin:12mm;@bottom-right{content:counter(page) " / " counter(pages);font-family:"Times New Roman",serif;font-size:8pt;color:#000}}
 }
 /* Documents imprimés : noir et blanc, sans fond de couleur */
 .pg{color:#000;background:#fff;font-family:"Times New Roman",Times,serif;font-size:12.5px;line-height:1.35}
@@ -224,7 +224,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='84 (23/11/2026)';
+const APP_VERSION='85 (24/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -443,7 +443,7 @@ function render(){
   document.getElementById('main').innerHTML=syncBanner()+vLogin();setTimeout(()=>{const x=document.getElementById('login_pin');if(x)x.focus()},50);return}
  if(ADMIN_VIEWS.includes(UI.view)&&r!=='admin')UI.view='dash';
  document.getElementById('nav').innerHTML=brandHTML()+NAV_GROUPS.map(([g,ks])=>(g?`<div class="grp">${esc(g)}${g==='Direction'?navIc('lock',12):''}</div>`:'')+ks.map(k=>`<a class="${UI.view===k?'active':''}" onclick="go('${k}')">${navIc(NAV_ICON[k])}<span>${VIEWS[k][0]}${ADMIN_VIEWS.includes(k)&&r!=='admin'?' 🔒':''}</span></a>`).join('')).join('')+
-  `<div class="foot"><div style="font-size:11px;color:var(--side-muted);margin-bottom:6px">Version du programme : ${APP_VERSION}</div>${secured()?`<div style="margin-bottom:8px;color:#e2e8f0">Connecté : <b>${r==='admin'?'Direction':'Comptable'}</b></div><button onclick="lockNow()">🔒 Verrouiller</button>${r==='admin'&&S().pinStaff?`<button onclick="ROLE='staff';render()">Passer en mode comptable</button>`:''}`:''}<div id="syncst" style="margin:6px 0 8px;color:#e2e8f0">${esc(syncLabel())}</div>${devName()?`<div style="margin-bottom:8px">Ordinateur : ${esc(devName())}</div>`:''}<button onclick="downloadBackup()">Télécharger une sauvegarde</button>Dernière sauvegarde :<br>${lb?fmtDate(lb.slice(0,10)):'jamais'}</div>`;
+  `<div class="foot"><div style="font-size:11px;color:var(--side-muted);margin-bottom:6px">Version du programme : ${APP_VERSION}</div>${secured()?`<div style="margin-bottom:8px;color:#e2e8f0">Connecté : <b>${esc(curUser()?.nom||'')}</b> (${r==='admin'?'Direction':'Comptable'})</div><button onclick="lockNow()">🔒 Verrouiller</button>${r==='admin'&&curUser()?.role==='admin'&&false?`<button onclick="ROLE='staff';render()">Passer en mode comptable</button>`:''}`:''}<div id="syncst" style="margin:6px 0 8px;color:#e2e8f0">${esc(syncLabel())}</div>${devName()?`<div style="margin-bottom:8px">Ordinateur : ${esc(devName())}</div>`:''}<button onclick="downloadBackup()">Télécharger une sauvegarde</button>Dernière sauvegarde :<br>${lb?fmtDate(lb.slice(0,10)):'jamais'}</div>`;
  document.getElementById('main').innerHTML=(ARCH()?`<div class="banner" style="border:2px solid #555;background:#f3f3f3">📁 <b>Archives ${esc(VIEW_YEAR)}</b> — consultation seulement : rien ne peut être saisi ni modifié pour cette année. <button class="small primary" onclick="setViewYear(null)">Revenir à ${esc(DB.settings.annee)}</button></div>`:'')+(TRY?`<div class="banner" style="border:2px solid #b42318;background:#fff4f2"><b>MODE ESSAI</b> — vous pouvez tout essayer : rien n'est enregistré (ni dans ce navigateur, ni dans le fichier partagé). Les reçus imprimés portent la mention « ESSAI ». <button class="small primary" onclick="stopEssai()">Terminer l'essai</button></div>`:'')+VIEWS[UI.view][1]();
  if(AFTER[UI.view])AFTER[UI.view]();
  if(ARCH())document.querySelectorAll('.grid-notes input,.grid-notes select,#main select[onchange*="decision"]').forEach(x=>x.disabled=true);
@@ -973,7 +973,7 @@ function saveDep(id){
  if(dup&&!confirm(`Le reçu N° ${rc} existe déjà (${fmtDate(dup.date)} — ${dup.desc} — ${fcfa(dup.montant)}).\n\nEnregistrer quand même ?`))return;
  const data={recu:rc,date:d,desc:ds,cat:c,montant:m,source:fval('dp_s')||'Caisse Générale',fournisseur:fval('dp_f'),obs:fval('dp_o')};
  if(id){const x=DB.depenses.find(y=>y.id===id);const b=Object.assign({},x);Object.assign(x,data);const ch=['recu','date','desc','cat','montant','source','fournisseur','obs'].filter(k=>String(b[k]??'')!==String(x[k]??'')).map(k=>`${k} : ${k==='montant'?fcfa(b[k]):(b[k]||'—')} → ${k==='montant'?fcfa(x[k]):(x[k]||'—')}`).join(' ; ');logJ('Dépense modifiée',`N° ${x.recu} — ${ch||'aucun changement'}`)}
- else{const x=Object.assign({id:uid(),by:devName()||''},data);DB.depenses.push(x);logJ('Dépense',`N° ${x.recu} — ${x.desc} — ${fcfa(x.montant)}`);toast('Dépense enregistrée — reçu N° '+x.recu)}
+ else{const x=Object.assign({id:uid(),by:devName()||'',par:curUserName()},data);DB.depenses.push(x);logJ('Dépense',`N° ${x.recu} — ${x.desc} — ${fcfa(x.montant)}`);toast('Dépense enregistrée — reçu N° '+x.recu)}
  save();closeModal();render();
 }
 function annulDep(id){requirePin(()=>{const x=DB.depenses.find(y=>y.id===id);if(!x||x.annule)return;const m=prompt(`Annuler la dépense N° ${x.recu} (${x.desc}, ${fcfa(x.montant)}) ?\n\nElle n'est pas effacée : elle reste marquée « ANNULÉE ».\nMotif :`);if(!m)return;
@@ -1021,7 +1021,7 @@ function saveRemb(pid){if(noArch())return;const p=DB.paiements.find(x=>x.id===pi
  const d=fval('rb_d'),m=fval('rb_m'),dep=document.getElementById('rb_dep').checked,rr=document.getElementById('rb_rr').checked;
  if(!(t>0)){alert('Indiquez le montant à rembourser.');return}if(!m){alert('Indiquez le motif.');return}if(!d||d<p.date){alert('Date invalide (elle ne peut pas précéder le reçu).');return}
  if(!confirm(`Rembourser ${fcfa(t)} à ${fullName(e)} le ${fmtDate(d)} ?`))return;
- const r={id:uid(),inscriptionId:i.id,date:d,montant:-t,parts,mode:'Espèces',remarque:'Remboursement — '+m,recu:nextRemb(),remb:{orig:p.id,motif:m,depart:dep,recuRendu:rr},by:devName()||''};
+ const r={id:uid(),inscriptionId:i.id,date:d,montant:-t,parts,mode:'Espèces',remarque:'Remboursement — '+m,recu:nextRemb(),remb:{orig:p.id,motif:m,depart:dep,recuRendu:rr},by:devName()||'',par:curUserName()};
  DB.paiements.push(r);
  if(dep){i.depart={date:d,motif:m,remb:r.id};const before=JSON.parse(JSON.stringify(e));e.statut='Abandon';if(!e.dateSortie)e.dateSortie=d;if(!e.motifDepart)e.motifDepart=m;hRecord('eleve',e,before,e.id)}
  logJ('Remboursement',`${r.recu} — ${fullName(e)} — ${fcfa(t)} (reçu ${p.recu}) — motif : ${m}${dep?' — départ de l\'élève':''}`);save();closeModal();render();printDoc(rembHTML(r));
@@ -1036,7 +1036,7 @@ function rembHTML(r){
  <tr><td colspan="2">Motif : ${esc(r.remb.motif)}${r.remb.depart?' — l\'élève quitte l\'école':''}</td></tr></table>
  <table><thead><tr><th>Rubrique</th><th class="r" style="width:40%">Montant remboursé</th></tr></thead><tbody>${lines}</tbody><tfoot><tr><th>TOTAL REMBOURSÉ</th><th class="r" style="font-size:16px">${fcfa(t)}</th></tr></tfoot></table>
  <div>Le parent reconnaît avoir reçu la somme de : <b>${nombreEnLettres(t)} (${fcfa(t).replace(' F','')}) francs CFA</b>.${partsK(o||{},keysExt())?' L\'APE n\'est pas remboursée par l\'école.':''}</div>
- <div class="sign"><div>Le Parent<br><span style="font-size:11px">(nom et signature : « reçu la somme »)</span></div><div>La Direction<br><span style="font-size:11px">(signature et cachet de l'école)</span></div></div></div>`;
+ <div class="sign"><div>Le Parent<br><span style="font-size:11px">(nom et signature : « reçu la somme »)</span></div><div>Remboursé par : ${esc(r.par||'')}<br><span style="font-size:11px">(signature et cachet de l'école)</span></div></div></div>`;
  return `<div class="pg recu-page"><div class="recu-wrap"><div class="recu-half">${one('Copie PARENTS')}</div><div class="recu-cut">✂ ${'- '.repeat(70)}✂</div><div class="recu-half">${one('Copie ÉCOLE')}</div></div></div>`;
 }
 function payRow(p,withEleve){const i=ins(p.inscriptionId),e=elv(i?.eleveId);const an=p.annule;
@@ -1123,7 +1123,7 @@ function payTot(){const t=document.getElementById('f_tot');if(t){const s=Object.
 function savePaiement(){if(noArch())return;
  const iid=fval('f_i');if(!iid){alert('Choisissez un élève.');return}
  const parts=payParts(),m=Object.values(parts).reduce((a,b)=>a+b,0);if(!(m>0)){alert('Saisissez au moins un montant.');return}
- const i=ins(iid);const base={inscriptionId:iid,date:fval('f_d')||today(),mode:fval('f_mo'),remarque:fval('f_r')};const out=[];
+ const i=ins(iid);const base={inscriptionId:iid,date:fval('f_d')||today(),mode:fval('f_mo'),remarque:fval('f_r'),par:curUserName()};const out=[];
  const a=+parts.arriere||0;delete parts.arriere;const y=Object.values(parts).reduce((s,v)=>s+v,0);
  if(y>0)out.push(Object.assign({id:uid(),montant:y,parts,recu:nextRecu(insEcole(i))},base));
  if(a>0)out.push(Object.assign({id:uid(),montant:a,parts:{arriere:a},recu:nextRecuA()},base,{remarque:base.remarque||'Arriéré des années passées'}));
@@ -1288,7 +1288,7 @@ function recuHTML(p){
  <table><thead><tr><th>Rubrique</th><th class="r" style="width:32%">Montant payé</th><th class="r" style="width:32%">Reste à payer</th></tr></thead><tbody>${lines}</tbody><tfoot><tr><th>TOTAL</th><th class="r" style="font-size:16px">${fcfa(tP)}</th><th class="r">${fcfa(tR)}</th></tr></tfoot></table>
  <div><div>Arrêté le présent reçu à la somme de : <b>${nombreEnLettres(tP)} (${fcfa(tP).replace(' F','')}) francs CFA</b>.</div>
  <div style="font-size:12px;margin-top:2px">Situation au ${fmtDate(p.date)} : payé ${AR?'sur l\'arriéré':'pour l\'année'} ${fcfa(tPaid)} sur ${fcfa(tDue)} — reste ${fcfa(tR)}.</div></div>
- <div class="sign"><div>Le Parent</div><div>Reçu par : ${esc(S().caissier||'..................................')}<br><span style="font-size:11px">(signature et cachet de l'école)</span></div></div>${S().piedRecu?`<div class="c" style="font-size:10.5px"><i>${esc(S().piedRecu)}</i></div>`:''}</div>`;
+ <div class="sign"><div>Le Parent</div><div>Reçu par : ${esc(p.par||S().caissier||'..................................')}<br><span style="font-size:11px">(signature et cachet de l'école)</span></div></div>${S().piedRecu?`<div class="c" style="font-size:10.5px"><i>${esc(S().piedRecu)}</i></div>`:''}</div>`;
  return `<div class="pg recu-page"><div class="recu-wrap"><div class="recu-half">${one('Copie PARENTS')}</div><div class="recu-cut">✂ ${'- '.repeat(70)}✂</div><div class="recu-half">${one('Copie ÉCOLE')}</div></div></div>`;
 }
 function certificatHTML(eid,num){
@@ -1647,7 +1647,11 @@ function vParam(){
  <div class="row">${F('Nom de cet ordinateur','p_dev',devName(),'text','placeholder="ex. Laptop école" onchange="setDevName(this.value);render()"')}
  <div class="field"><label>État</label><div style="padding:6px 0"><b>${esc(syncLabel())}</b>${FH&&FSTATE==='ok'&&FH.name?` <span class="muted">(${esc(FH.name)})</span>`:''}</div></div></div>
  <div class="row" style="margin-top:10px">${FH||FSTATE==='need'?`${FSTATE==='need'?'<button class="primary" onclick="reconnect()">Reconnecter le fichier</button>':''}<button onclick="disconnectFile()">Déconnecter</button>`:`<button class="primary" onclick="createDataFile()">Créer le fichier de données dans OneDrive (1er ordinateur)</button><button onclick="openDataFile()">Ouvrir le fichier existant (autre ordinateur)</button>`}</div>`:'<p>Cette fonction nécessite Google Chrome (ou Edge).</p>'}</div>
- <div class="card"><h2 style="margin-top:0">Sécurité : codes PIN</h2><div class="row"><button onclick="formPin('admin')">${s.pinAdmin?'Changer':'Créer'} le code Direction</button><button onclick="formPin('staff')" ${s.pinAdmin?'':'disabled'}>${s.pinStaff?'Changer':'Créer'} le code Comptable</button><span style="flex:1"></span><button onclick="formHistorique()">Historique des modifications (${(DB.hist||[]).length})</button><button onclick="printDoc(journalHTML())">Imprimer le journal des opérations (${(DB.journal||[]).length})</button></div>
+ <div class="card"><h2 style="margin-top:0">Utilisateurs et codes PIN</h2>
+ <table class="data" style="margin-bottom:10px"><thead><tr><th>Nom (imprimé sur les reçus)</th><th>Rôle</th><th></th></tr></thead><tbody>${users().map(u=>`<tr><td><b>${esc(u.nom)}</b>${u.id===USER?' <span class="tag">connecté</span>':''}</td><td>${u.role==='admin'?'Direction':'Comptable'}</td><td><button class="small" onclick="formUser('${u.id}')">Modifier</button></td></tr>`).join('')||'<tr><td colspan="3" class="muted">Aucun utilisateur : le programme n\'est pas protégé.</td></tr>'}</tbody></table>
+ <div class="row"><button class="primary" onclick="formUser()">+ Ajouter un utilisateur</button></div>
+ <p class="muted" style="margin-bottom:0">Chaque personne entre avec son propre code ; son nom est imprimé sur les reçus qu'elle établit. Verrouillage automatique après 15 minutes sans activité.</p></div>
+ <div class="card" style="display:none"><h2 style="margin-top:0">Sécurité : codes PIN</h2><div class="row"><button onclick="formPin('admin')">${s.pinAdmin?'Changer':'Créer'} le code Direction</button><button onclick="formPin('staff')" ${s.pinAdmin?'':'disabled'}>${s.pinStaff?'Changer':'Créer'} le code Comptable</button><span style="flex:1"></span><button onclick="formHistorique()">Historique des modifications (${(DB.hist||[]).length})</button><button onclick="printDoc(journalHTML())">Imprimer le journal des opérations (${(DB.journal||[]).length})</button></div>
  <p class="muted" style="margin-bottom:0">${s.pinAdmin?`Code Direction actif.${s.pinStaff?' Code Comptable actif.':' Pas encore de code Comptable.'} Au démarrage, le programme demande un code ; il se verrouille après 15 minutes sans activité.`:'Aucun code : tout le monde a accès à tout. Créez d\'abord le code Direction, puis le code Comptable.'}</p></div>
  <div class="card"><h2 style="margin-top:0">Sauvegarde et import</h2>
  <p class="muted" style="margin-top:0">Les données sont enregistrées automatiquement dans ce navigateur, sur cet ordinateur. Téléchargez une sauvegarde chaque semaine et copiez-la sur une clé USB. Pour utiliser un autre ordinateur, restaurez-y la dernière sauvegarde.</p>
@@ -1715,26 +1719,51 @@ function importText(text){{
 }}
 
 /* ---------- accès : comptable / direction ---------- */
-let ROLE=null,ROLE_UNTIL=0;const IDLE_MS=15*60*1000;
-function secured(){return !!(S().pinAdmin||S().pinStaff)}
+let ROLE=null,ROLE_UNTIL=0,USER=null;const IDLE_MS=15*60*1000;
+/* utilisateurs : chacun a un nom, un rôle (admin = direction, staff = comptable) et son propre code PIN */
+function users(){const s=S();if(!Array.isArray(s.users)){s.users=[];if(s.pinAdmin)s.users.push({id:'u_admin',nom:'Direction',role:'admin',pin:s.pinAdmin});if(s.pinStaff)s.users.push({id:'u_staff',nom:s.caissier||'Comptable',role:'staff',pin:s.pinStaff})}return s.users}
+function curUser(){return USER?users().find(u=>u.id===USER):null}
+function curUserName(){const u=curUser();return u?u.nom:(S().caissier||'')}
+function secured(){return users().some(u=>u.pin)}
 function role(){if(!secured())return 'admin';if(ROLE&&ROLE_UNTIL>Date.now())return ROLE;return null}
 function isAdmin(){return role()==='admin'}
 ['click','keydown'].forEach(ev=>document.addEventListener(ev,()=>{if(ROLE&&ROLE_UNTIL>Date.now())ROLE_UNTIL=Date.now()+IDLE_MS},true));
-setInterval(()=>{if(secured()&&ROLE&&ROLE_UNTIL<=Date.now()){ROLE=null;closeModal();closePv();render()}},20000);
+setInterval(()=>{if(secured()&&ROLE&&ROLE_UNTIL<=Date.now()){ROLE=null;USER=null;closeModal();closePv();render()}},20000);
 async function hashPin(pin){const t=new TextEncoder().encode('eaenjc:'+pin);if(window.crypto&&crypto.subtle){const b=await crypto.subtle.digest('SHA-256',t);return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}let h=0;for(const c of t)h=(h*31+c)|0;return 'x'+h}
 function vLogin(){return `<div class="card" style="max-width:400px;margin:10vh auto"><h2 style="margin-top:0">EAenJC — Gestion scolaire</h2><p class="muted" style="margin-top:0">Entrez votre code PIN pour commencer.</p>
  <div class="row">${F('Code PIN','login_pin','','password','inputmode="numeric" autocomplete="off" onkeydown="if(event.key===\'Enter\')doLogin()"')}<button class="primary" onclick="doLogin()">Entrer</button></div>
- <div id="login_msg" style="color:var(--danger);min-height:18px;margin-top:8px"></div><p class="muted" style="font-size:12px;margin-bottom:0">Code comptable : inscriptions, paiements, reçus, notes, bulletins.<br>Code direction : tout, y compris les finances et les paramètres.<br>Verrouillage automatique après 15 minutes sans activité.</p></div>`}
-async function doLogin(){const h=await hashPin(fval('login_pin'));const r=h===S().pinAdmin?'admin':(S().pinStaff&&h===S().pinStaff)?'staff':null;
+ <div id="login_msg" style="color:var(--danger);min-height:18px;margin-top:8px"></div><p class="muted" style="font-size:12px;margin-bottom:0">Chaque utilisateur a son propre code (comptable ou direction).<br>Verrouillage automatique après 15 minutes sans activité.</p></div>`}
+async function doLogin(){const h=await hashPin(fval('login_pin'));const u=users().find(x=>x.pin===h);const r=u?u.role:null;
  if(!r){document.getElementById('login_msg').textContent='Code incorrect.';document.getElementById('login_pin').value='';return}
- ROLE=r;ROLE_UNTIL=Date.now()+IDLE_MS;UI.view='dash';render()}
-function lockNow(){ROLE=null;closeModal();render()}
+ ROLE=r;USER=u.id;ROLE_UNTIL=Date.now()+IDLE_MS;UI.view='dash';render()}
+function lockNow(){ROLE=null;USER=null;closeModal();render()}
 function requirePin(cb,what){
  if(isAdmin())return cb();
  modal(`<h3>Code de la direction requis</h3><p class="muted" style="margin-top:0">Pour ${esc(what||'continuer')}.</p><div class="row">${F('Code PIN direction','pin_in','','password','inputmode="numeric" autocomplete="off" onkeydown="if(event.key===\'Enter\')checkPin()"')}</div><div id="pin_msg" style="color:var(--danger);min-height:18px;margin-top:6px"></div><div class="actions"><button onclick="closeModal()">Annuler</button><button class="primary" onclick="checkPin()">Valider</button></div>`);
  window._pinCb=cb;
 }
-async function checkPin(){const h=await hashPin(fval('pin_in'));if(h===S().pinAdmin){ROLE='admin';ROLE_UNTIL=Date.now()+IDLE_MS;closeModal();const cb=window._pinCb;window._pinCb=null;render();if(cb)cb()}else{document.getElementById('pin_msg').textContent='Code incorrect.';document.getElementById('pin_in').value=''}}
+async function checkPin(){const h=await hashPin(fval('pin_in'));if(users().some(u=>u.role==='admin'&&u.pin===h)){ROLE='admin';ROLE_UNTIL=Date.now()+IDLE_MS;closeModal();const cb=window._pinCb;window._pinCb=null;render();if(cb)cb()}else{document.getElementById('pin_msg').textContent='Code incorrect.';document.getElementById('pin_in').value=''}}
+function formUser(id){
+ const u=id?users().find(x=>x.id===id):null;
+ modal(`<h3>${u?'Modifier':'Ajouter'} un utilisateur</h3><p class="muted" style="margin-top:0">Chaque personne a son propre code. Son nom est imprimé sur les reçus qu'elle établit (« Reçu par »).</p>
+ <div class="form-grid">${F('Nom (tel qu\'il apparaîtra sur les reçus)','us_n',u?.nom||'')}${FS('Rôle','us_r',opts([['staff','Comptable — inscriptions, paiements, reçus, notes, listes'],['admin','Direction — accès complet (finances, paramètres, annulations)']],u?.role||'staff'))}
+ ${F(u?'Nouveau code (laisser vide pour ne pas changer)':'Code PIN (4 à 8 chiffres)','us_p1','','password','inputmode="numeric" autocomplete="off"')}${F('Confirmer le code','us_p2','','password','inputmode="numeric" autocomplete="off"')}</div>
+ <div class="actions">${u?`<button class="danger" style="margin-right:auto" onclick="delUser('${u.id}')">Supprimer</button>`:''}<button onclick="closeModal()">Annuler</button><button class="primary" onclick="saveUser('${u?u.id:''}')">Enregistrer</button></div>`)}
+async function saveUser(id){const L=users();const nom=fval('us_n').trim(),r=fval('us_r'),a=fval('us_p1'),b=fval('us_p2');
+ if(!nom){alert('Indiquez le nom.');return}
+ if(!id||a){if(!/^\d{4,8}$/.test(a)){alert('Le code doit avoir 4 à 8 chiffres.');return}if(a!==b){alert('Les deux codes sont différents.');return}}
+ const h=a?await hashPin(a):null;if(h&&L.some(x=>x.pin===h&&x.id!==id)){alert('Ce code est déjà utilisé par un autre utilisateur. Choisissez un code différent.');return}
+ const u=id?L.find(x=>x.id===id):null;
+ if(u&&u.role==='admin'&&r!=='admin'&&L.filter(x=>x.role==='admin').length<2){alert('Il faut au moins un utilisateur Direction.');return}
+ if(!u&&r==='staff'&&!L.some(x=>x.role==='admin')){alert("Créez d'abord un utilisateur Direction.");return}
+ if(u){u.nom=nom;u.role=r;if(h)u.pin=h}else{L.push({id:uid(),nom,role:r,pin:h})}
+ if(!ROLE){ROLE='admin';ROLE_UNTIL=Date.now()+IDLE_MS}
+ if(!USER){const me=L.find(x=>x.role==='admin');if(me)USER=me.id}
+ logJ('Utilisateur',`${u?'modifié':'ajouté'} : ${nom} (${r==='admin'?'Direction':'Comptable'})`);save();closeModal();render();toast('Utilisateur enregistré')}
+function delUser(id){const L=users(),u=L.find(x=>x.id===id);if(!u)return;
+ if(u.role==='admin'&&L.filter(x=>x.role==='admin').length<2&&L.length>1){alert('Il faut garder au moins un utilisateur Direction.');return}
+ if(!confirm(`Supprimer l'utilisateur « ${u.nom} » ?${L.length===1?'\nSans utilisateur, le programme ne sera plus protégé par un code.':''}`))return;
+ L.splice(L.indexOf(u),1);if(USER===id)USER=null;logJ('Utilisateur',`supprimé : ${u.nom}`);save();closeModal();render()}
 function formPin(kind){
  const lab=kind==='admin'?'Direction':'Comptable';const cur=kind==='admin'?S().pinAdmin:S().pinStaff;
  if(kind==='staff'&&!S().pinAdmin){alert("Créez d'abord le code de la direction.");return}
@@ -1776,7 +1805,7 @@ function formHistorique(){
 function histHTML(){const L=(DB.hist||[]).slice().reverse();return `<div class="pg">${pageHeader(S().ecoles.primaire,S().annee)}<div class="title">Historique des modifications</div><table class="small"><thead><tr><th>Date</th><th>Par</th><th>Élève</th><th>Champ</th><th>Avant</th><th>Après</th></tr></thead><tbody>${L.map(h=>{const e=elv(h.eid);return `<tr><td>${new Date(h.t).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'})}</td><td>${esc(h.by)}</td><td>${esc(e?fullName(e)+' ('+e.matricule+')':'—')}</td><td>${esc(hLabel(h.type,h.f))}</td><td>${esc(hVal(h.f,h.o))}</td><td>${esc(hVal(h.f,h.n))}</td></tr>`}).join('')||'<tr><td colspan="6">—</td></tr>'}</tbody></table></div>`}
 
 /* ---------- journal des opérations ---------- */
-function logJ(action,detail){DB.journal=DB.journal||[];DB.journal.push({t:new Date().toISOString(),dev:(devName()||'?')+(secured()?' / '+(role()==='admin'?'Direction':'Comptable'):''),a:action,d:detail||''});if(DB.journal.length>3000)DB.journal=DB.journal.slice(-3000)}
+function logJ(action,detail){DB.journal=DB.journal||[];DB.journal.push({t:new Date().toISOString(),dev:(devName()||'?')+(secured()?' / '+(curUser()?.nom||'')+' ('+(role()==='admin'?'Direction':'Comptable')+')':''),a:action,d:detail||''});if(DB.journal.length>3000)DB.journal=DB.journal.slice(-3000)}
 function journalHTML(){const J=(DB.journal||[]).slice().reverse();return `<div class="pg">${pageHeader(S().ecoles.primaire,S().annee)}<div class="title">Journal des opérations</div><table class="small"><thead><tr><th>Date et heure</th><th>Ordinateur</th><th>Opération</th><th>Détail</th></tr></thead><tbody>${J.map(j=>`<tr><td>${new Date(j.t).toLocaleString('fr-FR')}</td><td>${esc(j.dev)}</td><td>${esc(j.a)}</td><td>${esc(j.d)}</td></tr>`).join('')||'<tr><td colspan="4">—</td></tr>'}</tbody></table></div>`}
 
 /* ---------- recherche d'élève (nom ou numéro) ---------- */
