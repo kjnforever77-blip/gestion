@@ -225,7 +225,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='91 (24/11/2026)';
+const APP_VERSION='92 (24/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -324,6 +324,7 @@ function fileGate(){
  let el=document.getElementById('fgate');
  const skip=(()=>{try{return sessionStorage.getItem('fgate_skip')==='1'}catch(e){return false}})();
  const bad=FSTATE==='need'||FSTATE==='error'||(!FH&&FSTATE==='none');
+ if(FREADY&&!bad&&!TRY)gsSchedule();
  if(!FS_OK||!FREADY||TRY||skip||!bad){if(el)el.remove();return}
  if(!el){el=document.createElement('div');el.id='fgate';document.body.appendChild(el)}
  const msg=FSTATE==='need'?"Chrome demande votre accord pour utiliser à nouveau le fichier de données partagé (OneDrive)."
@@ -337,6 +338,48 @@ function fileGate(){
   <div class="row" style="margin-top:14px;gap:8px;flex-wrap:wrap">${btn}<button onclick="try{sessionStorage.setItem('fgate_skip','1')}catch(e){};fileGate()">Continuer sans le fichier (déconseillé)</button></div></div>`;
 }
 try{localStorage.setItem(KEY+'_t','1');localStorage.removeItem(KEY+'_t')}catch(e){STORAGE_OK=false}
+
+
+/* ---------- Tableau financier (Google Sheets) : envoi automatique ---------- */
+function gsRows(){
+ const NAT={scolarite:'Scolarité',gouter:'Goûter',livres:'Livres'},KY=keysSchool().filter(k=>k!=='arriere');
+ const rec=[];DB.paiements.forEach(p=>{if(p.annule||!p.date)return;const i=ins(p.inscriptionId);if(!i)return;const e=elv(i.eleveId);
+  const ec=insEcole(i)==='maternelle'?'Maternelle':'Primaire',pt=p.parts||{},imp=sYearOfDate(p.date)!==i.annee?i.annee:'';
+  KY.forEach(k=>{const v=+pt[k]||0;if(v)rec.push([p.date,ec,NAT[k]||rubLabel(k),v,imp,`${fullName(e)} (${e?.matricule||''})${p.remb?' — remboursement':''}`,p.recu||''])})});
+ rec.sort((a,b)=>a[0].localeCompare(b[0])||a[6].localeCompare(b[6])||a[2].localeCompare(b[2]));
+ const arr=arrEntrees().map(p=>{const i=ins(p.inscriptionId),e=elv(i?.eleveId);return [p.date,insEcole(i)==='maternelle'?'Maternelle':'Primaire',`${fullName(e)} (${e?.matricule||''})`,p.recu||'',+p.parts.arriere||0,'',isArrPay(p)?(p.remarque||'Arriéré des années passées'):'Arriéré (encaissé avec les frais de l\'année)']});
+ arrSorties().forEach(x=>arr.push([x.date,'','','','',+x.montant||0,(x.motif||'')+(x.remisA?' — remis à '+x.remisA:'')]));
+ arr.sort((a,b)=>a[0].localeCompare(b[0]));
+ const dep=DB.depenses.filter(x=>!x.annule&&x.date).sort((a,b)=>a.date.localeCompare(b.date)||(+a.recu||0)-(+b.recu||0)).map(x=>[x.date,x.desc||'',x.cat||'',x.source||'Caisse Générale',+x.montant||0,x.recu===''||x.recu==null?'':(isNaN(+x.recu)?String(x.recu):+x.recu),x.fournisseur||'',x.obs||'',x.id]);
+ return {recettes:rec,arrieres:arr,depenses:dep};
+}
+let GS={st:'',at:null,err:''},GS_T=null;
+function gsCfg(){return DB.settings.gs||{}}
+function gsHash(t){let h=0;for(let k=0;k<t.length;k++)h=(h*31+t.charCodeAt(k))|0;return String(h)}
+function gsSchedule(){if(!gsCfg().url||TRY)return;clearTimeout(GS_T);GS_T=setTimeout(()=>gsSend(false),15000)}
+async function gsSend(force){
+ const c=gsCfg();if(!c.url||TRY)return;
+ if(!force&&(FS_OK&&(FSTATE!=='ok'||SYNC.dirty)))return;
+ if(!navigator.onLine){GS={st:'wait',at:null,err:'hors ligne'};gsShow();return}
+ const R=gsRows(),body=JSON.stringify({key:c.key||'',...R}),h=gsHash(body);
+ let last='';try{last=localStorage.getItem(KEY+'_gs')||''}catch(e){}
+ if(!force&&h===last){if(!GS.st){GS={st:'ok',at:null,err:''};gsShow()}return}
+ GS={st:'send',at:null,err:''};gsShow();
+ try{const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body});const j=await r.json();
+  if(!j.ok)throw new Error(j.error||'refusé');try{localStorage.setItem(KEY+'_gs',h)}catch(e){}GS={st:'ok',at:new Date().toISOString(),err:''};if(force)toast(`Tableau financier mis à jour : ${R.recettes.length} recettes, ${R.arrieres.length} arriérés, ${R.depenses.length} dépenses`)}
+ catch(e){GS={st:'err',at:null,err:e.message||String(e)};if(force)alert("Envoi vers le Tableau financier impossible : "+GS.err)}
+ gsShow();
+}
+function gsLabel(){const c=gsCfg();if(!c.url)return 'non configuré';
+ return GS.st==='ok'?'✓ à jour'+(GS.at?' ('+new Date(GS.at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+')':''):GS.st==='send'?'… envoi en cours':GS.st==='wait'?'⏳ en attente (hors ligne)':GS.st==='err'?'⚠ erreur : '+GS.err:'—'}
+function gsShow(){const el=document.getElementById('gsst');if(el)el.textContent=gsLabel()}
+window.addEventListener('online',()=>gsSchedule());
+function gsCard(){const c=gsCfg();
+ return `<div class="card"><h2 style="margin-top:0">Tableau financier (Google Sheets) — envoi automatique</h2>
+ <p style="margin-top:0">Les recettes, les arriérés et les dépenses sont recopiés automatiquement dans les onglets <b>Recettes</b>, <b>Arriérés</b> et <b>Dépenses courantes</b> du « Tableau financier » quand l'ordinateur est connecté à Internet. Ces trois onglets sont entièrement réécrits à chaque envoi : ne les modifiez pas à la main.</p>
+ <div class="row">${F('Adresse du script (URL)','gs_url',c.url||'','text','style="min-width:420px"')}${F('Clé','gs_key',c.key||'','text')}</div>
+ <div class="row" style="margin-top:8px;align-items:center"><button class="primary" onclick="gsSave()">Enregistrer</button><button onclick="gsSend(true)"${c.url?'':' disabled'}>Envoyer maintenant</button><span>État : <b id="gsst">${esc(gsLabel())}</b></span></div></div>`}
+function gsSave(){if(noArch())return;const u=fval('gs_url').trim(),k=fval('gs_key').trim();DB.settings.gs=u?{url:u,key:k}:null;logJ('Paramètres','Tableau financier : '+(u?'adresse enregistrée':'désactivé'));save();render();if(u)setTimeout(()=>gsSend(true),300)}
 
 /* année affichée : l'année en cours (DB.settings.annee) ou une année passée en consultation (archives, lecture seule) */
 let VIEW_YEAR=null;
@@ -1684,7 +1727,7 @@ function vParam(){
  const ec=k=>{const e=s.ecoles[k];const lab={nom:"Nom de l'école",devise:'Devise',arrete:"Arrêté d'ouverture",adresse:'Adresse',tel:'Téléphone',directeur:'Directeur / Directrice'};return `<div class="card" style="flex:1;min-width:300px;margin:0"><h2 style="margin-top:0">${k==='primaire'?'École primaire':'École maternelle'}</h2><div class="form-grid">${Object.keys(lab).map(f=>`<div class="field"><label>${lab[f]}</label><input value="${esc(e[f]||'')}" onchange="S().ecoles['${k}']['${f}']=this.value;save()"></div>`).join('')}</div></div>`};
  const years=[...new Set([DB.settings.annee,...DB.inscriptions.map(i=>i.annee)])].sort().map(y=>[y,y===DB.settings.annee?y+' (en cours)':y+' (archives)']);
  const crow=sortedClasses().map(c=>{const n=DB.inscriptions.filter(i=>i.classeId===c.id).length;return `<tr><td>${c.ecole==='primaire'?'Primaire':'Maternelle'}</td><td>${c.niveau}</td><td><input value="${esc(c.nom)}" style="width:110px" onchange="setCls('${c.id}','nom',this.value)"></td><td><input value="${esc(c.enseignant||'')}" style="width:160px" onchange="setCls('${c.id}','enseignant',this.value)"></td>${RUB().map(r=>`<td><input type="number" min="0" value="${+(c.frais||{})[r.k]||0}" style="width:85px" onchange="setFrais('${c.id}','${r.k}',this.value)"></td>`).join('')}<td style="white-space:nowrap"><button class="small" onclick="editMatieres('${c.id}')">${c.ecole==='primaire'?'Matières':'Domaines'} (${c.matieres.length})</button> <button class="small danger" ${n?'disabled title="Classe utilisée"':''} onclick="delClass('${c.id}')">✕</button></td></tr>`}).join('');
- return `<h1>Paramètres & données</h1>${bkCard()}<div class="card"><h2 style="margin-top:0">Photos des élèves</h2><p style="margin-top:0">Les photos sont gardées dans un dossier « photos » sur OneDrive (à côté du fichier de données), une photo par élève, nommée par son numéro (ex. P0185.jpg). Le programme réduit chaque photo (environ 25 Ko). À faire une fois sur chaque ordinateur. On ajoute une photo depuis la fiche de l'élève.</p>${DIR_OK?(PDIR?`<p>Dossier : <b>${esc(PDIR.name)}</b> — ${PDIR_OK?'connecté':'accès à autoriser'}</p><button onclick="photoDirConnect()">${PDIR_OK?'Choisir un autre dossier':'Autoriser / choisir le dossier'}</button> <button onclick="photoDirForget()">Déconnecter</button>`:`<button class="primary" onclick="photoDirConnect()">Connecter le dossier des photos</button>`):'<p class="muted">Non disponible dans ce navigateur (utilisez Chrome ou Edge sur l\'ordinateur).</p>'}</div><div class="card"><h2 style="margin-top:0">Mode essai (pour s'entraîner)</h2><p style="margin-top:0">Pour apprendre à utiliser le programme sans toucher aux vraies données : inscrire un élève, saisir un paiement, imprimer un reçu… Rien n'est enregistré, et les reçus portent la mention « ESSAI ».</p>${TRY?`<button class="primary" onclick="stopEssai()">Terminer l'essai</button>`:`<button class="primary" onclick="startEssai()">Commencer un essai</button>`}</div>
+ return `<h1>Paramètres & données</h1>${bkCard()}${gsCard()}<div class="card"><h2 style="margin-top:0">Photos des élèves</h2><p style="margin-top:0">Les photos sont gardées dans un dossier « photos » sur OneDrive (à côté du fichier de données), une photo par élève, nommée par son numéro (ex. P0185.jpg). Le programme réduit chaque photo (environ 25 Ko). À faire une fois sur chaque ordinateur. On ajoute une photo depuis la fiche de l'élève.</p>${DIR_OK?(PDIR?`<p>Dossier : <b>${esc(PDIR.name)}</b> — ${PDIR_OK?'connecté':'accès à autoriser'}</p><button onclick="photoDirConnect()">${PDIR_OK?'Choisir un autre dossier':'Autoriser / choisir le dossier'}</button> <button onclick="photoDirForget()">Déconnecter</button>`:`<button class="primary" onclick="photoDirConnect()">Connecter le dossier des photos</button>`):'<p class="muted">Non disponible dans ce navigateur (utilisez Chrome ou Edge sur l\'ordinateur).</p>'}</div><div class="card"><h2 style="margin-top:0">Mode essai (pour s'entraîner)</h2><p style="margin-top:0">Pour apprendre à utiliser le programme sans toucher aux vraies données : inscrire un élève, saisir un paiement, imprimer un reçu… Rien n'est enregistré, et les reçus portent la mention « ESSAI ».</p>${TRY?`<button class="primary" onclick="stopEssai()">Terminer l'essai</button>`:`<button class="primary" onclick="startEssai()">Commencer un essai</button>`}</div>
  <div class="row" style="align-items:stretch;margin-bottom:14px">${ec('primaire')}${ec('maternelle')}</div>
  <div class="card"><h2 style="margin-top:0">Général</h2><div class="row">
   ${FS('Année affichée','p_an',opts(years,s.annee),'onchange="setViewYear(this.value)"')}
