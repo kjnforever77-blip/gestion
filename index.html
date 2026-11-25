@@ -229,7 +229,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='103 (25/11/2026)';
+const APP_VERSION='104 (25/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -744,8 +744,10 @@ function pB(l,js){return `<button onclick="${js}">🖨 ${l}</button>`}
 function xB(l,js){return `<button onclick="${js}">⬇ ${l}</button>`}
 /* maternelle et primaire sont deux écoles : chacune garde son propre dossier (M… / P…) ; ces aides restent neutres */
 function regMatOnly(e){return false}
+/* élève sans classe cette année : dernière classe fréquentée (au lieu de « non inscrit » pour les sortis, anciens…) */
+function lastClsTxt(e){if(e.statut==='Actif')return 'non inscrit';const L=DB.inscriptions.filter(x=>x.eleveId===e.id&&!x.arrOnly&&cls(x.classeId)).sort((a,b)=>b.annee.localeCompare(a.annee));return L.length?`${cls(L[0].classeId).nom} (${L[0].annee})`:'—'}
 function regMat(e){return regMatOnly(e)?e.matriculeMat:e.matricule}
-function regCls(e){const i=inscOf(e.id);if(regMatOnly(e))return `→ primaire (${e.matricule}${i?', '+(cls(i.classeId)?.nom||''):''})`;return i?(cls(i.classeId)?.nom||''):''}
+function regCls(e){const i=inscOf(e.id);return i?(cls(i.classeId)?.nom||''):(e.statut==='Actif'?'':lastClsTxt(e).replace('—',''))}
 function regStat(e){return regMatOnly(e)?'Passé(e) au primaire':e.statut}
 function elevesFiltered(){
  const f=UI.f,q=norm(f.q);let L=DB.eleves.slice();
@@ -759,7 +761,7 @@ function elevesFiltered(){
 function elevesSub(){const f=UI.f,p=[];if(f.eec)p.push(f.eec==='primaire'?'Primaire':'Maternelle');if(f.cl)p.push(f.cl==='_none'?'Non inscrits':cls(f.cl)?.nom||'');if(f.st)p.push(f.st);if(f.bours)p.push('Boursiers');if(f.q)p.push('« '+f.q+' »');return p.join(' · ')}
 function fillEleves(){
  const L=elevesFiltered();
- document.getElementById('tb').innerHTML=L.map(e=>{const i=inscOf(e.id);return `<tr style="cursor:pointer" onclick="openFiche('${e.id}')"><td>${esc(regMat(e))}</td><td><b>${esc(fullName(e))}</b>${e.boursier?' <span class="tag">boursier</span>':''}</td><td>${i?fmtDate(i.date):''}</td><td>${esc(e.sexe)}</td><td>${fmtDate(e.dateNaiss)}</td><td>${regMatOnly(e)?`<span class="muted">${esc(regCls(e))}</span>`:i?esc(cls(i.classeId)?.nom||''):'<span class="muted">non inscrit</span>'}</td><td>${esc(e.tuteur||e.pere||e.mere||'')}<br><span class="muted">${esc(e.telephone||'')}</span></td><td>${regMatOnly(e)?'<span class="tag">passé(e) au primaire</span>':statTag(e.statut)}</td></tr>`}).join('')||'<tr><td colspan="8" class="muted" style="padding:24px;text-align:center">Aucun élève.</td></tr>';
+ document.getElementById('tb').innerHTML=L.map(e=>{const i=inscOf(e.id);return `<tr style="cursor:pointer" onclick="openFiche('${e.id}')"><td>${esc(regMat(e))}</td><td><b>${esc(fullName(e))}</b>${e.boursier?' <span class="tag">boursier</span>':''}</td><td>${i?fmtDate(i.date):''}</td><td>${esc(e.sexe)}</td><td>${fmtDate(e.dateNaiss)}</td><td>${regMatOnly(e)?`<span class="muted">${esc(regCls(e))}</span>`:i?esc(cls(i.classeId)?.nom||''):`<span class="muted">${esc(lastClsTxt(e))}</span>`}</td><td>${esc(e.tuteur||e.pere||e.mere||'')}<br><span class="muted">${esc(e.telephone||'')}</span></td><td>${regMatOnly(e)?'<span class="tag">passé(e) au primaire</span>':statTag(e.statut)}</td></tr>`}).join('')||'<tr><td colspan="8" class="muted" style="padding:24px;text-align:center">Aucun élève.</td></tr>';
  document.getElementById('cnt').textContent=`${L.length} élève(s) affiché(s) sur ${DB.eleves.length}`;
 }
 function formEleve(id,presetCl,q){
