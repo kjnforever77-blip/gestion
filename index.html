@@ -225,7 +225,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='93 (24/11/2026)';
+const APP_VERSION='94 (25/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -1394,18 +1394,30 @@ function recuHTML(p){
  return `<div class="pg recu-page"><div class="recu-wrap"><div class="recu-half">${one('Copie PARENTS')}</div><div class="recu-cut">✂ ${'- '.repeat(70)}✂</div><div class="recu-half">${one('Copie ÉCOLE')}</div></div></div>`;
 }
 function certificatHTML(eid,num){
- const e=elv(eid),i=inscOf(eid);if(!i)return '';const c=cls(i.classeId),sc=ecoleOf(c),f=e.sexe==='F',lg=logoSrc();
- const dir=sc.directeur||'';
- return `<div class="pg" style="font-size:15.5px;line-height:1.5">
- <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:10px">${lg?`<img src="${lg}" alt="" style="height:30mm;width:auto"><br>`:''}<b style="font-size:21px">${esc(sc.nom)}</b>${sc.devise?`<br><i>${esc(sc.devise)}</i>`:''}<br><span style="font-size:12px">${[sc.arrete,sc.adresse,sc.tel?'Tél. : '+sc.tel:''].filter(Boolean).map(esc).join(' · ')}</span></div>
- <div style="display:flex;justify-content:space-between;margin-top:14px;font-size:13px"><span>N° ${esc(num||'........')}/${esc(c.ecole==='maternelle'?'EMP':'EPP')}-EAenJC/${esc(anneeCourte(i.annee))}</span><span>Année scolaire ${esc(i.annee)}</span></div>
- <div style="text-align:center;margin:36px 0 34px"><span style="display:inline-block;border:2px solid #000;padding:10px 28px;font-size:24px;font-weight:bold;letter-spacing:2px">CERTIFICAT DE SCOLARITÉ</span></div>
- <p style="line-height:2.2;text-align:justify;margin:0 6mm">Je soussigné(e), <b>${esc(dir||'........................................................')}</b>, Directeur / Directrice de l'<b>${esc(sc.nom)}</b>, certifie que l'élève :</p>
- <table class="info" style="margin:14px 14mm 14px;width:auto;font-size:15.5px;line-height:2"><tr><td style="width:62mm">Nom et prénoms</td><td>: <b>${esc(fullName(e))}</b></td></tr><tr><td>${f?'Née':'Né'} le</td><td>: ${fmtDate(e.dateNaiss)||'....................'} à ${esc(e.lieuNaiss||'....................')}</td></tr><tr><td>Matricule</td><td>: ${esc(e.matricule)}</td></tr><tr><td>Classe</td><td>: <b>${esc(c.nom)}</b></td></tr></table>
- <p style="line-height:2.2;text-align:justify;margin:0 6mm">est régulièrement ${f?'inscrite':'inscrit'} dans notre établissement pour l'année scolaire <b>${esc(i.annee)}</b>${e.dateEntree?`, et ${f?'le fréquente':'le fréquente'} depuis le ${fmtDate(e.dateEntree)}`:''}.</p>
- <p style="line-height:2.2;margin:10px 6mm 0">En foi de quoi, le présent certificat lui est délivré pour servir et valoir ce que de droit.</p>
- <div style="display:flex;justify-content:flex-end;margin-top:40px"><div style="text-align:center;min-width:80mm">Fait à ${esc(S().ville||'')}, le ${fmtDate(today())}<br><br><b>Le Directeur / La Directrice</b><br><span style="font-size:12px">(signature et cachet)</span><div style="height:30mm"></div>${dir?`<b>${esc(dir)}</b>`:''}</div></div>
- </div>`;
+ const e=elv(eid),i=inscOf(eid);if(!i)return '';const c=cls(i.classeId),sc=ecoleOf(c),f=e.sexe==='F',mat=c.ecole==='maternelle';
+ const dir=sc.directeur||'',dF=!!sc.directriceF,D=dF?'La Directrice':'Le Directeur';
+ const ceb=sc.ceb||"Circonscription d'Éducation de Base de Bobo 2";
+ const all=DB.inscriptions.filter(x=>x.eleveId===eid&&!x.arrOnly).sort((a,b)=>a.annee.localeCompare(b.annee));
+ const depuis=e.dateEntree||(all.map(x=>x.date).filter(Boolean).sort()[0])||'';
+ const seen={},red=[];all.forEach(x=>{const n=cls(x.classeId)?.niveau;if(!n)return;if(seen[n]&&!red.includes(n))red.push(n);seen[n]=1});
+ const dot='..........................................',v=(x,w)=>x?`<b>${esc(x)}</b>`:`<span style="letter-spacing:1px">${w||dot}</span>`;
+ const row=h=>`<div style="padding:1.6mm 0">${h}</div>`;
+ return `<div class="pg" style="font-size:16px;line-height:1.45"><div style="border:4px double #000;padding:7mm 9mm 8mm">
+ <div style="display:flex;justify-content:space-between;gap:8mm;font-size:13.5px;text-transform:uppercase;line-height:1.35">
+  <div style="text-align:center">${esc(ceb)}<br>***********<br><b>École ${mat?'maternelle':'primaire'} privée</b><br><b>${esc(String(sc.nom||'').replace(/^École (Primaire|Maternelle) Privée\s*/i,''))}</b></div>
+  <div style="text-align:center">Burkina Faso<br><span style="text-transform:none"><i>La Patrie ou la Mort, nous Vaincrons</i></span><br>***********<br><span style="text-transform:none">Année scolaire : <b>${esc(i.annee)}</b></span></div></div>
+ <div style="display:flex;justify-content:space-between;margin-top:6mm;font-size:13.5px"><span>N° ${esc(num||'........')}/${mat?'EMP':'EPP'}-EAenJC/${esc(anneeCourte(i.annee))}</span><span>${esc(S().ville||'Bobo-Dioulasso')}, le ${fmtDate(today())}</span></div>
+ <div style="text-align:center;margin:8mm 0 7mm"><span style="display:inline-block;border:2px solid #000;padding:2.5mm 10mm;font-size:23px;font-weight:bold;letter-spacing:1px">CERTIFICAT DE SCOLARITÉ</span></div>
+ ${row(`${D} de l'école ${v(sc.nom)},`)}
+ ${row(`${dF?'soussignée':'soussigné'}, certifie que ${v(fullName(e))}`)}
+ ${row(`${f?'née':'né'} le ${v(fmtDate(e.dateNaiss),'....................')} à ${v(e.lieuNaiss)}`)}
+ ${row(`${f?'fille':'fils'} de ${v(e.pere)}`)}
+ ${row(`et de ${v(e.mere)}`)}
+ ${row(`est ${f?'inscrite':'inscrit'} dans l'établissement depuis le ${v(fmtDate(depuis),'....................')} où ${f?'elle':'il'} fréquente la classe de ${v(c.nom)}`)}
+ ${row(`sous le n° matricule ${v(e.matricule)}, classe(s) redoublée(s) : <b>${red.length?esc(red.join(', ')):'néant'}</b>.`)}
+ ${row(`En foi de quoi, le présent certificat est délivré pour servir et valoir ce que de droit.`)}
+ <div style="display:flex;justify-content:flex-end;margin-top:8mm"><div style="text-align:center;min-width:75mm"><b>${D}</b><div style="height:28mm"></div>${dir?`<b>${esc(dir)}</b>`:''}</div></div>
+ </div></div>`;
 }
 
 /* ---------- Demande de bourse (pré-remplie ou vierge) ---------- */
