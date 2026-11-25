@@ -229,7 +229,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='105 (25/11/2026)';
+const APP_VERSION='106 (25/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -1449,9 +1449,9 @@ function certificatHTML(eid,num,kind,o){
  const SP=f=>`<div style="flex:${f}"></div>`;
  return `<div class="pg" style="font-size:${kind==='rad'?15.5:17.5}px;line-height:1.5;height:262mm;display:flex;flex-direction:column;padding-left:6mm;padding-right:6mm;box-sizing:border-box">
  <div style="display:flex;justify-content:space-between;gap:8mm;font-size:13.5px;text-transform:uppercase;line-height:1.4;margin-bottom:6mm"><div style="text-align:center">${esc(ceb)}<br>***********</div><div style="text-align:center">Burkina Faso<br><span style="text-transform:none"><i>La Patrie ou la Mort, nous Vaincrons</i></span></div></div>
- <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:10px">${lg?`<img src="${lg}" alt="" style="height:${kind==='rad'?18:26}mm;width:auto"><br>`:''}<b style="font-size:23px">${esc(sc.nom)}</b>${sc.devise?`<br><i>${esc(sc.devise)}</i>`:''}<br><span style="font-size:13px">${[sc.arrete,sc.adresse,sc.tel?'Tél. : '+sc.tel:''].filter(Boolean).map(esc).join(' · ')}</span></div>
+ <div style="display:grid;grid-template-columns:32mm 1fr 6mm;align-items:center;border-bottom:2px solid #000;padding-bottom:10px"><div>${lg?`<img src="${lg}" alt="" style="height:${kind==='rad'?20:26}mm;width:auto;display:block">`:''}</div><div style="text-align:center">${(()=>{const nm=String(sc.nom||''),k=nm.search(/\sÊtre\s/);return k>0?`<b style="font-size:20px">${esc(nm.slice(0,k))}</b><br><b style="font-size:23px">${esc(nm.slice(k+1))}</b>`:`<b style="font-size:23px">${esc(nm)}</b>`})()}${sc.devise?`<br><i>${esc(sc.devise)}</i>`:''}<br><span style="font-size:13px">${[sc.arrete,sc.adresse,sc.tel?'Tél. : '+sc.tel:''].filter(Boolean).map(esc).join(' · ')}</span></div><div></div></div>
  <div style="display:flex;justify-content:space-between;margin-top:4mm;font-size:14px"><span>N° ${esc(num||'........')}/${mat?'EMP':'EPP'}-EAenJC/${esc(anneeCourte(i.annee))}</span><span>Année scolaire ${esc(i.annee)}</span></div>
- ${SP(1)}<div style="text-align:center"><span style="display:inline-block;border:2.5px double #000;padding:10px 34px;font-size:26px;font-weight:bold;letter-spacing:2px">${T[0]}</span>${T[1]?`<div style="margin-top:4px"><i>${esc(T[1])}</i></div>`:''}</div>
+ ${SP(1)}<div style="text-align:center"><span style="display:inline-block;padding:4px 0;font-size:28px;font-weight:bold;letter-spacing:2px">${T[0]}</span>${T[1]?`<div style="margin-top:4px"><i>${esc(T[1])}</i></div>`:''}</div>
  ${SP(0.9)}${body}
  ${P(fin)}
  ${SP(0.9)}
