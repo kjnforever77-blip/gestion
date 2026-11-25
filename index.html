@@ -230,7 +230,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='112 (25/11/2026)';
+const APP_VERSION='113 (25/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -839,9 +839,11 @@ async function printFiche(eid){try{await preloadPhotos([eid])}catch(e){}printDoc
 function photoBox(eid){
  setTimeout(()=>photoFill(eid),0);
  return `<div style="width:120px;flex:none;text-align:center"><div id="ph_${eid}" style="width:120px;height:160px;border:1px solid var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#f8fafc;color:#98a2b3;font-size:12px">${DIR_OK?(PDIR?(PDIR_OK?'Pas de photo':'Photos : accès à autoriser'):'Pas de photo'):'Photo indisponible'}</div>
- ${DIR_OK?`<button class="small" style="margin-top:6px;width:100%" onclick="photoPick('${eid}')">${PDIR&&!PDIR_OK?'Autoriser / ':''}Photo…</button>`:''}</div>`;
+ ${DIR_OK?`<button class="small" style="margin-top:6px;width:100%" onclick="photoPick('${eid}')">${PDIR&&!PDIR_OK?'Autoriser / ':''}Photo…</button><div id="phb_${eid}"></div>`:''}</div>`;
 }
-async function photoFill(eid){const box=document.getElementById('ph_'+eid);if(!box)return;const u=await photoURL(elv(eid));if(u)box.innerHTML=`<img src="${u}" alt="" style="width:100%;height:100%;object-fit:cover">`}
+async function photoFill(eid){const box=document.getElementById('ph_'+eid);if(!box)return;const u=await photoURL(elv(eid));
+ if(u)box.innerHTML=`<img src="${u}" alt="" style="width:100%;height:100%;object-fit:cover">`;
+ const b=document.getElementById('phb_'+eid);if(b)b.innerHTML=u?`<div style="display:flex;gap:4px;margin-top:4px"><button class="small" style="flex:1;padding-left:2px;padding-right:2px" onclick="photoEditCur('${eid}')">Modifier</button><button class="small" style="flex:1;padding-left:2px;padding-right:2px;color:var(--danger)" onclick="photoDel('${eid}')">Suppr.</button></div>`:''}
 
 /* ---------- pièces jointes (acte de naissance…) : fichiers dans « gestion d'ecole/documents », nommés par matricule ---------- */
 const DOC_TYPES=[['acte','Acte de naissance']];
@@ -890,21 +892,58 @@ async function docView(eid,t){const r=await docFind(elv(eid),t,true);if(!r){aler
 async function photoPick(eid){
  if(TRY){alert("En mode essai, les photos ne sont pas enregistrées.");return}
  if(!(await photoDirEnsure()))return;
- const u=await photoURL(elv(eid));if(u){photoFill(eid);if(!confirm('Cet élève a déjà une photo. La remplacer ?'))return}
+ const u=await photoURL(elv(eid));if(u){photoFill(eid);if(!confirm('Cet élève a déjà une photo. La remplacer par une nouvelle ?\n(Pour recadrer ou tourner la photo actuelle, utilisez « Modifier ».)'))return}
  const inp=document.createElement('input');inp.type='file';inp.accept='image/*';
- inp.onchange=async()=>{const f=inp.files&&inp.files[0];if(!f)return;try{await photoSave(eid,f);toast('Photo enregistrée');photoFill(eid)}catch(x){alert("La photo n'a pas pu être enregistrée : "+(x.message||x))}};
+ inp.onchange=async()=>{const f=inp.files&&inp.files[0];if(!f)return;try{photoEditor(eid,await createImageBitmap(f,{imageOrientation:'from-image'}))}catch(x){alert("Cette image ne peut pas être ouverte : "+(x.message||x))}};
  inp.click();
 }
-async function photoSave(eid,file){
- const e=elv(eid);const bmp=await createImageBitmap(file,{imageOrientation:'from-image'});
- const W=300,H=400,r=W/H;let sw=bmp.width,sh=bmp.height,sx=0,sy=0;
- if(sw/sh>r){const nw=sh*r;sx=(sw-nw)/2;sw=nw}else{const nh=sw/r;sy=Math.max(0,(sh-nh)*0.35);sh=nh}
- const cv=document.createElement('canvas');cv.width=W;cv.height=H;const cx=cv.getContext('2d');cx.imageSmoothingQuality='high';cx.drawImage(bmp,sx,sy,sw,sh,0,0,W,H);
- const blob=await new Promise(res=>cv.toBlob(res,'image/jpeg',0.82));
- const name=photoNames(e)[0];const fh=await PDIR.getFileHandle(name,{create:true});const w=await fh.createWritable();await w.write(blob);await w.close();
- Object.keys(PHOTO_URL).filter(k=>k.startsWith(name+'|')).forEach(k=>delete PHOTO_URL[k]);delete AV[e.id];
- logJ('Photo',`${fullName(e)} (${e.matricule}) — ${Math.round(blob.size/1024)} Ko`);save();
+/* éditeur de photo : déplacer (glisser), zoom, rotation, luminosité ; sortie 300×400 JPEG */
+let PHED=null;
+async function photoEditCur(eid){if(!(await photoDirEnsure()))return;const u=await photoURL(elv(eid));if(!u){alert('Pas de photo.');return}
+ try{const bl=await (await fetch(u)).blob();photoEditor(eid,await createImageBitmap(bl))}catch(x){alert("La photo n'a pas pu être ouverte : "+(x.message||x))}}
+function photoEditor(eid,bmp){
+ const e=elv(eid);PHED={eid,bmp,rot:0,z:1,ox:0,oy:0,br:100,ct:100};
+ const d=document.createElement('div');d.id='phed';d.className='modal-bg';d.style.zIndex=70;
+ d.innerHTML=`<div class="modal" style="width:min(460px,100%)"><h3 style="margin-top:0">Photo — ${esc(fullName(e))}</h3>
+ <div style="display:flex;gap:16px;align-items:flex-start">
+  <canvas id="phed_cv" width="300" height="400" style="width:225px;height:300px;border:1px solid var(--line);border-radius:8px;cursor:grab;touch-action:none;background:#eee;flex:none"></canvas>
+  <div style="flex:1;font-size:13px">
+   <div class="muted" style="margin-bottom:8px">Glissez la photo pour la placer.</div>
+   <label>Zoom</label><input id="phed_z" type="range" min="1" max="4" step="0.01" value="1" style="width:100%" oninput="PHED.z=+this.value;phedDraw()">
+   <label>Luminosité</label><input id="phed_br" type="range" min="50" max="180" value="100" style="width:100%" oninput="PHED.br=+this.value;phedDraw()">
+   <label>Contraste</label><input id="phed_ct" type="range" min="50" max="180" value="100" style="width:100%" oninput="PHED.ct=+this.value;phedDraw()">
+   <div style="display:flex;gap:6px;margin-top:10px"><button class="small" style="flex:1" onclick="phedRot(-1)">⟲ Tourner</button><button class="small" style="flex:1" onclick="phedRot(1)">Tourner ⟳</button></div>
+   <button class="small" style="width:100%;margin-top:6px" onclick="phedReset()">Réinitialiser</button>
+  </div></div>
+ <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button onclick="phedClose()">Annuler</button><button class="primary" onclick="phedSave()">Enregistrer</button></div></div>`;
+ document.body.appendChild(d);
+ const cv=document.getElementById('phed_cv');let drag=null;
+ cv.onpointerdown=ev=>{cv.setPointerCapture(ev.pointerId);drag={x:ev.clientX,y:ev.clientY,ox:PHED.ox,oy:PHED.oy};cv.style.cursor='grabbing'};
+ cv.onpointermove=ev=>{if(!drag)return;const k=300/cv.clientWidth;PHED.ox=drag.ox+(ev.clientX-drag.x)*k;PHED.oy=drag.oy+(ev.clientY-drag.y)*k;phedDraw()};
+ cv.onpointerup=cv.onpointercancel=()=>{drag=null;cv.style.cursor='grab'};
+ cv.onwheel=ev=>{ev.preventDefault();PHED.z=Math.min(4,Math.max(1,PHED.z*(ev.deltaY<0?1.06:1/1.06)));document.getElementById('phed_z').value=PHED.z;phedDraw()};
+ phedDraw();
 }
+function phedGeom(){const P=PHED,W=300,H=400,q=P.rot%2!==0,rw=q?P.bmp.height:P.bmp.width,rh=q?P.bmp.width:P.bmp.height,s=Math.max(W/rw,H/rh)*P.z;
+ const mx=Math.max(0,(rw*s-W)/2),my=Math.max(0,(rh*s-H)/2);P.ox=Math.min(mx,Math.max(-mx,P.ox));P.oy=Math.min(my,Math.max(-my,P.oy));return {W,H,s}}
+function phedPaint(cx){const P=PHED,{W,H,s}=phedGeom();cx.save();cx.fillStyle='#fff';cx.fillRect(0,0,W,H);cx.filter=`brightness(${P.br}%) contrast(${P.ct}%)`;cx.imageSmoothingQuality='high';
+ cx.translate(W/2+P.ox,H/2+P.oy);cx.rotate(P.rot*Math.PI/2);cx.scale(s,s);cx.drawImage(P.bmp,-P.bmp.width/2,-P.bmp.height/2);cx.restore()}
+function phedDraw(){const cv=document.getElementById('phed_cv');if(!cv||!PHED)return;phedPaint(cv.getContext('2d'))}
+function phedRot(k){PHED.rot=(PHED.rot+k+4)%4;PHED.ox=PHED.oy=0;phedDraw()}
+function phedReset(){Object.assign(PHED,{rot:0,z:1,ox:0,oy:0,br:100,ct:100});['z','br','ct'].forEach(k=>document.getElementById('phed_'+k).value=PHED[k]);phedDraw()}
+function phedClose(){const d=document.getElementById('phed');if(d)d.remove();PHED=null}
+async function phedSave(){const P=PHED;if(!P)return;const cv=document.createElement('canvas');cv.width=300;cv.height=400;phedPaint(cv.getContext('2d'));
+ try{const blob=await new Promise(res=>cv.toBlob(res,'image/jpeg',0.85));await photoWrite(P.eid,blob);phedClose();toast('Photo enregistrée');photoFill(P.eid)}catch(x){alert("La photo n'a pas pu être enregistrée : "+(x.message||x))}}
+async function photoWrite(eid,blob){
+ const e=elv(eid);const name=photoNames(e)[0];const fh=await PDIR.getFileHandle(name,{create:true});const w=await fh.createWritable();await w.write(blob);await w.close();
+ photoForget(e);logJ('Photo',`${fullName(e)} (${e.matricule}) — ${Math.round(blob.size/1024)} Ko`);save();
+}
+function photoForget(e){photoNames(e).forEach(n=>Object.keys(PHOTO_URL).filter(k=>k.startsWith(n+'|')).forEach(k=>delete PHOTO_URL[k]));delete AV[e.id];delete PHOTO_EID[e.id]}
+async function photoDel(eid){const e=elv(eid);if(!(await photoDirEnsure()))return;const own=photoNames(e)[0];
+ let has=false;try{await PDIR.getFileHandle(own);has=true}catch(x){}
+ if(!has){alert("Cette photo vient du dossier maternelle ("+(e.matriculeMat||'')+") : elle n'est pas supprimée ici. Utilisez « Photo… » pour en mettre une nouvelle.");return}
+ if(!confirm(`Supprimer la photo de ${fullName(e)} ?`))return;
+ try{await PDIR.removeEntry(own);photoForget(e);logJ('Photo',`${fullName(e)} (${e.matricule}) — photo supprimée`);save();toast('Photo supprimée');openFiche(eid)}catch(x){alert("La photo n'a pas pu être supprimée : "+(x.message||x))}}
 function openFiche(eid){
  const e=elv(eid);if(!e)return;
  const hist=DB.inscriptions.filter(i=>i.eleveId===eid).sort((a,b)=>a.annee.localeCompare(b.annee));
