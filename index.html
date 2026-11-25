@@ -151,6 +151,10 @@ function fmtN(x){return x==null||x===''?'':String(round2(+x)).replace('.',',')}
 function fmtN2(x){return x==null?'—':(+x).toFixed(2).replace('.',',')}
 function mention(v){if(v==null)return '';return v>=9?'Excellent':v>=8?'Très bien':v>=7?'Bien':v>=6?'Assez bien':v>=5?'Passable':v>=4?'Insuffisant':'Faible'}
 function opts(list,sel){return list.map(o=>{const [v,t]=Array.isArray(o)?o:[o,o];return `<option value="${esc(v)}"${String(v)===String(sel??'')?' selected':''}>${esc(t)}</option>`}).join('')}
+const MOTIFS_DEPART=['À la demande de son père','À la demande de sa mère','À la demande de ses parents','Changement de résidence des parents','Affectation du père','Affectation de la mère','Raisons familiales','Raisons financières','Raisons de santé','Abandon','Exclusion'];
+function motifSel(id,val,label,extra){const inL=!val||MOTIFS_DEPART.includes(val);
+ return `<div class="field"><label for="${id}">${label||'Motif du départ'}</label><select id="${id}" onchange="document.getElementById('${id}_o').style.display=this.value==='__autre'?'':'none';${extra||''}"><option value="">—</option>${MOTIFS_DEPART.map(m=>`<option${m===val?' selected':''}>${esc(m)}</option>`).join('')}<option value="__autre"${inL?'':' selected'}>Autre (à préciser)…</option></select><input id="${id}_o" value="${inL?'':esc(val)}" placeholder="Préciser le motif" style="margin-top:4px;${inL?'display:none':''}" oninput="${extra||''}"></div>`}
+function motifVal(id){const v=fval(id);return v==='__autre'?(fval(id+'_o')||'').trim():v}
 function F(label,id,val,type,extra){return `<div class="field"><label for="${id}">${label}</label><input id="${id}" type="${type||'text'}" value="${esc(val??'')}" ${extra||''}></div>`}
 function FS(label,id,optionsHtml,extra){return `<div class="field"><label for="${id}">${label}</label><select id="${id}" ${extra||''}>${optionsHtml}</select></div>`}
 function fval(id){const el=document.getElementById(id);return el?(el.type==='checkbox'?el.checked:String(el.value).trim()):''}
@@ -225,7 +229,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='97 (25/11/2026)';
+const APP_VERSION='98 (25/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -763,7 +767,7 @@ function formEleve(id,presetCl,q){
  ${arrPending(e.id)?`<div class="field"><label>Arriéré des années passées</label><b style="padding:6px 0">${fcfa(arrPending(e.id))}</b><span class="muted" style="font-size:12px">calculé automatiquement</span></div>`:''}
  </div>
  <h3 style="margin:16px 0 8px;font-size:15px">Départ de l'école <span class="muted" style="font-weight:400;font-size:13px">(à remplir quand l'élève quitte l'école)</span></h3>
- <div class="form-grid">${F('Sortie le','f_ds',e.dateSortie,'date')}${F('Allant à (école)','f_ea',e.ecoleDest)}${F('Motif du départ','f_md',e.motifDepart)}</div>
+ <div class="form-grid">${F('Sortie le','f_ds',e.dateSortie,'date')}${F('Allant à (école)','f_ea',e.ecoleDest)}${motifSel('f_md',e.motifDepart)}</div>
  <div class="field" style="margin-top:10px"><label>Observations</label><textarea id="f_obs">${esc(e.observations||'')}</textarea></div>
  ${inscPart}
  <div class="actions"><button onclick="closeModal()">Annuler</button><button class="primary" onclick="saveEleve('${id||''}')">Enregistrer</button></div>`);
@@ -773,7 +777,7 @@ function saveEleve(id){
  const isNew=!id;const e=isNew?{id:uid()}:elv(id);
  const mat=fval('f_mat');
  if(mat&&DB.eleves.some(x=>x.matricule===mat&&x.id!==e.id)){alert('Ce matricule est déjà utilisé.');return}
- const data={nom:nom.toUpperCase(),prenoms:pre,sexe:fval('f_sexe'),dateNaiss:fval('f_dn'),lieuNaiss:fval('f_ln'),nationalite:fval('f_nat'),acte:fval('f_acte'),pere:fval('f_pere'),mere:fval('f_mere'),tuteur:fval('f_tut'),adresseTuteur:fval('f_atut'),profPere:fval('f_ppere'),profMere:fval('f_pmere'),religion:fval('f_rel'),telephone:fval('f_tel'),adresse:fval('f_adr'),dateEntree:fval('f_de'),ecoleOrigine:fval('f_eo'),dateSortie:fval('f_ds'),ecoleDest:fval('f_ea'),motifDepart:fval('f_md'),statut:fval('f_st'),boursier:fval('f_bour'),observations:fval('f_obs'),};
+ const data={nom:nom.toUpperCase(),prenoms:pre,sexe:fval('f_sexe'),dateNaiss:fval('f_dn'),lieuNaiss:fval('f_ln'),nationalite:fval('f_nat'),acte:fval('f_acte'),pere:fval('f_pere'),mere:fval('f_mere'),tuteur:fval('f_tut'),adresseTuteur:fval('f_atut'),profPere:fval('f_ppere'),profMere:fval('f_pmere'),religion:fval('f_rel'),telephone:fval('f_tel'),adresse:fval('f_adr'),dateEntree:fval('f_de'),ecoleOrigine:fval('f_eo'),dateSortie:fval('f_ds'),ecoleDest:fval('f_ea'),motifDepart:motifVal('f_md'),statut:fval('f_st'),boursier:fval('f_bour'),observations:fval('f_obs'),};
  if(isNew&&DB.eleves.some(x=>norm(x.nom)===norm(data.nom)&&norm(x.prenoms)===norm(pre)&&(x.dateNaiss||'')===data.dateNaiss)&&!confirm('Un élève avec le même nom (et la même date de naissance) existe déjà. Enregistrer quand même ?'))return;
  if(isNew&&!data.dateEntree)data.dateEntree=today();{const ci=!isNew&&inscOf(e.id,DB.settings.annee);if(ci){if(DEPART_ST.includes(data.statut)){ci.depart=Object.assign(ci.depart||{},{date:data.dateSortie||ci.depart?.date||today(),motif:data.motifDepart||ci.depart?.motif||data.statut})}else if(data.statut==='Actif'&&ci.depart){delete ci.depart}}}
  if(['Transféré','Abandon','Exclu','Sorti (fin de cycle)'].includes(data.statut)&&!data.dateSortie&&(isNew||(elv(id)?.statut==='Actif')))data.dateSortie=today();const before=isNew?null:{...e};Object.assign(e,data);e.matricule=mat||e.matricule||nextMatricule(cls(fval('f_cl'))?.ecole);if(before)hRecord('eleve',e,before,e.id);
@@ -1471,10 +1475,10 @@ function formCertificat(eid,kind){
  certFill();
 }
 function certFill(){const box=document.getElementById('cert_x');if(!box)return;const k=fval('cert_k'),e=fval('cert_e');const A=e?certAuto(e):{};const inp=(l,id,v,t)=>F(l,id,v||'',t||'text','oninput="certPreview()"');
- box.innerHTML=k==='tr'?inp('À la rentrée, doit (passer en… / redoubler…)','cx_pa',A.passage)+inp('Scolarité totale (années)','cx_sc',A.scol,'number')+inp('Appréciation / motif du départ','cx_mo',A.motif)
-  :k==='rad'?inp('Date du départ','cx_ds',A.dateSortie||today(),'date')+inp('Motif du départ','cx_mo',A.motif)+inp('École de destination','cx_de',A.dest):'';
+ box.innerHTML=k==='tr'?inp('À la rentrée, doit (passer en… / redoubler…)','cx_pa',A.passage)+inp('Scolarité totale (années)','cx_sc',A.scol,'number')+motifSel('cx_mo',A.motif,'Appréciation / motif du départ','certPreview()')
+  :k==='rad'?inp('Date du départ','cx_ds',A.dateSortie||today(),'date')+motifSel('cx_mo',A.motif,'Motif du départ','certPreview()')+inp('École de destination','cx_de',A.dest):'';
  certPreview()}
-function certOpts(){const k=fval('cert_k'),o={};if(k==='tr'){o.passage=fval('cx_pa');o.scol=fval('cx_sc');o.motif=fval('cx_mo')}if(k==='rad'){o.dateSortie=fval('cx_ds');o.motif=fval('cx_mo');o.dest=fval('cx_de')}return o}
+function certOpts(){const k=fval('cert_k'),o={};if(k==='tr'){o.passage=fval('cx_pa');o.scol=fval('cx_sc');o.motif=motifVal('cx_mo')}if(k==='rad'){o.dateSortie=fval('cx_ds');o.motif=motifVal('cx_mo');o.dest=fval('cx_de')}return o}
 function certPreview(){const box=document.getElementById('cert_pv');if(!box)return;const e=fval('cert_e');box.innerHTML=e?`<div class="pv" style="zoom:.7">${certificatHTML(e,fval('cert_n'),fval('cert_k'),certOpts())}</div>`:'<div class="muted" style="padding:30px;text-align:center">Choisissez un élève : l\'aperçu s\'affiche ici.</div>'}
 function printCert(){const e=fval('cert_e');if(!e){alert('Choisissez un élève.');return}const k=fval('cert_k'),h=certificatHTML(e,fval('cert_n'),k,certOpts());logJ((CERT_KINDS.find(x=>x[0]===k)||[])[1]||'Certificat',fullName(elv(e)));save();closeModal();_pv=h;printNow()}
 
