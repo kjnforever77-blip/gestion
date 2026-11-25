@@ -229,7 +229,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='108 (25/11/2026)';
+const APP_VERSION='109 (25/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -1439,7 +1439,7 @@ function certificatHTML(eid,num,kind,o){
  const qui=`l'élève <b>${esc(fullName(e))}</b>, ${f?'née':'né'} le ${B(fmtDate(e.dateNaiss))} à ${B(e.lieuNaiss)}, ${f?'fille':'fils'} de ${B(e.pere)} et de ${B(e.mere)}`;
  const intro=`Je ${dF?'soussignée':'soussigné'}, <b>${esc(dir||'..................................................')}</b>, ${DT} de l'<b>${esc(sc.nom)}</b>, certifie que`;
  let body='',fin='En foi de quoi, le présent certificat lui est délivré pour servir et valoir ce que de droit.';
- const P=t=>`<p style="line-height:${kind==='af'?2.4:kind==='tr'?2.15:1.9};text-align:justify;text-indent:10mm;margin:0 4mm 4mm">${t}</p>`;
+ const P=t=>`<p style="line-height:${kind==='af'?2.4:kind==='tr'?2.15:1.9};text-align:justify;margin:0 4mm 4mm">${t}</p>`;
  if(kind==='af'){body=P(`${intro} ${qui}, est régulièrement ${f?'inscrite':'inscrit'} dans notre établissement depuis le ${B(fmtDate(A.depuis))} sous le numéro matricule <b>${esc(e.matricule)}</b>, et fréquente la classe de <b>${esc(c.nom)}</b> au cours de l'année scolaire <b>${esc(i.annee)}</b>.`);
   fin='En foi de quoi, le présent certificat lui est délivré pour servir et valoir ce que de droit, notamment pour la constitution du dossier d\'allocations familiales.'}
  if(kind==='tr'){const red=A.red&&A.red.length?`${il.charAt(0).toUpperCase()+il.slice(1)} a déjà redoublé la classe de <b>${esc(A.red.join(', '))}</b>.`:`${il.charAt(0).toUpperCase()+il.slice(1)} n'a redoublé aucune classe.`;
