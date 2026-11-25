@@ -229,7 +229,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='102 (25/11/2026)';
+const APP_VERSION='103 (25/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -458,7 +458,16 @@ function nextRecu(ec){ec=ec==='maternelle'?'maternelle':'primaire';const s=S(),a
 function typeFor(eid,cid,annee){const ec=cls(cid)?.ecole;if(!eid)return 'Nouveau';return DB.inscriptions.some(x=>x.eleveId===eid&&x.annee!==(annee||S().annee)&&!x.arrOnly&&(!ec||insEcole(x)===ec))?'Ancien':'Nouveau'}
 function createInscription(eid,cid,annee,extra){
  annee=annee||S().annee;const c=cls(cid);
- {const e1=elv(eid);if(e1){delete e1.niveauPrevu;const pm=S().prefixes.maternelle||'M';if(c&&c.ecole==='primaire'&&String(e1.matricule||'').startsWith(pm)){e1.matriculeMat=e1.matricule;e1.matricule=nextMatricule('primaire');logJ('Nouveau matricule',`${fullName(e1)} : ${e1.matriculeMat} → ${e1.matricule} (entrée au primaire)`)}}}
+ {const e1=elv(eid);if(e1){delete e1.niveauPrevu;const pm=S().prefixes.maternelle||'M';
+  /* passage maternelle → primaire : deux écoles distinctes → le dossier maternelle (M…) reste tel quel, un nouveau dossier primaire (P…) est créé */
+  if(c&&c.ecole==='primaire'&&String(e1.matricule||'').startsWith(pm)){
+   const KEEP=['nom','prenoms','sexe','dateNaiss','lieuNaiss','nationalite','acte','pere','profPere','mere','profMere','religion','tuteur','adresseTuteur','telephone','adresse','boursier'];
+   const e2={id:uid()};KEEP.forEach(k=>{if(e1[k]!==undefined)e2[k]=e1[k]});
+   Object.assign(e2,{matricule:nextMatricule('primaire'),matriculeMat:e1.matricule,statut:'Actif',dateEntree:today(),ecoleOrigine:S().ecoles.maternelle?.nom||'Maternelle'});
+   e2.arriereEnAttente=+e1.arriereEnAttente||0;e1.arriereEnAttente=0;
+   const ao1=DB.inscriptions.find(x=>x.eleveId===e1.id&&x.annee===annee&&x.arrOnly);if(ao1)ao1.eleveId=e2.id;
+   e1.statut='Sorti (fin de cycle)';if(!e1.dateSortie)e1.dateSortie=today();if(!e1.ecoleDest)e1.ecoleDest=S().ecoles.primaire?.nom||'Primaire';
+   DB.eleves.push(e2);logJ('Passage au primaire',`${fullName(e1)} : dossier maternelle ${e1.matricule} conservé, nouveau dossier primaire ${e2.matricule}`);eid=e2.id}}}
  const ao=DB.inscriptions.find(x=>x.eleveId===eid&&x.annee===annee&&x.arrOnly);
  if(ao){const e0=elv(eid);const keepArr=(extra&&extra.arriere!==undefined)?+extra.arriere||0:(+ao.arriere||0);
   Object.assign(ao,{type:typeFor(eid,cid,annee),redoublant:false,frais:Object.assign(zeroFrais(),c.frais||{}),remise:0,date:today(),decision:''},extra||{},{classeId:cid,arrOnly:false,arriere:keepArr+(+(e0&&e0.arriereEnAttente)||0)});delete ao.ecole;if(e0)e0.arriereEnAttente=0;return ao}
@@ -733,14 +742,14 @@ function sortBy(L,st,get){const o=UI.f[st]||{k:'mat',d:1};const g=get[o.k]||get.
 function hd(t,b){return `<div class="hd"><h1>${t}</h1>${b?`<div class="hp">${b}</div>`:''}</div>`}
 function pB(l,js){return `<button onclick="${js}">🖨 ${l}</button>`}
 function xB(l,js){return `<button onclick="${js}">⬇ ${l}</button>`}
-/* registre : un élève passé de la maternelle au primaire apparaît aussi dans le registre maternelle, sous son ancien matricule */
-function regMatOnly(e){if(UI.f.eec!=='maternelle'||!e.matriculeMat)return false;const i=inscOf(e.id);return (i?insEcole(i):insEcole({eleveId:e.id}))==='primaire'}
+/* maternelle et primaire sont deux écoles : chacune garde son propre dossier (M… / P…) ; ces aides restent neutres */
+function regMatOnly(e){return false}
 function regMat(e){return regMatOnly(e)?e.matriculeMat:e.matricule}
 function regCls(e){const i=inscOf(e.id);if(regMatOnly(e))return `→ primaire (${e.matricule}${i?', '+(cls(i.classeId)?.nom||''):''})`;return i?(cls(i.classeId)?.nom||''):''}
 function regStat(e){return regMatOnly(e)?'Passé(e) au primaire':e.statut}
 function elevesFiltered(){
  const f=UI.f,q=norm(f.q);let L=DB.eleves.slice();
- if(f.eec)L=L.filter(e=>{const i=inscOf(e.id);return (i?insEcole(i):insEcole({eleveId:e.id}))===f.eec||(f.eec==='maternelle'&&!!e.matriculeMat)});
+ if(f.eec)L=L.filter(e=>{const i=inscOf(e.id);return (i?insEcole(i):insEcole({eleveId:e.id}))===f.eec});
  if(f.st)L=L.filter(e=>e.statut===f.st);
  if(f.bours)L=L.filter(e=>e.boursier);
  if(f.cl)L=L.filter(e=>{const i=inscOf(e.id);return f.cl==='_none'?!i:(i&&i.classeId===f.cl)});
@@ -894,7 +903,7 @@ function openFiche(eid){
  ${kv('Père',e.pere)}${kv('Profession du père',e.profPere)}${kv('Téléphone',e.telephone)}
  ${kv('Mère',e.mere)}${kv('Profession de la mère',e.profMere)}${kv('Domicile',e.adresse)}
  ${kv('Logeur / tuteur',e.tuteur)}${kv('Adresse du logeur',e.adresseTuteur)}${kv('Boursier',e.boursier?'Oui':'Non')}
- ${kv("Entré(e) le",fmtDate(e.dateEntree))}${kv("Venant de",e.ecoleOrigine)}${e.matriculeMat?kv('Ancien matricule (maternelle)',e.matriculeMat):'<div></div>'}
+ ${kv("Entré(e) le",fmtDate(e.dateEntree))}${kv("Venant de",e.ecoleOrigine)}${(()=>{const L=e.matriculeMat?DB.eleves.find(x=>x.matricule===e.matriculeMat):DB.eleves.find(x=>x.matriculeMat&&x.matriculeMat===e.matricule);if(!L&&!e.matriculeMat)return '<div></div>';const lab=e.matriculeMat?'Dossier maternelle':'Dossier primaire',num=L?L.matricule:e.matriculeMat;return `<div><span class="muted" style="font-size:12px">${lab}</span><br>${L?`<a href="#" onclick="openFiche('${L.id}');return false">${esc(num)}</a>`:esc(num)}</div>`})()}
  ${kv('Sortie le',fmtDate(e.dateSortie))}${kv('Allant à',e.ecoleDest)}${kv('Motif du départ',e.motifDepart)}${arrPending(eid)?kv('Arriéré des années passées',fcfa(arrPending(eid))):''}</div></div></div>
  ${e.observations?`<p><span class="muted" style="font-size:12px">Observations</span><br>${esc(e.observations)}</p>`:''}
  <div style="margin:8px 0 4px"><b style="font-size:14px">Documents</b><div id="docs_${eid}" class="muted">…</div></div>${(setTimeout(()=>docFill(eid),0),'')}
