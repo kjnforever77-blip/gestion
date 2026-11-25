@@ -229,7 +229,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='98 (25/11/2026)';
+const APP_VERSION='99 (25/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -830,11 +830,16 @@ async function docFind(e,t,ask){const d=await docDir(ask);if(!d||!e)return null;
  for(const b of docBase(e,t))for(const x of ['pdf','jpg','jpeg','png']){try{const fh=await d.getFileHandle(b+'.'+x);const f=await fh.getFile();return {name:b+'.'+x,file:f,ext:x}}catch(_){}}return null}
 async function docFill(eid){const box=document.getElementById('docs_'+eid);if(!box)return;const e=elv(eid);
  const rows=await Promise.all(DOC_TYPES.map(async([t,l])=>{const r=await docFind(e,t,false);
-  return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 0"><span style="min-width:150px">${esc(l)}</span>${r?`<span class="tag">✓ joint (${r.ext.toUpperCase()}, ${fmtDate(new Date(r.file.lastModified).toISOString().slice(0,10))})</span><button class="small" onclick="docView('${eid}','${t}')">Voir / imprimer</button>${ARCH()?'':`<button class="small" onclick="docPick('${eid}','${t}')">Remplacer…</button>`}`:(BDIR_OK?`<span class="muted">aucun</span>`:`<span class="muted">${DIR_OK?'dossier non connecté':'disponible seulement sur l’ordinateur (Chrome / Edge)'}</span>`)+(ARCH()||!DIR_OK?'':`<button class="small" onclick="docPick('${eid}','${t}')">Joindre…</button>`)}</div>`}));
+  return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 0"><span style="min-width:150px">${esc(l)}</span>${r?`<span class="tag">✓ joint (${r.ext.toUpperCase()}, ${fmtDate(new Date(r.file.lastModified).toISOString().slice(0,10))})</span><button class="small" onclick="docView('${eid}','${t}')">Voir / imprimer</button>${ARCH()?'':`<button class="small" onclick="docPick('${eid}','${t}')">Remplacer…</button>`}`:(BDIR_OK?`<span class="muted">aucun</span>`+(ARCH()?'':`<button class="small" onclick="docPick('${eid}','${t}')">Joindre…</button>`):DIR_OK?`<span class="muted">dossier « gestion d'ecole » non connecté sur cet ordinateur</span><button class="small primary" onclick="docConnect('${eid}')">Connecter le dossier</button>`:`<span class="muted">disponible seulement sur l’ordinateur (Chrome / Edge)</span>`)}</div>`}));
  box.innerHTML=rows.join('');}
+async function docConnect(eid){
+ if(BDIR){try{BDIR_OK=(await BDIR.requestPermission({mode:'readwrite'}))==='granted'}catch(e){}}
+ if(!BDIR_OK){alert("Choisissez maintenant le dossier « gestion d'ecole » (OneDrive › dossier d'école › gestion d'ecole), celui qui contient EAenJC_donnees.json, puis cliquez sur « Sélectionner » et autorisez la modification.");
+  try{BDIR=await window.showDirectoryPicker({id:'eaenjc-backup',mode:'readwrite'});BDIR_OK=true;await idbSet('bdir',BDIR)}catch(e){toast('Dossier non connecté');return}}
+ toast('Dossier connecté');autoBackup();if(eid)docFill(eid);render()}
 async function docPick(eid,t){
  if(TRY){alert("En mode essai, les documents ne sont pas enregistrés.");return}if(noArch())return;
- const d=await docDir(true);if(!d)return;const e=elv(eid);const lab=(DOC_TYPES.find(x=>x[0]===t)||[])[1]||t;
+ const d=await docDir(true);if(!d){alert("Le dossier « gestion d'ecole » n'est pas connecté : utilisez le bouton « Connecter le dossier ».");docFill(eid);return}const e=elv(eid);const lab=(DOC_TYPES.find(x=>x[0]===t)||[])[1]||t;
  const old=await docFind(e,t,false);if(old&&!confirm(`${lab} déjà joint. Le remplacer ?`))return;
  const inp=document.createElement('input');inp.type='file';inp.accept='image/*,application/pdf';
  inp.onchange=async()=>{const f=inp.files&&inp.files[0];if(!f)return;
