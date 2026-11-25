@@ -229,7 +229,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='109 (25/11/2026)';
+const APP_VERSION='110 (25/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -544,7 +544,7 @@ async function bkConnect(){
  if(!confirm("Choisissez le dossier « gestion d'ecole » sur OneDrive (celui qui contient EAenJC_donnees.json).\n\nUn sous-dossier « sauvegardes » y sera créé ; une copie datée des données y sera enregistrée chaque semaine."))return;
  try{const h=await window.showDirectoryPicker({id:'eaenjc-backup',mode:'readwrite'});if(!(await bdirOk(h)))return;BDIR=h;BDIR_OK=true;await idbSet('bdir',BDIR);await autoBackup(true);render()}catch(e){}
 }
-async function bkAuth(){try{BDIR_OK=(await BDIR.requestPermission({mode:'readwrite'}))==='granted'}catch(e){}if(BDIR_OK)await autoBackup();render()}
+async function bkAuth(){try{BDIR_OK=(await permReq(BDIR))==='granted'}catch(e){}if(BDIR_OK)await autoBackup();render()}
 async function bkForget(){if(!confirm('Arrêter les sauvegardes automatiques sur cet ordinateur ? (Les copies déjà faites restent dans le dossier.)'))return;BDIR=null;BDIR_OK=false;await idbSet('bdir',null);render()}
 async function autoBackup(force){
  if(TRY||!BDIR||!BDIR_OK)return false;
@@ -806,7 +806,7 @@ const DIR_OK=typeof window.showDirectoryPicker==='function';let PDIR=null,PDIR_O
 async function photoInit(){if(!DIR_OK)return;try{PDIR=await idbGet('pdir');if(PDIR)PDIR_OK=(await PDIR.queryPermission({mode:'readwrite'}))==='granted'}catch(e){PDIR=null}}
 async function photoDirEnsure(){
  if(!DIR_OK){alert("Ce navigateur ne permet pas d'utiliser un dossier de photos. Utilisez Chrome ou Edge sur l'ordinateur.");return false}
- if(PDIR&&!PDIR_OK){try{PDIR_OK=(await PDIR.requestPermission({mode:'readwrite'}))==='granted'}catch(e){}}
+ if(PDIR&&!PDIR_OK){try{PDIR_OK=(await permReq(PDIR))==='granted'}catch(e){}}
  if(PDIR&&PDIR_OK)return true;
  if(!confirm("Choisissez le dossier « photos » sur OneDrive (à côté du fichier de données).\n\nS'il n'existe pas encore, créez-le dans la fenêtre qui va s'ouvrir (« Nouveau dossier »), puis sélectionnez-le."))return false;
  try{PDIR=await window.showDirectoryPicker({id:'eaenjc-photos',mode:'readwrite'});PDIR_OK=true;await idbSet('pdir',PDIR);toast('Dossier des photos connecté');return true}catch(e){return false}
@@ -820,10 +820,12 @@ async function photoURL(e){
  return null;
 }
 const PHOTO_EID={};
-async function preloadPhotos(eids){if(!PDIR)return false;if(!PDIR_OK){try{PDIR_OK=(await PDIR.requestPermission({mode:'readwrite'}))==='granted'}catch(x){}}if(!PDIR_OK)return false;await Promise.all(eids.map(async id=>{PHOTO_EID[id]=await photoURL(elv(id))}));return true}
+/* requestPermission peut rester bloqué sans réponse (fenêtre PWA) : on n'attend pas plus de 3 s */
+function permReq(h){return Promise.race([h.requestPermission({mode:'readwrite'}).catch(()=>'denied'),new Promise(r=>setTimeout(()=>r('timeout'),3000))])}
+async function preloadPhotos(eids){if(!PDIR)return false;if(!PDIR_OK){try{PDIR_OK=(await permReq(PDIR))==='granted'}catch(x){}}if(!PDIR_OK)return false;await Promise.all(eids.map(async id=>{PHOTO_EID[id]=await photoURL(elv(id))}));return true}
 function photoImg(eid,w,h){const u=PHOTO_EID[eid];return u?`<img src="${u}" alt="" style="width:${w}mm;height:${h}mm;object-fit:cover;display:block;margin:auto">`:`<div style="width:${w}mm;height:${h}mm;border:1px dashed #999;margin:auto"></div>`}
 async function printListePhotos(cid){if(!PDIR){alert("Connectez d'abord le dossier des photos (Paramètres & données → Photos des élèves).");return}const ok=await preloadPhotos(classInscs(cid).map(i=>i.eleveId));if(!ok){alert("L'accès au dossier des photos n'a pas été autorisé.");return}printDoc(listeHTML(cid,true))}
-async function printFiche(eid){await preloadPhotos([eid]);printDoc(ficheHTML(eid))}
+async function printFiche(eid){try{await preloadPhotos([eid])}catch(e){}printDoc(ficheHTML(eid))}
 function photoBox(eid){
  setTimeout(()=>photoFill(eid),0);
  return `<div style="width:120px;flex:none;text-align:center"><div id="ph_${eid}" style="width:120px;height:160px;border:1px solid var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#f8fafc;color:#98a2b3;font-size:12px">${DIR_OK?(PDIR?(PDIR_OK?'Pas de photo':'Photos : accès à autoriser'):'Pas de photo'):'Photo indisponible'}</div>
@@ -835,7 +837,7 @@ async function photoFill(eid){const box=document.getElementById('ph_'+eid);if(!b
 const DOC_TYPES=[['acte','Acte de naissance']];
 async function docDir(ask){
  if(!DIR_OK){if(ask)alert("Ce navigateur ne permet pas d'enregistrer des documents. Utilisez Chrome ou Edge sur l'ordinateur.");return null}
- if(BDIR&&!BDIR_OK&&ask){try{BDIR_OK=(await BDIR.requestPermission({mode:'readwrite'}))==='granted'}catch(e){}}
+ if(BDIR&&!BDIR_OK&&ask){try{BDIR_OK=(await permReq(BDIR))==='granted'}catch(e){}}
  if(!BDIR_OK){if(!ask)return null;
   if(!confirm("Choisissez le dossier « gestion d'ecole » sur OneDrive (celui qui contient EAenJC_donnees.json).\n\nLes documents seront rangés dans son sous-dossier « documents ». (Ce même dossier sert aussi aux sauvegardes automatiques.)"))return null;
   try{const h=await window.showDirectoryPicker({id:'eaenjc-backup',mode:'readwrite'});if(!(await bdirOk(h)))return null;BDIR=h;BDIR_OK=true;await idbSet('bdir',BDIR)}catch(e){return null}}
