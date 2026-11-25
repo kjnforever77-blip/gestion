@@ -225,7 +225,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='95 (25/11/2026)';
+const APP_VERSION='96 (25/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -888,7 +888,7 @@ function openFiche(eid){
  <div style="overflow:auto"><table class="data"><thead><tr><th>Année</th><th>Inscrit le</th><th>Classe</th><th>Type</th><th class="num">1ère compo.</th><th class="num">2ème compo.</th><th class="num">3ème compo.</th><th class="num">Moy. annuelle</th><th>Décision</th><th class="num">Dû</th><th class="num">Payé</th></tr></thead><tbody>${rows}</tbody></table></div>
  <div class="actions" style="justify-content:flex-start">
  <button onclick="formEleve('${eid}')">Modifier</button>
- ${cur?`<button onclick="formInscription('${cur.id}')">Inscription ${esc(S().annee)}</button><button onclick="formPaiement('${cur.id}')">Nouveau paiement</button><button onclick="formCertificat('${eid}')">Certificat de scolarité</button><button onclick="formBourse('${eid}')">Demande de bourse</button>`:(e.statut==='Actif'?`<button class="primary" onclick="formInscription(null,'${eid}',suggestClass('${eid}'))">Inscrire en ${esc(S().annee)}</button>`:'')+(arrPending(eid)>0?`<button onclick="payArr('${eid}')">Payer l'arriéré seul</button>`:'')}
+ ${cur?`<button onclick="formInscription('${cur.id}')">Inscription ${esc(S().annee)}</button><button onclick="formPaiement('${cur.id}')">Nouveau paiement</button><button onclick="formCertificat('${eid}')">Certificats…</button><button onclick="formBourse('${eid}')">Demande de bourse</button>`:(e.statut==='Actif'?`<button class="primary" onclick="formInscription(null,'${eid}',suggestClass('${eid}'))">Inscrire en ${esc(S().annee)}</button>`:'')+(arrPending(eid)>0?`<button onclick="payArr('${eid}')">Payer l'arriéré seul</button>`:'')}
  <button onclick="printFiche('${eid}')">Imprimer la fiche</button>
  <button class="danger" onclick="delEleve('${eid}')">Supprimer</button>
  <span style="flex:1"></span><button onclick="closeModal()">Fermer</button></div>`,true);
@@ -1393,23 +1393,39 @@ function recuHTML(p){
  <div class="sign"><div>Le Parent</div><div>Reçu par : ${esc(p.par||S().caissier||'..................................')}<br><span style="font-size:11px">(signature et cachet de l'école)</span></div></div>${S().piedRecu?`<div class="c" style="font-size:${dense?13:15}px;line-height:1.3;margin-top:2mm"><i>${esc(S().piedRecu)}</i></div>`:''}</div>`;
  return `<div class="pg recu-page"><div class="recu-wrap"><div class="recu-half">${one('Copie PARENTS')}</div><div class="recu-cut">✂ ${'- '.repeat(70)}✂</div><div class="recu-half">${one('Copie ÉCOLE')}</div></div></div>`;
 }
-function certificatHTML(eid,num){
- const e=elv(eid),i=inscOf(eid);if(!i)return '';const c=cls(i.classeId),sc=ecoleOf(c),f=e.sexe==='F',lg=logoSrc();
- const dir=sc.directeur||'',mat=c.ecole==='maternelle',ceb=sc.ceb||"Circonscription d'Éducation de Base de Bobo 2";
+const CERT_KINDS=[['af','Certificat de scolarité — allocations familiales (CNSS)'],['tr','Certificat de scolarité (2) — changement d\'école'],['rad','Certificat de radiation (Exeat) — départ de l\'élève']];
+function certAuto(eid){const e=elv(eid),i=inscOf(eid),c=i?cls(i.classeId):null;if(!c)return {};
  const all=DB.inscriptions.filter(x=>x.eleveId===eid&&!x.arrOnly).sort((a,b)=>a.annee.localeCompare(b.annee));
- const depuis=e.dateEntree||(all.map(x=>x.date).filter(Boolean).sort()[0])||'';
- const seen={},red=[];all.forEach(x=>{const n=cls(x.classeId)?.niveau;if(!n)return;if(seen[n]&&!red.includes(n))red.push(n);seen[n]=1});
- const dt='....................................';
+ const cnt={};all.forEach(x=>{const n=cls(x.classeId)?.niveau;if(n)cnt[n]=(cnt[n]||0)+1});
+ const red=Object.keys(cnt).filter(n=>cnt[n]>1),extra=Object.values(cnt).reduce((s,v)=>s+Math.max(0,v-1),0);
+ const L=c.ecole==='maternelle'?NIV_MAT:NIV_PRI,ix=L.indexOf(c.niveau);
+ const nx=NEXT[c.niveau];const passage=i.decision==='Redouble'?`redoubler le ${c.niveau}`:i.decision==='Admis(e)'?(nx?`passer en classe supérieure (${nx})`:'fin de cycle'):'';
+ return {all,red,scol:ix>=0?String(ix+1+extra):'',passage,motif:e.motifDepart||'',dateSortie:e.dateSortie||'',dest:e.ecoleDest||'',depuis:e.dateEntree||(all.map(x=>x.date).filter(Boolean).sort()[0])||''};
+}
+function certificatHTML(eid,num,kind,o){
+ kind=kind||'af';const e=elv(eid),i=inscOf(eid);if(!i)return '';const c=cls(i.classeId),sc=ecoleOf(c),f=e.sexe==='F',lg=logoSrc();
+ const A=Object.assign(certAuto(eid),o||{}),dir=sc.directeur||'',mat=c.ecole==='maternelle',ceb=sc.ceb||"Circonscription d'Éducation de Base de Bobo 2";
+ const dt='....................................',V=x=>x?`<b>${esc(x)}</b>`:dt;
+ const T={af:['CERTIFICAT DE SCOLARITÉ',''],tr:['CERTIFICAT DE SCOLARITÉ (2)','en vue d\'un changement d\'école'],rad:['CERTIFICAT DE RADIATION','(Exeat)']}[kind];
+ const R=(l,v)=>`<tr><td style="width:66mm">${l}</td><td>: ${v}</td></tr>`;
+ let rows=R('Nom et prénoms',`<b>${esc(fullName(e))}</b>`)+R(f?'Née le':'Né le',`${fmtDate(e.dateNaiss)||'....................'} à ${esc(e.lieuNaiss||'....................')}`)+R(f?'Fille de':'Fils de',V(e.pere))+R('Et de',V(e.mere))+R('Matricule',esc(e.matricule));
+ let intro=`Je soussigné(e), <b>${esc(dir||'........................................................')}</b>, Directeur / Directrice de l'<b>${esc(sc.nom)}</b>, certifie que l'élève :`,after='',fin='En foi de quoi, le présent certificat lui est délivré pour servir et valoir ce que de droit.';
+ if(kind==='af'){rows+=R('Classe fréquentée',`<b>${esc(c.nom)}</b>`)+R(`${f?'Inscrite':'Inscrit'} depuis le`,A.depuis?fmtDate(A.depuis):dt);
+  after=`est régulièrement ${f?'inscrite':'inscrit'} dans notre établissement et fréquente les cours pour l'année scolaire <b>${esc(i.annee)}</b>.`;
+  fin='En foi de quoi, le présent certificat lui est délivré pour servir et valoir ce que de droit, notamment pour la constitution du dossier d\'allocations familiales.'}
+ if(kind==='tr'){rows+=R('Fréquente l\'école depuis le',A.depuis?fmtDate(A.depuis):dt)+R('Élève de la classe du',`<b>${esc(c.nom)}</b>`)+R('À la rentrée, doit',V(A.passage))+R('Classe(s) déjà redoublée(s)',A.red&&A.red.length?esc(A.red.join(', ')):'néant')+R('Scolarité totale',A.scol?`${esc(A.scol)} an${+A.scol>1?'s':''}`:dt)+R('Appréciation / motif du départ',V(A.motif));}
+ if(kind==='rad'){rows+=R(`${f?'Inscrite':'Inscrit'} depuis le`,A.depuis?fmtDate(A.depuis):dt)+R('Dernière classe fréquentée',`<b>${esc(c.nom)}</b> (${esc(i.annee)})`)+R('Classe(s) redoublée(s)',A.red&&A.red.length?esc(A.red.join(', ')):'néant')+R('Date du départ',A.dateSortie?`<b>${fmtDate(A.dateSortie)}</b>`:dt)+R('Motif du départ',V(A.motif))+R('École de destination',V(A.dest));
+  after=`a quitté notre établissement et ${f?'a été radiée':'a été radié'} de ses registres à la date indiquée ci-dessus.`}
  return `<div class="pg" style="font-size:15.5px;line-height:1.5">
  <div style="display:flex;justify-content:space-between;gap:8mm;font-size:12.5px;text-transform:uppercase;line-height:1.35;margin-bottom:5mm"><div style="text-align:center">${esc(ceb)}<br>***********</div><div style="text-align:center">Burkina Faso<br><span style="text-transform:none"><i>La Patrie ou la Mort, nous Vaincrons</i></span></div></div>
- <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:10px">${lg?`<img src="${lg}" alt="" style="height:24mm;width:auto"><br>`:''}<b style="font-size:21px">${esc(sc.nom)}</b>${sc.devise?`<br><i>${esc(sc.devise)}</i>`:''}<br><span style="font-size:12px">${[sc.arrete,sc.adresse,sc.tel?'Tél. : '+sc.tel:''].filter(Boolean).map(esc).join(' · ')}</span></div>
- <div style="display:flex;justify-content:space-between;margin-top:14px;font-size:13px"><span>N° ${esc(num||'........')}/${esc(c.ecole==='maternelle'?'EMP':'EPP')}-EAenJC/${esc(anneeCourte(i.annee))}</span><span>Année scolaire ${esc(i.annee)}</span></div>
- <div style="text-align:center;margin:22px 0 18px"><span style="display:inline-block;border:2px solid #000;padding:10px 28px;font-size:24px;font-weight:bold;letter-spacing:2px">CERTIFICAT DE SCOLARITÉ</span></div>
- <p style="line-height:1.9;text-align:justify;margin:0 6mm">Je soussigné(e), <b>${esc(dir||'........................................................')}</b>, Directeur / Directrice de l'<b>${esc(sc.nom)}</b>, certifie que l'élève :</p>
- <table class="info" style="margin:10px 14mm 10px;width:auto;font-size:15.5px;line-height:1.8"><tr><td style="width:62mm">Nom et prénoms</td><td>: <b>${esc(fullName(e))}</b></td></tr><tr><td>${f?'Née':'Né'} le</td><td>: ${fmtDate(e.dateNaiss)||'....................'} à ${esc(e.lieuNaiss||'....................')}</td></tr><tr><td>${f?'Fille':'Fils'} de</td><td>: ${e.pere?`<b>${esc(e.pere)}</b>`:dt}</td></tr><tr><td>Et de</td><td>: ${e.mere?`<b>${esc(e.mere)}</b>`:dt}</td></tr><tr><td>Matricule</td><td>: ${esc(e.matricule)}</td></tr><tr><td>Classe fréquentée</td><td>: <b>${esc(c.nom)}</b></td></tr><tr><td>Inscrit${f?'e':''} depuis le</td><td>: ${depuis?fmtDate(depuis):dt}</td></tr><tr><td>Classe(s) redoublée(s)</td><td>: ${red.length?esc(red.join(', ')):'néant'}</td></tr></table>
- <p style="line-height:1.9;text-align:justify;margin:0 6mm">est régulièrement ${f?'inscrite':'inscrit'} dans notre établissement pour l'année scolaire <b>${esc(i.annee)}</b>.</p>
- <p style="line-height:2.2;margin:10px 6mm 0">En foi de quoi, le présent certificat lui est délivré pour servir et valoir ce que de droit.</p>
- <div style="display:flex;justify-content:flex-end;margin-top:22px"><div style="text-align:center;min-width:80mm">Fait à ${esc(S().ville||'')}, le ${fmtDate(today())}<br><br><b>Le Directeur / La Directrice</b><br><span style="font-size:12px">(signature et cachet)</span><div style="height:24mm"></div>${dir?`<b>${esc(dir)}</b>`:''}</div></div>
+ <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:10px">${lg?`<img src="${lg}" alt="" style="height:22mm;width:auto"><br>`:''}<b style="font-size:21px">${esc(sc.nom)}</b>${sc.devise?`<br><i>${esc(sc.devise)}</i>`:''}<br><span style="font-size:12px">${[sc.arrete,sc.adresse,sc.tel?'Tél. : '+sc.tel:''].filter(Boolean).map(esc).join(' · ')}</span></div>
+ <div style="display:flex;justify-content:space-between;margin-top:12px;font-size:13px"><span>N° ${esc(num||'........')}/${mat?'EMP':'EPP'}-EAenJC/${esc(anneeCourte(i.annee))}</span><span>Année scolaire ${esc(i.annee)}</span></div>
+ <div style="text-align:center;margin:18px 0 14px"><span style="display:inline-block;border:2px solid #000;padding:8px 26px;font-size:23px;font-weight:bold;letter-spacing:2px">${T[0]}</span>${T[1]?`<div style="margin-top:4px"><i>${esc(T[1])}</i></div>`:''}</div>
+ <p style="line-height:1.8;text-align:justify;margin:0 6mm">${intro}</p>
+ <table class="info" style="margin:8px 14mm 8px;width:auto;font-size:15px;line-height:${kind==='af'?1.7:1.45}">${rows}</table>
+ ${after?`<p style="line-height:1.8;text-align:justify;margin:0 6mm">${after}</p>`:''}
+ <p style="line-height:1.8;margin:8px 6mm 0">${fin}</p>
+ <div style="display:flex;justify-content:flex-end;margin-top:12px"><div style="text-align:center;min-width:80mm">Fait à ${esc(S().ville||'Bobo-Dioulasso')}, le ${fmtDate(today())}<br><b>Le Directeur / La Directrice</b><br><span style="font-size:12px">(signature et cachet)</span><div style="height:22mm"></div>${dir?`<b>${esc(dir)}</b>`:''}</div></div>
  </div>`;
 }
 
@@ -1443,16 +1459,22 @@ function formBourse(eid){
  <div class="actions"><button onclick="closeModal()">Fermer</button></div>`);
 }
 
-function formCertificat(eid){
- const list=yearInscs().map(i=>{const e=elv(i.eleveId);return [e.id,fullName(e)+' — '+(cls(i.classeId)?.nom||'')+' — '+e.matricule,e.matricule]}).sort((a,b)=>a[1].localeCompare(b[1],'fr'));
- const sel=eid?`<input type="hidden" id="cert_e" value="${eid}"><div class="field"><label>Élève</label><b style="padding:6px 0">${esc(fullName(elv(eid)))}</b></div>`:pickerHTML('cert_e','Élève inscrit(e) en '+esc(S().annee)+' (nom ou numéro)',list,'certPreview');
- modal(`<h3>Certificat de scolarité</h3><div class="form-grid">${sel}${F('Numéro du certificat (facultatif)','cert_n','','text','oninput="certPreview()" placeholder="ex. 012"')}</div>
- <div id="cert_pv" style="margin-top:12px;background:#eef0f3;border-radius:8px;padding:12px;max-height:62vh;overflow:auto"></div>
+function formCertificat(eid,kind){
+ const list=yearInscs(null,true).map(i=>{const e=elv(i.eleveId);return [e.id,fullName(e)+' — '+(cls(i.classeId)?.nom||'')+' — '+e.matricule+(i.depart?' (parti)':''),e.matricule]}).sort((a,b)=>a[1].localeCompare(b[1],'fr'));
+ const sel=eid?`<input type="hidden" id="cert_e" value="${eid}"><div class="field"><label>Élève</label><b style="padding:6px 0">${esc(fullName(elv(eid)))}</b></div>`:pickerHTML('cert_e','Élève inscrit(e) en '+esc(S().annee)+' (nom ou numéro)',list,'certFill');
+ modal(`<h3>Certificats</h3><div class="form-grid">${FS('Document','cert_k',opts(CERT_KINDS,kind||'af'),'onchange="certFill()"')}${sel}${F('Numéro du certificat (facultatif)','cert_n','','text','oninput="certPreview()" placeholder="ex. 012"')}</div>
+ <div id="cert_x" class="form-grid" style="margin-top:8px"></div>
+ <div id="cert_pv" style="margin-top:12px;background:#eef0f3;border-radius:8px;padding:12px;max-height:56vh;overflow:auto"></div>
  <div class="actions"><button onclick="closeModal()">Fermer</button><button class="primary" onclick="printCert()">🖨 Imprimer</button></div>`,true);
- certPreview();
+ certFill();
 }
-function certPreview(){const box=document.getElementById('cert_pv');if(!box)return;const e=fval('cert_e');box.innerHTML=e?`<div class="pv" style="zoom:.7">${certificatHTML(e,fval('cert_n'))}</div>`:'<div class="muted" style="padding:30px;text-align:center">Choisissez un élève : l\'aperçu du certificat s\'affiche ici.</div>'}
-function printCert(){const e=fval('cert_e');if(!e){alert('Choisissez un élève.');return}const h=certificatHTML(e,fval('cert_n'));logJ('Certificat de scolarité',fullName(elv(e)));save();closeModal();_pv=h;printNow()}
+function certFill(){const box=document.getElementById('cert_x');if(!box)return;const k=fval('cert_k'),e=fval('cert_e');const A=e?certAuto(e):{};const inp=(l,id,v,t)=>F(l,id,v||'',t||'text','oninput="certPreview()"');
+ box.innerHTML=k==='tr'?inp('À la rentrée, doit (passer en… / redoubler…)','cx_pa',A.passage)+inp('Scolarité totale (années)','cx_sc',A.scol,'number')+inp('Appréciation / motif du départ','cx_mo',A.motif)
+  :k==='rad'?inp('Date du départ','cx_ds',A.dateSortie||today(),'date')+inp('Motif du départ','cx_mo',A.motif)+inp('École de destination','cx_de',A.dest):'';
+ certPreview()}
+function certOpts(){const k=fval('cert_k'),o={};if(k==='tr'){o.passage=fval('cx_pa');o.scol=fval('cx_sc');o.motif=fval('cx_mo')}if(k==='rad'){o.dateSortie=fval('cx_ds');o.motif=fval('cx_mo');o.dest=fval('cx_de')}return o}
+function certPreview(){const box=document.getElementById('cert_pv');if(!box)return;const e=fval('cert_e');box.innerHTML=e?`<div class="pv" style="zoom:.7">${certificatHTML(e,fval('cert_n'),fval('cert_k'),certOpts())}</div>`:'<div class="muted" style="padding:30px;text-align:center">Choisissez un élève : l\'aperçu s\'affiche ici.</div>'}
+function printCert(){const e=fval('cert_e');if(!e){alert('Choisissez un élève.');return}const k=fval('cert_k'),h=certificatHTML(e,fval('cert_n'),k,certOpts());logJ((CERT_KINDS.find(x=>x[0]===k)||[])[1]||'Certificat',fullName(elv(e)));save();closeModal();_pv=h;printNow()}
 
 /* moyennes et rangs d'une inscription (primaire) : [T1,T2,T3,Année] -> {moy,rang,n} */
 function gradesOf(i){const c=cls(i.classeId);if(!c||c.ecole!=='primaire'||i.arrOnly)return null;
@@ -1679,7 +1701,7 @@ function vRapports(){
  if(!cls(UI.f.rcl))UI.f.rcl=sortedClasses()[0]?.id;
  const A=`${isAdmin()?'':' 🔒'}`;
  return `<h1>Listes &amp; impressions</h1><p class="muted" style="margin-top:-6px">Documents officiels et rapports. Les listes (classes, registre, impayés, dépenses) s'impriment avec le bouton 🖨 en haut de chaque écran. Tous les documents s'impriment en A4, noir et blanc ; dans la fenêtre d'impression, « Enregistrer au format PDF » donne un PDF.</p>
- ${rGroup('users','Élèves',false,`<div class="card"><div class="row" style="align-items:center"><button onclick="formCertificat()">Certificat de scolarité…</button><button onclick="formBourse()">Demande de bourse (formulaire)…</button><span class="muted">Pour un élève inscrit cette année (ou formulaire vierge).</span></div></div>
+ ${rGroup('users','Élèves',false,`<div class="card"><div class="row" style="align-items:center"><button onclick="formCertificat()">Certificats (scolarité, radiation)…</button><button onclick="formBourse()">Demande de bourse (formulaire)…</button><span class="muted">Pour un élève inscrit cette année (ou formulaire vierge).</span></div></div>
  <div class="card"><h3 style="margin:0 0 10px;font-size:15px">Inscriptions par période</h3><div class="row">${FS('École','ip_ec',opts([['','Les deux écoles'],['primaire','Primaire'],['maternelle','Maternelle']],UI.f.ipec||''),'onchange="UI.f.ipec=this.value"')}${F('Du','ip_d1',UI.f.ipd1||today().slice(0,8)+'01','date','onchange="UI.f.ipd1=this.value"')}${F('Au','ip_d2',UI.f.ipd2||today(),'date','onchange="UI.f.ipd2=this.value"')}<div class="field"><label>Raccourci</label><select onchange="inscPreset(this.value);this.value=''"><option value="">— choisir —</option><option value="j">Aujourd'hui</option><option value="s">Cette semaine</option><option value="m">Ce mois</option><option value="a">Toute l'année ${esc(S().annee)}</option></select></div><button onclick="const a=fval('ip_ec'),b=fval('ip_d1'),c=fval('ip_d2');if(!b||!c||b>c){alert('Choisissez une période valide.');return}printDoc(inscPeriodeHTML(b,c,a))">Imprimer</button><button onclick="const a=fval('ip_ec'),b=fval('ip_d1'),c=fval('ip_d2');if(!b||!c||b>c){alert('Choisissez une période valide.');return}inscPeriodeXLSX(b,c,a)">Excel</button></div><p class="muted" style="margin-bottom:0">Liste des élèves inscrits pendant la période (date d'inscription), nouveaux et anciens, avec le total par classe. Sans montants.</p></div>`)}
  ${rGroup('pen','Notes',false,`<div class="card"><h3 style="margin:0 0 10px;font-size:15px">Notes d'une classe</h3><div class="row">${FS('Classe','r_cl',classOpts(UI.f.rcl),'onchange="UI.f.rcl=this.value"')}${FS('Période (notes)','r_t',opts([...TRIMS.map(t=>[t,TLABEL[t]]),['AN','Résultats annuels']],UI.f.rt||'T1'),'onchange="UI.f.rt=this.value"')}</div><div class="row" style="margin-top:8px"><button onclick="printDoc(grilleHTML(fval('r_cl'),fval('r_t')))">Grille de notes vierge (pour l'enseignant)</button><button onclick="const a=fval('r_cl'),b=fval('r_t');checkMissing([a],b,()=>printDoc(classementHTML(a,b)))">Tableau des résultats / classement</button></div><p class="muted" style="margin-bottom:0">Les bulletins s'impriment depuis le menu « Bulletins ».</p></div>`)}
  ${rGroup('coin','Argent — Direction',true,`<div class="card"><h3 style="margin:0 0 10px;font-size:15px">Boursiers</h3><div class="row"><button onclick="requirePin(()=>printDoc(boursiersHTML()),'imprimer la liste des boursiers')">Liste des boursiers${A}</button><button onclick="requirePin(()=>boursiersXLSX(),'exporter les boursiers')">Boursiers en Excel${A}</button></div><p class="muted" style="margin-bottom:0">${yearInscs().filter(i=>elv(i.eleveId)?.boursier).length} boursier(s) inscrit(s) en ${esc(S().annee)}.</p></div>
