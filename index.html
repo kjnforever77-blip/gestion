@@ -230,7 +230,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='115 (25/11/2026)';
+const APP_VERSION='116 (26/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -529,8 +529,45 @@ function render(){
  if(ARCH())document.querySelectorAll('.grid-notes input,.grid-notes select,#main select[onchange*="decision"]').forEach(x=>x.disabled=true);
  fileGate();
 }
+/* Copies en conflit OneDrive (ex. « EAenJC_donnees-DESKTOP-XXX.json ») : quand un autre ordinateur
+   enregistre avec un fichier pas à jour, OneDrive garde sa version à côté. On les signale et on propose
+   d'ajouter ce qui manque (paiements, dépenses, élèves…) sans rien écraser. */
+let CONFLICT_FILES=[];
+async function conflictScan(){if(!BDIR||!BDIR_OK)return;const L=[];
+ try{for await(const [n,h] of BDIR.entries()){if(h.kind==='file'&&/^EAenJC_donnees.+\.json$/i.test(n)&&n!=='EAenJC_donnees.json')L.push(n)}}catch(e){return}
+ const ch=L.join('|')!==CONFLICT_FILES.join('|');CONFLICT_FILES=L.sort();if(ch)render()}
+function conflictBanner(){if(!CONFLICT_FILES.length)return '';
+ return `<div class="banner" style="border:2px solid #c0392b;background:#fff4f2">⚠ <b>OneDrive a gardé une copie en conflit</b> : ${CONFLICT_FILES.map(esc).join(', ')}.<br>
+ Des saisies faites sur un autre ordinateur (paiements, dépenses…) peuvent ne pas apparaître ici. ${isAdmin()?`<button class="small primary" onclick="conflictReview(0)">Examiner et ajouter ce qui manque</button>`:'<b>Prévenez la direction.</b>'}</div>`}
+const CF_LISTS=['eleves','inscriptions','paiements','depenses','apeRemises','classes','hist'];
+function cfDiff(X){const add={};CF_LISTS.forEach(k=>{if(!Array.isArray(X[k]))return;const ids=new Set((DB[k]||[]).map(x=>x.id));const n=X[k].filter(x=>x&&x.id&&!ids.has(x.id));if(n.length)add[k]=n});
+ const jk=new Set((DB.journal||[]).map(j=>j.t+'|'+j.d));add.journal=(X.journal||[]).filter(j=>!jk.has(j.t+'|'+j.d));return add}
+let CF_CUR=null;
+async function conflictReview(k){const name=CONFLICT_FILES[k];if(!name)return;let X;
+ try{X=JSON.parse(await (await (await BDIR.getFileHandle(name)).getFile()).text())}catch(e){alert('Lecture impossible : '+(e.message||e));return}
+ const A=cfDiff(X);CF_CUR={name,X,A};const ins=id=>DB.inscriptions.find(i=>i.id===id)||(A.inscriptions||[]).find(i=>i.id===id);
+ const nm=i=>{const e=i&&(elv(i.eleveId)||(A.eleves||[]).find(x=>x.id===i.eleveId));return e?fullName(e):'?'};
+ const rows=[];(A.paiements||[]).forEach(p=>rows.push(`<tr><td>Paiement</td><td>${esc(p.recu||'')}</td><td>${fmtDate(p.date)}</td><td>${esc(nm(ins(p.inscriptionId)))}</td><td style="text-align:right">${fcfa(p.montant)}</td></tr>`));
+ (A.depenses||[]).forEach(x=>rows.push(`<tr><td>Dépense</td><td>${esc(String(x.recu??''))}</td><td>${fmtDate(x.date)}</td><td>${esc(x.desc||'')}</td><td style="text-align:right">${fcfa(x.montant||0)}</td></tr>`));
+ (A.eleves||[]).forEach(e=>rows.push(`<tr><td>Élève</td><td>${esc(e.matricule)}</td><td></td><td>${esc(fullName(e))}</td><td></td></tr>`));
+ (A.inscriptions||[]).forEach(i=>rows.push(`<tr><td>Inscription</td><td></td><td>${esc(i.annee||'')}</td><td>${esc(nm(i))}</td><td></td></tr>`));
+ (A.apeRemises||[]).forEach(x=>rows.push(`<tr><td>Remise APE</td><td></td><td>${esc(x.date||'')}</td><td></td><td style="text-align:right">${fcfa(x.montant||0)}</td></tr>`));
+ const by=X.meta?`${esc(X.meta.by||'?')}, ${X.meta.at?new Date(X.meta.at).toLocaleString('fr-FR'):''}`:'';
+ modal(`<h3 style="margin-top:0">Copie en conflit : ${esc(name)}</h3><p class="muted">Enregistrée par ${by}. Seuls les éléments <b>absents</b> d'ici sont proposés ; rien de ce qui existe déjà n'est modifié.</p>
+ ${rows.length?`<table class="data"><thead><tr><th>Type</th><th>N°</th><th>Date</th><th>Élève / objet</th><th style="text-align:right">Montant</th></tr></thead><tbody>${rows.join('')}</tbody></table>`:'<p><b>Rien ne manque</b> : tout ce que contient cette copie est déjà ici.</p>'}
+ <p class="muted" style="margin-top:10px">Après l'opération, la copie est rangée dans « sauvegardes » (elle n'est pas perdue).</p>
+ <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button onclick="closeModal()">Plus tard</button>${rows.length?`<button class="primary" onclick="conflictMerge()">Ajouter ces ${rows.length} élément(s) et ranger la copie</button>`:`<button class="primary" onclick="conflictMerge()">Ranger la copie</button>`}</div>`,true)}
+async function conflictMerge(){const C=CF_CUR;if(!C)return;const {name,X,A}=C;let n=0;
+ CF_LISTS.forEach(k=>{if(A[k]&&A[k].length){DB[k]=DB[k]||[];DB[k].push(...A[k]);if(k!=='hist')n+=A[k].length}});
+ if(A.journal.length){DB.journal.push(...A.journal);DB.journal.sort((a,b)=>a.t<b.t?-1:1)}
+ const s=S(),xs=X.settings||{};Object.keys(xs).filter(k=>/^cpt/.test(k)).forEach(k=>{const a=s[k],b=xs[k];
+  if(typeof b==='number')s[k]=Math.max(+a||0,b);else if(b&&typeof b==='object'){s[k]=s[k]||{};Object.keys(b).forEach(q=>{if(typeof b[q]==='number')s[k][q]=Math.max(+s[k][q]||0,b[q])})}});
+ logJ('Données',`Copie en conflit « ${name} » : ${n} élément(s) ajouté(s)`);save();
+ try{const sub=await BDIR.getDirectoryHandle('sauvegardes',{create:true});const fh=await sub.getFileHandle('conflit_'+today()+'_'+name,{create:true});const w=await fh.createWritable();await w.write(JSON.stringify(X));await w.close();await BDIR.removeEntry(name)}
+ catch(e){alert("Les éléments ont été ajoutés, mais la copie n'a pas pu être rangée ("+(e.message||e)+"). Déplacez-la vous-même dans « sauvegardes ».")}
+ CF_CUR=null;closeModal();toast(n?n+' élément(s) ajouté(s)':'Copie rangée');CONFLICT_FILES=CONFLICT_FILES.filter(x=>x!==name);render();conflictScan()}
 function backupBanner(){
- let html=syncBanner();
+ let html=syncBanner()+conflictBanner();
  if(!STORAGE_OK)html+=`<div class="banner"><b>Enregistrement automatique indisponible</b> dans ce navigateur. Téléchargez une sauvegarde après chaque séance de travail, et restaurez-la la fois suivante.</div>`;
  const lb=S().lastBackup,days=lb?Math.floor((Date.now()-new Date(lb))/864e5):null;
  if(DB.eleves.length&&FSTATE!=='ok'&&(days===null||days>=7))html+=`<div class="banner">${days===null?"Aucune sauvegarde n'a encore été téléchargée.":`Dernière sauvegarde il y a ${days} jours.`} Les données sont gardées dans ce navigateur : gardez aussi une copie sur clé USB. <button class="small" onclick="downloadBackup()">Télécharger maintenant</button></div>`;
@@ -2132,7 +2169,7 @@ function modal(html,wide){closeModal();const d=document.createElement('div');d.c
 function closeModal(){const m=document.getElementById('mbg');if(m)m.remove()}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(document.getElementById('pvbg'))closePv();else closeModal()}});
 
-render();initFile();photoInit();bkInit().then(()=>setTimeout(()=>autoBackup(),8000));setInterval(()=>autoBackup(),30*60*1000);
+render();initFile();photoInit();bkInit().then(()=>{setTimeout(()=>autoBackup(),8000);conflictScan()});setInterval(conflictScan,60000);setInterval(()=>autoBackup(),30*60*1000);
 if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){navigator.serviceWorker.register('sw.js').catch(()=>{});navigator.serviceWorker.addEventListener('message',ev=>{if(ev.data!=='eaenjc-update'||document.getElementById('updbar'))return;const d=document.createElement('div');d.id='updbar';d.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:99;background:#1f2937;color:#fff;padding:10px 14px;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.25);display:flex;gap:10px;align-items:center';d.innerHTML='Une nouvelle version du programme est disponible. <button class="small primary" onclick="location.reload()">Recharger</button>';document.body.appendChild(d)});let _rl=false;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(_rl)return;_rl=true;if(!SYNC.dirty&&!document.getElementById('mbg'))location.reload();else toast('Nouvelle version installée : elle sera utilisée au prochain démarrage.')})}
 </script>
 </body>
