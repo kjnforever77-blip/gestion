@@ -230,7 +230,7 @@ let STORAGE_OK=true;
 function load(){try{const s=localStorage.getItem(KEY);if(s)return migrate(JSON.parse(s))}catch(e){STORAGE_OK=false}return defaultDB()}
 let DB=load();
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB));STORAGE_OK=true}catch(e){STORAGE_OK=false;toast("Attention : enregistrement impossible dans ce navigateur. Téléchargez une sauvegarde.")}}
-const APP_VERSION='117 (26/11/2026)';
+const APP_VERSION='118 (26/11/2026)';
 let TRY=false,TRY_REAL=null;
 function save(){if(TRY)return;saveLocal();if(FH){SYNC.dirty=true;saveSync();clearTimeout(SYNC.timer);SYNC.timer=setTimeout(writeFile,700);renderSync()}}
 
@@ -609,7 +609,7 @@ async function b2Connect(){
   let bad=false;try{await h.getFileHandle('EAenJC_donnees.json');bad=true}catch(e){}
   if(bad){alert("Ce dossier contient un fichier EAenJC_donnees.json : choisissez un dossier vide réservé aux sauvegardes.");return}
   if(BDIR&&(await h.isSameEntry(BDIR))){alert("C'est le dossier des données : choisissez un dossier en dehors de OneDrive.");return}
-  B2DIR=h;B2_OK=true;await idbSet('b2dir',h);await b2Backup(true);render()}catch(e){}}
+  B2DIR=h;B2_OK=true;await idbSet('b2dir',h);await b2Backup(true);render()}catch(e){if(e&&e.name!=='AbortError')alert('Le dossier n\'a pas pu être choisi : '+(e.name||'')+' — '+(e.message||e))}}
 async function b2Auth(){try{B2_OK=(await permReq(B2DIR))==='granted'}catch(e){}if(B2_OK)await b2Backup();render()}
 async function b2Forget(){if(!confirm('Arrêter la deuxième sauvegarde sur cet ordinateur ? (Les copies déjà faites restent dans le dossier.)'))return;B2DIR=null;B2_OK=false;await idbSet('b2dir',null);try{localStorage.removeItem('eaenjc_b2last')}catch(e){}render()}
 async function b2Backup(force){
